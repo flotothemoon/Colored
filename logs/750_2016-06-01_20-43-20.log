@@ -1,0 +1,84 @@
+ -- General -- 
+Generated on: 2016-06-01_20-43-20
+Build: 750 from 09:42 PM - 31/05/16
+GameState: MAP_EDITOR (previous: MAP_EDITOR_MENU)
+Target FPS: 60
+Actual FPS: 60
+
+ -- Display -- 
+Target Width / Height: 1920 / 1080
+Actual Width / Height: 1920 / 1017 (windowed)
+
+ -- Environment -- 
+GPU: GeForce GTX 980 Ti/PCIe/SSE2 (NVIDIA Corporation)
+OpenGL Version: 4.5.0 NVIDIA 361.43
+Allocated Memory: 123MB
+Used Memory: 41MB
+"os.name": Windows 10
+"os.version": 10.0
+"os.arch": x86
+"java.version": 1.8.0_66
+"java.vendor": Oracle Corporation
+"sun.arch.data.model": 32
+
+ -- Level --
+ID: templates (internal: unknown)
+LevelType: NORMAL
+Dimension: COLORED
+Location: ../worlds/maps/templates
+
+ -- Stack Trace -- 
+java.lang.RuntimeException: Wrapper template for player_death_bg is missing, fatal error.
+com.unlogical.colored.particle.EmitterType.readFromTemplate(EmitterType.java:244)
+com.unlogical.colored.particle.EmitterType.reloadAllTemplates(EmitterType.java:302)
+com.unlogical.colored.gui.panel.ParticleEmitterPanel.customUpdate(ParticleEmitterPanel.java:1444)
+com.unlogical.colored.gui.panel.GUIPanel.update(GUIPanel.java:90)
+com.unlogical.colored.mapeditor.MapEditor.update(MapEditor.java:1618)
+com.unlogical.colored.GameLauncher.update(GameLauncher.java:392)
+com.unlogical.colored.GameLauncher.render(GameLauncher.java:458)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication.mainLoop(LwjglApplication.java:218)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication$1.run(LwjglApplication.java:123)
+
+ -- Last 20 Log Entries -- 
+@Log    : Fetching lights for level "templates" ... (tid: 11)
+@Log    : Lights fetched for level "templates", 0 lights found. (tid: 11)
+@Warning: Unable to load music "unknown": java.lang.RuntimeException: Main music for "unknown_colored" not found (tid: 11)
+@Warning: Unable to play music "unknown". (tid: 11)
+@Log    : Loaded map Templates (templates, ../worlds/maps/templates), took 39ms. (tid: 11)
+@Log    : Clicked "Add Particle Emitter" and called its onClick(). (tid: 11)
+@Log    : Play sound MENU_CLICK at volume 0.0, pitch 1.0 and pan 0.0 (once). (tid: 11)
+@Log    : Clicked "Cancel" and called its onClick(). (tid: 11)
+@Log    : Play sound MENU_CLICK at volume 0.0, pitch 1.0 and pan 0.0 (once). (tid: 11)
+@Log    : Clicked "Save" and called its onClick(). (tid: 11)
+@Log    : Play sound MENU_CLICK at volume 0.0, pitch 1.0 and pan 0.0 (once). (tid: 11)
+@Log    : Clicked "Reload" and called its onClick(). (tid: 11)
+@Log    : Play sound MENU_CLICK at volume 0.0, pitch 1.0 and pan 0.0 (once). (tid: 11)
+@Log    : Fetching lights for level "templates" ... (tid: 11)
+@Log    : Lights fetched for level "templates", 0 lights found. (tid: 11)
+@Warning: Unable to load music "unknown": java.lang.RuntimeException: Main music for "unknown_colored" not found (tid: 11)
+@Warning: Unable to play music "unknown". (tid: 11)
+@Log    : Loaded map Templates (templates, ../worlds/maps/templates), took 37ms. (tid: 11)
+@Log    : Saving selected emitter as "player_death" in "res/templates" ... (tid: 11)
+@Log    : Saved selected emitter as "player_death" in "res/templates". (tid: 11)
+
+ -- Last 20 Input Events -- 
+Key up: P (44) (2292ms ago)
+Key down: A (29) (2259ms ago)
+Key down: Y (53) (2225ms ago)
+Key up: A (29) (1798ms ago)
+Key up: R (46) (1775ms ago)
+Key up: E (33) (1742ms ago)
+Key down: L-Shift (59) (1025ms ago)
+Key down: - (69) (942ms ago)
+Key up: L-Shift (59) (859ms ago)
+Key up: - (69) (842ms ago)
+Key down: D (32) (725ms ago)
+Key down: E (33) (642ms ago)
+Key up: D (32) (609ms ago)
+Key down: A (29) (576ms ago)
+Key down: T (48) (492ms ago)
+Key up: E (33) (425ms ago)
+Key up: T (48) (392ms ago)
+Key down: H (36) (309ms ago)
+Key up: H (36) (209ms ago)
+Key down: Enter (66) (9ms ago)

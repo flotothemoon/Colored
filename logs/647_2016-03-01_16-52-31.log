@@ -1,0 +1,115 @@
+ -- General -- 
+Generated on: 2016-03-01_16-52-31
+Build: 647 from 09:39 PM - 28/02/16
+GameState: LOADING (previous: null)
+Target FPS: 60
+Actual FPS: 0
+
+ -- Display -- 
+Target Width / Height: 1920 / 1080
+Actual Width / Height: 1920 / 1053 (windowed)
+
+ -- Environment -- 
+GPU: GeForce GTX 980 Ti/PCIe/SSE2 (NVIDIA Corporation)
+OpenGL Version: 4.5.0 NVIDIA 361.43
+Allocated Memory: 15MB
+Used Memory: 6MB
+"os.name": Windows 10
+"os.version": 10.0
+"os.arch": x86
+"java.version": 1.8.0_66
+"java.vendor": Oracle Corporation
+"sun.arch.data.model": 32
+
+ -- Stack Trace -- 
+java.lang.RuntimeException: Error while loading: java.lang.RuntimeException: Error while loading sounds for MENU_CLICK: com.badlogic.gdx.utils.GdxRuntimeException: Error creating sound com.badlogic.gdx.backends.lwjgl.audio.Wav$Sound for file: [FileHandle: ../res/sounds/clearcage_1.wav]
+com.unlogical.colored.util.LoadingHandler.loadNext(LoadingHandler.java:121)
+com.unlogical.colored.GameLauncher.render(GameLauncher.java:488)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication.mainLoop(LwjglApplication.java:218)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication$1.run(LwjglApplication.java:123)
+Caused by: java.lang.RuntimeException: Error while loading sounds for MENU_CLICK: com.badlogic.gdx.utils.GdxRuntimeException: Error creating sound com.badlogic.gdx.backends.lwjgl.audio.Wav$Sound for file: [FileHandle: ../res/sounds/clearcage_1.wav]
+com.unlogical.colored.sound.SoundManager.load(SoundManager.java:29)
+com.unlogical.colored.util.LoadingHandler.loadNext(LoadingHandler.java:59)
+com.unlogical.colored.GameLauncher.render(GameLauncher.java:488)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication.mainLoop(LwjglApplication.java:218)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication$1.run(LwjglApplication.java:123)
+Caused by: com.badlogic.gdx.utils.GdxRuntimeException: Error creating sound com.badlogic.gdx.backends.lwjgl.audio.Wav$Sound for file: [FileHandle: ../res/sounds/clearcage_1.wav]
+com.badlogic.gdx.backends.lwjgl.audio.OpenALAudio.newSound(OpenALAudio.java:119)
+com.badlogic.gdx.backends.lwjgl.audio.OpenALAudio.newSound(OpenALAudio.java:41)
+com.unlogical.colored.sound.SoundManager$SoundType.load(SoundManager.java:55)
+com.unlogical.colored.sound.SoundManager$SoundType.access$2(SoundManager.java:46)
+com.unlogical.colored.sound.SoundManager.load(SoundManager.java:25)
+com.unlogical.colored.util.LoadingHandler.loadNext(LoadingHandler.java:59)
+com.unlogical.colored.GameLauncher.render(GameLauncher.java:488)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication.mainLoop(LwjglApplication.java:218)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication$1.run(LwjglApplication.java:123)
+Caused by: java.lang.reflect.InvocationTargetException
+sun.reflect.NativeConstructorAccessorImpl.newInstance0(Native Method)
+sun.reflect.NativeConstructorAccessorImpl.newInstance(NativeConstructorAccessorImpl.java:62)
+sun.reflect.DelegatingConstructorAccessorImpl.newInstance(DelegatingConstructorAccessorImpl.java:45)
+java.lang.reflect.Constructor.newInstance(Constructor.java:422)
+com.badlogic.gdx.backends.lwjgl.audio.OpenALAudio.newSound(OpenALAudio.java:117)
+com.badlogic.gdx.backends.lwjgl.audio.OpenALAudio.newSound(OpenALAudio.java:41)
+com.unlogical.colored.sound.SoundManager$SoundType.load(SoundManager.java:55)
+com.unlogical.colored.sound.SoundManager$SoundType.access$2(SoundManager.java:46)
+com.unlogical.colored.sound.SoundManager.load(SoundManager.java:25)
+com.unlogical.colored.util.LoadingHandler.loadNext(LoadingHandler.java:59)
+com.unlogical.colored.GameLauncher.render(GameLauncher.java:488)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication.mainLoop(LwjglApplication.java:218)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication$1.run(LwjglApplication.java:123)
+Caused by: com.badlogic.gdx.utils.GdxRuntimeException: Error reading WAV file: [FileHandle: ../res/sounds/clearcage_1.wav]
+com.badlogic.gdx.backends.lwjgl.audio.Wav$WavInputStream.<init>(Wav.java:109)
+com.badlogic.gdx.backends.lwjgl.audio.Wav$Sound.<init>(Wav.java:63)
+sun.reflect.NativeConstructorAccessorImpl.newInstance0(Native Method)
+sun.reflect.NativeConstructorAccessorImpl.newInstance(NativeConstructorAccessorImpl.java:62)
+sun.reflect.DelegatingConstructorAccessorImpl.newInstance(DelegatingConstructorAccessorImpl.java:45)
+java.lang.reflect.Constructor.newInstance(Constructor.java:422)
+com.badlogic.gdx.backends.lwjgl.audio.OpenALAudio.newSound(OpenALAudio.java:117)
+com.badlogic.gdx.backends.lwjgl.audio.OpenALAudio.newSound(OpenALAudio.java:41)
+com.unlogical.colored.sound.SoundManager$SoundType.load(SoundManager.java:55)
+com.unlogical.colored.sound.SoundManager$SoundType.access$2(SoundManager.java:46)
+com.unlogical.colored.sound.SoundManager.load(SoundManager.java:25)
+com.unlogical.colored.util.LoadingHandler.loadNext(LoadingHandler.java:59)
+com.unlogical.colored.GameLauncher.render(GameLauncher.java:488)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication.mainLoop(LwjglApplication.java:218)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication$1.run(LwjglApplication.java:123)
+Caused by: com.badlogic.gdx.utils.GdxRuntimeException: WAV files must have 16 bits per sample: 24
+com.badlogic.gdx.backends.lwjgl.audio.Wav$WavInputStream.<init>(Wav.java:102)
+com.badlogic.gdx.backends.lwjgl.audio.Wav$Sound.<init>(Wav.java:63)
+sun.reflect.NativeConstructorAccessorImpl.newInstance0(Native Method)
+sun.reflect.NativeConstructorAccessorImpl.newInstance(NativeConstructorAccessorImpl.java:62)
+sun.reflect.DelegatingConstructorAccessorImpl.newInstance(DelegatingConstructorAccessorImpl.java:45)
+java.lang.reflect.Constructor.newInstance(Constructor.java:422)
+com.badlogic.gdx.backends.lwjgl.audio.OpenALAudio.newSound(OpenALAudio.java:117)
+com.badlogic.gdx.backends.lwjgl.audio.OpenALAudio.newSound(OpenALAudio.java:41)
+com.unlogical.colored.sound.SoundManager$SoundType.load(SoundManager.java:55)
+com.unlogical.colored.sound.SoundManager$SoundType.access$2(SoundManager.java:46)
+com.unlogical.colored.sound.SoundManager.load(SoundManager.java:25)
+com.unlogical.colored.util.LoadingHandler.loadNext(LoadingHandler.java:59)
+com.unlogical.colored.GameLauncher.render(GameLauncher.java:488)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication.mainLoop(LwjglApplication.java:218)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication$1.run(LwjglApplication.java:123)
+
+ -- Last 20 Log Entries -- 
+@Log: System.getProperty("os.name"): Windows 10 (8)
+@Log: System.getProperty("os.version"): 10.0 (8)
+@Log: System.getProperty("os.arch"): x86 (8)
+@Log: System.getProperty("java.version"): 1.8.0_66 (8)
+@Log: System.getProperty("java.vendor"): Oracle Corporation (8)
+@Log: System.getProperty("sun.arch.data.model"): 32 (8)
+@Log: ---- GPU Debug Information ---- (8)
+@Log: GPU: GeForce GTX 980 Ti/PCIe/SSE2 (NVIDIA Corporation) (8)
+@Log: OpenGL Version: 4.5.0 NVIDIA 361.43 (8)
+@Log: Build: 647 from 09:39 PM - 28/02/16 (8)
+@Log: Loading settings... (8)
+@Log: Settings loaded. (8)
+@Log: Logos loaded. (8)
+@Log: Loading font "Chelsea.ttf" ... (8)
+@Log: TrueTypeFont loaded, took 174ms. (8)
+@Log: Initializing settings... (8)
+@Log: Initializing key bindings... (8)
+@Log: Calculating transition data... (8)
+@Log: Calculated 1000 factors with offset -0.009009009 and factor 1.0229156. (8)
+@Log: Loading sounds... (8)
+
+ -- Last 0 Input Events -- 

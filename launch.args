@@ -1,0 +1,31 @@
+#Indicate whether or not to run the game in fullscreen mode. Default windowed resolution is 1920x1080.
+fullscreen = no
+
+#If enabled, the game wil continue with the last session. Otherwise it will start at the main menu.
+continuelastsession = yes
+
+#If enabled, the game's clock will be synced to the monitor's refresh rate, typically 60Hz. 
+vsync = yes
+
+#If enabled, editor and debug features will be enabled.
+devmode = yes
+
+# -+- Here begin the options you probably shouldn't change if you aren't sure what they mean or what they will do -+-
+
+#Tells the game if it should attempt to load images from spritesheets or from individual image files. 
+usespritesheets = yes
+
+#Indicate in which levels geometry should NOT be drawn by default, seperated by ";" - or just "all"
+hidegeometry = 20-02;20-03;20-04;21-01;21-02;22-01;22-02;23-01;23-02;23-03
+
+#Indicate whether to lock the game's FPS at 60FPS or not.
+#WARNING: This might cause the game to behave unexpectedly and may break lots of things. 
+lockfps = yes
+
+#The number of samples for MSAA
+#WARNING: May drastically impact performance, change with caution
+numsamples = 0
+
+#The number of blur passes for lighting
+#WARNING: May drastically impact performance, change with caution
+numlightblurs = 1

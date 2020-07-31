@@ -1,0 +1,299 @@
+package com.unlogical.linked.gui.selection;
+
+import org.newdawn.slick.Color;
+import org.newdawn.slick.GameContainer;
+import org.newdawn.slick.Graphics;
+import org.newdawn.slick.Input;
+import org.newdawn.slick.geom.Rectangle;
+
+import com.unlogical.linked.configuration.Resolutions;
+import com.unlogical.linked.gui.GUIItem;
+import com.unlogical.linked.gui.panel.GUIPanel;
+import com.unlogical.linked.util.ColorHelper;
+import com.unlogical.linked.util.Renderer;
+
+public abstract class GUIItemSelection extends GUIPanel
+{
+	private GUIItem[] items;
+	private GUIItem selected;
+
+	private float barHeight;
+	private float barOffset;
+	private float actualOffset;
+
+	private int itemsPerLine;
+	private int itemBoxHeight;
+	private int totalRows;
+
+	private Rectangle moveableScrollbar;
+	private Rectangle scrollbarBorder;
+
+	private boolean scrolling = false;
+	private boolean moveable = true;
+
+	public GUIItemSelection(String title, GUIItem[] items, int itemsPerLine, int itemsPerColumn, int xOffset, int yOffset)
+	{
+		super(title, xOffset, yOffset, (10 * 2 + 50) * itemsPerLine + Resolutions.SELECTION_MENU_SCROLLBAR_WIDTH, (10 * 2 + 50) * itemsPerColumn);
+
+		this.items = items;
+		this.itemsPerLine = itemsPerLine;
+		this.itemBoxHeight = 10 * 2 + 50;
+		this.totalRows = items.length / itemsPerLine;
+
+		if ((items.length % itemsPerLine) != 0)
+		{
+			this.totalRows++;
+		}
+
+		this.height = itemBoxHeight * itemsPerColumn;
+		this.width = itemBoxHeight * itemsPerLine + Resolutions.SELECTION_MENU_SCROLLBAR_WIDTH;
+		this.barHeight = (int) ((((float) itemsPerColumn) / ((float) totalRows)) * (height));
+
+		if (itemsPerColumn > totalRows)
+		{
+			this.barHeight = this.height;
+		}
+
+		this.moveableScrollbar = new Rectangle(xOffset + itemBoxHeight * itemsPerLine, yOffset, Resolutions.SELECTION_MENU_SCROLLBAR_WIDTH, barHeight);
+		this.scrollbarBorder = new Rectangle(moveableScrollbar.getX(), moveableScrollbar.getY(), moveableScrollbar.getWidth(), contentBox.getHeight());
+	}
+
+	@Override
+	public void customUpdate(GameContainer container, int delta)
+	{
+		Input input = container.getInput();
+
+		if (moveableScrollbar.contains(input.getMouseX(), input.getMouseY()))
+		{
+			if (input.isMouseButtonDown(Input.MOUSE_LEFT_BUTTON))
+			{
+				scrolling = true;
+			}
+		}
+		else if (!input.isMouseButtonDown(Input.MOUSE_LEFT_BUTTON))
+		{
+			scrolling = false;
+		}
+
+		if (scrolling)
+		{
+			if ((barOffset + barHeight) > (height))
+			{
+				barOffset = height - barHeight;
+			}
+			else if ((barOffset) < (0))
+			{
+				barOffset = 0;
+			}
+		}
+
+		scrollbarBorder.setX(contentBox.getMaxX() - Resolutions.SELECTION_MENU_SCROLLBAR_WIDTH);
+		scrollbarBorder.setY(yOffset);
+
+		moveableScrollbar.setX(contentBox.getMaxX() - Resolutions.SELECTION_MENU_SCROLLBAR_WIDTH);
+		moveableScrollbar.setY(yOffset + barOffset);
+
+		actualOffset = -(int) (((barOffset) / height) * (itemBoxHeight * totalRows));
+
+		for (int i = 0; i < items.length; i++)
+		{
+			if (items[i].isSelected() && (selected != items[i] || selected == null))
+			{
+				itemSelected(i, items[i].getName(), items[i].getMetadata());
+
+				if (selected != null)
+				{
+					selected.setSelected(false);
+				}
+
+				selected = items[i];
+			}
+
+			items[i].setXPos((int) (xOffset + (i % itemsPerLine) * itemBoxHeight));
+			items[i].setYPos((int) (yOffset + actualOffset + ((i / itemsPerLine) * itemBoxHeight)));
+			items[i].updateBox();
+
+			if (items[i].getyPos() >= yOffset - items[i].getItemBox().getHeight() && (items[i].getyPos() + itemBoxHeight) <= (yOffset + height + items[i].getItemBox().getHeight()))
+			{
+				items[i].setActive(true);
+				items[i].update(container, delta);
+			}
+			else
+			{
+				items[i].setActive(false);
+			}
+		}
+	}
+
+	@Override
+	public void customRender(GameContainer container, float alphaFactor, Graphics g)
+	{
+		ColorHelper.applyAlphaAndCopy(Color.white, alphaFactor, g);
+		g.fill(scrollbarBorder);
+
+		ColorHelper.applyAlphaAndCopy(Color.darkGray, alphaFactor, g);
+		g.fill(moveableScrollbar);
+
+		ColorHelper.applyAlphaAndCopy(Color.black, alphaFactor, g);
+		g.draw(scrollbarBorder);
+
+		Renderer.push2DScissor((int) xOffset, (int) yOffset, (int) width, (int) height);
+		
+		for (int j = 0; j <= totalRows; j++)
+		{
+			for (int i = itemsPerLine - 1; i >= 0; i--)
+			{
+				if (i + j * itemsPerLine < items.length)
+				{
+					items[i + j * itemsPerLine].render(alphaFactor == 0.8f ? 1.0f : alphaFactor, g);
+				}
+			}
+		}
+		
+		Renderer.popScissor();
+	}
+
+	public void clearSelection()
+	{
+		if (selected != null)
+		{
+			selected.setSelected(false);
+
+			selected = null;
+		}
+	}
+
+	@Override
+	public void mouseDragged(int oldx, int oldy, int newx, int newy)
+	{
+		if (scrolling)
+		{
+			barOffset += newy - oldy;
+		}
+		else if (movingMode && moveable)
+		{
+			super.mouseDragged(oldx, oldy, newx, newy);
+		}
+	}
+
+	public abstract void itemSelected(int number, String name, String metadata);
+
+	public GUIItem getItemByName(String name)
+	{
+		for (int i = 0; i < items.length; i++)
+		{
+			if (items[i].getName().equalsIgnoreCase(name))
+			{
+				return items[i];
+			}
+		}
+
+		return null;
+	}
+
+	public GUIItem getItemByMetadata(String metadata)
+	{
+		for (int i = 0; i < items.length; i++)
+		{
+			if (items[i].getMetadata().equalsIgnoreCase(metadata))
+			{
+				return items[i];
+			}
+		}
+
+		return null;
+	}
+
+	public void select(GUIItem item)
+	{
+		if (item != null)
+		{
+			if (selected != null)
+			{
+				selected.setSelected(false);
+			}
+
+			item.setSelected(true);
+			selected = item;
+		}
+	}
+
+	public GUIItem[] getItems()
+	{
+		return items;
+	}
+
+	public boolean isMovingMode()
+	{
+		return scrolling;
+	}
+
+	public void setMovingMode(boolean movingMode)
+	{
+		this.scrolling = movingMode;
+	}
+
+	@Override
+	public void inputEnded()
+	{
+
+	}
+
+	@Override
+	public void inputStarted()
+	{
+
+	}
+
+	@Override
+	public boolean isAcceptingInput()
+	{
+		return true;
+	}
+
+	@Override
+	public void setInput(Input input)
+	{
+
+	}
+
+	@Override
+	public void mouseClicked(int button, int x, int y, int clickCount)
+	{
+
+	}
+
+	@Override
+	public void mouseMoved(int oldx, int oldy, int newx, int newy)
+	{
+
+	}
+
+	@Override
+	public void mousePressed(int button, int x, int y)
+	{
+
+	}
+
+	@Override
+	public void mouseReleased(int button, int x, int y)
+	{
+
+	}
+
+	@Override
+	public void mouseWheelMoved(int change)
+	{
+
+	}
+
+	public boolean isMoveable()
+	{
+		return moveable;
+	}
+
+	public void setMoveable(boolean moveable)
+	{
+		this.moveable = moveable;
+	}
+}

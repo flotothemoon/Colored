@@ -1,0 +1,41 @@
+package com.unlogical.linked.saving;
+
+import java.util.Date;
+
+import com.unlogical.linked.level.Level;
+
+public class Checkpoint
+{
+	private Level level;
+	private Date timestamp;
+	
+	private Checkpoint(Level level, long timestamp)
+	{
+		this.level = level;
+		this.timestamp = new Date(timestamp);
+	}
+	
+	public static Checkpoint storeLevel(Level level)
+	{
+		return new Checkpoint(copyLevel(level), System.currentTimeMillis());		
+	}
+	
+	public static void applyCheckpoint(Checkpoint checkpoint, Level level)
+	{
+		
+	}
+	
+	private static Level copyLevel(Level level)
+	{
+		Level newLevel = new Level();
+		
+		Level.deepCopy(level, newLevel);
+		
+		return newLevel;
+	}
+	
+	public Date getTimestamp()
+	{
+		return timestamp;
+	}
+}

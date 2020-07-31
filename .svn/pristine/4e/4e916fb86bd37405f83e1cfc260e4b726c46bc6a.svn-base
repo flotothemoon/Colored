@@ -1,0 +1,545 @@
+package com.unlogical.colored.gui.panel;
+
+import java.io.IOException;
+import java.util.List;
+
+import org.newdawn.slick.Color;
+import org.newdawn.slick.GameContainer;
+import org.newdawn.slick.Graphics;
+import org.newdawn.slick.Input;
+
+import com.unlogical.colored.GameLauncher;
+import com.unlogical.colored.debug.Debug;
+import com.unlogical.colored.filesystem.FilePaths;
+import com.unlogical.colored.filesystem.files.TerrainFileHandler;
+import com.unlogical.colored.filesystem.organisation.MapOrganisation;
+import com.unlogical.colored.gui.GUICheckbox;
+import com.unlogical.colored.gui.InputChangeListener;
+import com.unlogical.colored.gui.UserInputLine;
+import com.unlogical.colored.gui.button.Button;
+import com.unlogical.colored.level.Level;
+import com.unlogical.colored.mapeditor.MapEditor;
+import com.unlogical.colored.terrain.tile.Tile;
+import com.unlogical.colored.terrain.tile.TileDoor;
+import com.unlogical.colored.util.Dimension;
+import com.unlogical.colored.util.MouseAdapter;
+
+public class DoorPanel extends GUIPanel
+{
+	private TileDoor door;
+
+	private GUICheckbox levelStart;
+	private GUICheckbox levelExit;
+	private UserInputLine doorID;
+
+	private UserInputLine nextLevelID;
+
+	private GUICheckbox leadsToStart;
+	private UserInputLine otherDoorID;
+
+	private Button validateButton;
+	private Button loopButton;
+	private Button goThereButton;
+	private Button closeButton;
+
+	private Color validColor = Color.green;
+	private Color invalidColor = Color.red;
+	private Color cantCheckColor = Color.orange;
+	private Color ignoreColor = Color.black;
+	private Color needsValidation = Color.blue;
+
+	private MouseAdapter mouseAdapter;
+
+	private long lastPressed;
+
+	private boolean validNextLevel;
+	private boolean validNextLevelStart;
+	private boolean validNextLevelOtherDoor;
+
+	public DoorPanel(String title, float xOffset, float yOffset, float width, float height)
+	{
+		super(title, xOffset, yOffset, width, height);
+
+		this.fillColor = new Color(MapEditor.panelColor);
+
+		int lineHeight = 30;
+		int inputWidth = (int) (width / 2) + 15;
+		int currentOffset = 40;
+		int inputX = (int) (xOffset + width / 2) - 20;
+
+		levelStart = new GUICheckbox(true, inputX + inputWidth / 2 - lineHeight / 2, currentOffset, lineHeight, lineHeight)
+		{
+			@Override
+			public void onChecked()
+			{
+				for (Tile tile : door.getLevel().getTiles())
+				{
+					if (tile instanceof TileDoor)
+					{
+						((TileDoor) tile).setLevelStart(false);
+					}
+				}
+
+				door.setLevelStart(true);
+			}
+
+			@Override
+			public void onUnchecked()
+			{
+				door.setLevelStart(false);
+			}
+		};
+		levelStart.setActive(true);
+
+		currentOffset += levelStart.getHeight() + 10;
+
+		levelExit = new GUICheckbox(true, inputX + inputWidth / 2 - lineHeight / 2, currentOffset, lineHeight, lineHeight)
+		{
+			@Override
+			public void onChecked()
+			{
+				door.setLevelExit(true);
+			}
+
+			@Override
+			public void onUnchecked()
+			{
+				door.setLevelExit(false);
+			}
+		};
+		levelExit.setActive(true);
+
+		currentOffset += levelExit.getHeight() + 10;
+
+		doorID = new UserInputLine(inputX, currentOffset, inputWidth, lineHeight);
+		doorID.setAllowUserInput(false);
+		doorID.setActive(true);
+
+		currentOffset += doorID.getHeight() + 20;
+
+		nextLevelID = new UserInputLine(inputX, currentOffset, inputWidth, lineHeight);
+		nextLevelID.addInputChangedListener(new InputChangeListener()
+		{
+			@Override
+			public void onInputChanged()
+			{
+				door.setNextLevelID(nextLevelID.getInput());
+				nextLevelID.setBorderColor(needsValidation);
+			}
+		});
+		nextLevelID.setActive(true);
+		nextLevelID.setAllowSpecialCharacters(true);
+
+		currentOffset += nextLevelID.getHeight() + 20;
+
+		leadsToStart = new GUICheckbox(true, inputX + inputWidth / 2 - lineHeight / 2, currentOffset, lineHeight, lineHeight)
+		{
+			@Override
+			public void onChecked()
+			{
+				door.setLeadsToStart(true);
+				this.setBorderColor(needsValidation);
+			}
+
+			@Override
+			public void onUnchecked()
+			{
+				door.setLeadsToStart(false);
+
+				this.setBorderColor(ignoreColor);
+			}
+		};
+		leadsToStart.setActive(true);
+
+		currentOffset += leadsToStart.getHeight() + 10;
+
+		otherDoorID = new UserInputLine(inputX, currentOffset, inputWidth, lineHeight);
+		otherDoorID.addInputChangedListener(new InputChangeListener()
+		{
+			@Override
+			public void onInputChanged()
+			{
+				try
+				{
+					door.setOtherDoorID(Integer.parseInt(otherDoorID.getInput()));
+					otherDoorID.setBorderColor(needsValidation);
+				}
+				catch (Exception e)
+				{
+					otherDoorID.setBorderColor(invalidColor);
+				}
+			}
+		});
+		otherDoorID.setActive(true);
+
+		currentOffset += otherDoorID.getHeight() + 20;
+
+		validateButton = new Button("Validate", (int) xOffset, currentOffset, (int) width, lineHeight)
+		{
+			@Override
+			public void onClick()
+			{
+				updateNextLevelPath();
+			}
+		};
+		validateButton.setActive(true);
+
+		currentOffset += validateButton.getHeight();
+
+		loopButton = new Button("Loop", (int) xOffset, currentOffset, (int) width, lineHeight)
+		{
+			@Override
+			public void onClick()
+			{
+				if (validNextLevelOtherDoor || validNextLevelStart)
+				{
+					loopBackConnectedDoor();
+				}
+			}
+		};
+		loopButton.setActive(true);
+
+		currentOffset += loopButton.getHeight();
+
+		goThereButton = new Button("Go there!", (int) xOffset, currentOffset, (int) width, lineHeight)
+		{
+			@Override
+			public void onClick()
+			{
+				if ((validNextLevelOtherDoor || validNextLevelStart) && validNextLevel)
+				{
+					goToConnectedDoor();
+				}
+			}
+		};
+		goThereButton.setActive(true);
+
+		currentOffset += goThereButton.getHeight();
+
+		closeButton = new Button("Close", (int) xOffset, currentOffset, (int) width, lineHeight)
+		{
+			@Override
+			public void onClick()
+			{
+				DoorPanel.this.setActive(false);
+			}
+		};
+		closeButton.setActive(true);
+
+		currentOffset += closeButton.getHeight() - 5;
+
+		this.setHeight(currentOffset);
+
+		mouseAdapter = new MouseAdapter()
+		{			
+			@Override
+			public void mousePressed(int button, int x, int y)
+			{
+				if (button == Input.MOUSE_RIGHT_BUTTON)
+				{
+					if (isActive() && isShown() && door != null && door.getHitbox().contains(x, y))
+					{
+						if (lastPressed > 0 && (System.currentTimeMillis() - lastPressed) < 500)
+						{
+							if ((validNextLevelOtherDoor || validNextLevelStart) && validNextLevel)
+							{
+								goToConnectedDoor();
+							}
+
+							lastPressed = 0;
+						}
+						else
+						{
+							lastPressed = System.currentTimeMillis();
+						}
+					}
+					else
+					{
+						lastPressed = 0;
+					}
+				}
+			}
+		};
+	}
+
+	protected void updateNextLevelPath()
+	{
+		validNextLevel = Level.getMapPathByID(door.getNextLevelID()) != null;
+
+		if (validNextLevel)
+		{
+			nextLevelID.setBorderColor(validColor);
+		}
+		else
+		{
+			nextLevelID.setBorderColor(invalidColor);
+		}
+		
+		validNextLevelOtherDoor = false;
+		validNextLevelStart = false;
+
+		updateLeadsToStart();
+		updateOtherDoorID();
+	}
+
+	protected void updateOtherDoorID()
+	{
+		if (door.isLeadsToStart())
+		{
+			otherDoorID.setBorderColor(ignoreColor);
+		}
+		else
+		{
+			if (validNextLevel)
+			{
+				validateNextLevelDoor();
+
+				if (validNextLevelOtherDoor)
+				{
+					otherDoorID.setBorderColor(validColor);
+				}
+				else
+				{
+					otherDoorID.setBorderColor(invalidColor);
+				}
+			}
+			else
+			{
+				otherDoorID.setBorderColor(cantCheckColor);
+			}
+		}
+	}
+
+	private void goToConnectedDoor()
+	{
+		MapEditor.saveItAll();
+		MapEditor.initMap(door.getNextLevelID(), Level.getMapPathByID(door.getNextLevelID()));
+
+		Level level = MapEditor.getLevel();
+		TileDoor entryDoor = null;
+
+		for (Tile tile : level.getTiles())
+		{
+			if (tile instanceof TileDoor && tile.getDimension() == Dimension.LIGHT)
+			{
+				if (door.isLeadsToStart() && ((TileDoor) tile).isLevelStart() || door.getOtherDoorID() == ((TileDoor) tile).getDoorID())
+				{
+					entryDoor = (TileDoor) tile;
+
+					break;
+				}
+			}
+		}
+
+		MapEditor.adjustCameraOffset(GameLauncher.getContainer(), GameLauncher.getWidth() / 2.0f - entryDoor.getCenterX(), GameLauncher.getHeight() / 2.0f - entryDoor.getCenterY());
+	}
+
+	private void loopBackConnectedDoor()
+	{
+		TerrainFileHandler handler = new TerrainFileHandler(Level.getMapPathByID(door.getNextLevelID()) + "/terrain.map");
+
+		Level newLevel = new Level();
+		newLevel.setDummyLevel(true);
+		newLevel.createParticleSystem();
+
+		try
+		{
+			List<Tile> tiles = handler.read(newLevel);
+			TileDoor loopBackDoor = null;
+
+			for (Tile tile : tiles)
+			{
+				if (tile.getDimension() == Dimension.LIGHT && tile instanceof TileDoor)
+				{
+					if (door.isLeadsToStart() && ((TileDoor) tile).isLevelStart() || door.getOtherDoorID() == ((TileDoor) tile).getDoorID())
+					{
+						loopBackDoor = (TileDoor) tile;
+
+						break;
+					}
+				}
+			}
+
+			if (loopBackDoor == null)
+			{
+				throw new IllegalStateException("No loop back door found in map " + door.getNextLevelID() + ".");
+			}
+
+			loopBackDoor.setLevelExit(true);
+			loopBackDoor.setLeadsToStart(false);
+			loopBackDoor.setNextLevelID(door.getLevel().getID());
+			loopBackDoor.setOtherDoorID(door.getDoorID());
+
+			handler.write(tiles, newLevel);
+		}
+		catch (Exception e)
+		{
+
+		}
+	}
+
+	private void validateNextLevelDoor()
+	{
+		TerrainFileHandler handler = new TerrainFileHandler(Level.getMapPathByID(door.getNextLevelID()) + "/terrain.map");
+		Level newLevel = new Level();
+		newLevel.setDummyLevel(true);
+		newLevel.createParticleSystem();
+
+		try
+		{
+			List<Tile> tiles = handler.read(newLevel);
+
+			validNextLevelStart = false;
+			validNextLevelOtherDoor = false;
+
+			for (Tile tile : tiles)
+			{
+				if (tile.getDimension() == Dimension.LIGHT && tile instanceof TileDoor)
+				{
+					if (door.isLeadsToStart())
+					{
+						if (((TileDoor) tile).isLevelStart())
+						{
+							validNextLevelStart = true;
+							break;
+						}
+					}
+					else
+					{
+						if (door.getOtherDoorID() == ((TileDoor) tile).getDoorID())
+						{
+							validNextLevelOtherDoor = true;
+							break;
+						}
+					}
+				}
+			}
+		}
+		catch (IOException e)
+		{
+			Debug.warn("Error while fetching map: " + e);
+
+			validNextLevelOtherDoor = false;
+			validNextLevelStart = false;
+		}
+	}
+
+	protected void updateLeadsToStart()
+	{
+		if (door.isLeadsToStart())
+		{
+			if (validNextLevel)
+			{
+				validateNextLevelDoor();
+
+				if (validNextLevelStart)
+				{
+					leadsToStart.setBorderColor(validColor);
+				}
+				else
+				{
+					leadsToStart.setBorderColor(invalidColor);
+				}
+			}
+			else
+			{
+				leadsToStart.setBorderColor(cantCheckColor);
+			}
+		}
+		else
+		{
+			leadsToStart.setBorderColor(ignoreColor);
+		}
+	}
+
+	public void init(TileDoor door)
+	{
+		this.door = door;
+
+		levelStart.setChecked(door.isLevelStart());
+		levelExit.setChecked(door.isLevelExit());
+
+		doorID.setInput(door.getDoorID() + "");
+
+		if (door.getNextLevelID() != null && Level.getMapPathByID(door.getNextLevelID()) != null && MapOrganisation.isValidMap(FilePaths.getFile(Level.getMapPathByID(door.getNextLevelID()))))
+		{
+			nextLevelID.setInput(door.getNextLevelID());
+		}
+		else
+		{
+			nextLevelID.setInput("");
+		}
+
+		leadsToStart.setChecked(door.isLeadsToStart());
+		otherDoorID.setInput(door.getOtherDoorID() + "");
+
+		updateNextLevelPath();
+	}
+
+	@Override
+	protected void customUpdate(GameContainer container, int delta)
+	{
+		if (this.door.isRemoved())
+		{
+			this.door = null;
+			this.setActive(false);
+
+			return;
+		}
+		
+		container.getInput().addMouseListener(mouseAdapter);
+
+		levelStart.update(container, delta);
+		levelExit.update(container, delta);
+		doorID.update(container, delta);
+		nextLevelID.update(container, delta);
+		leadsToStart.update(container, delta);
+		otherDoorID.update(container, delta);
+		validateButton.update(container, delta);
+		loopButton.update(container, delta);
+		goThereButton.update(container, delta);
+		closeButton.update(container, delta);
+	}
+
+	@Override
+	protected void customRender(GameContainer container, float alphaFactor, Graphics g)
+	{
+		levelStart.render(container, alphaFactor, g);
+		levelExit.render(container, alphaFactor, g);
+		doorID.render(container, alphaFactor, g);
+		nextLevelID.render(container, alphaFactor, g);
+		leadsToStart.render(container, alphaFactor, g);
+		otherDoorID.render(container, alphaFactor, g);
+		validateButton.render(container, alphaFactor, g);
+		loopButton.render(container, alphaFactor, g);
+		goThereButton.render(container, alphaFactor, g);
+		closeButton.render(container, alphaFactor, g);
+
+		g.drawString("LevelStart", xOffset + 5, levelStart.getCenterY() - g.getFont().getLineHeight() / 2);
+		g.drawString("LevelExit", xOffset + 5, levelExit.getCenterY() - g.getFont().getLineHeight() / 2);
+		g.drawString("DoorID", xOffset + 5, doorID.getCenterY() - g.getFont().getLineHeight() / 2);
+		g.drawString("NextLevelID", xOffset + 5, nextLevelID.getCenterY() - g.getFont().getLineHeight() / 2);
+		g.drawString("LeadsToStart", xOffset + 5, leadsToStart.getCenterY() - g.getFont().getLineHeight() / 2);
+		g.drawString("OtherDoorID", xOffset + 5, otherDoorID.getCenterY() - g.getFont().getLineHeight() / 2);
+	}
+
+	@Override
+	public void onPositionUpdate(int xChange, int yChange)
+	{
+		levelStart.adjust(xChange, yChange);
+		levelExit.adjust(xChange, yChange);
+		doorID.adjust(xChange, yChange);
+		nextLevelID.adjust(xChange, yChange);
+		leadsToStart.adjust(xChange, yChange);
+		otherDoorID.adjust(xChange, yChange);
+		validateButton.adjust(xChange, yChange);
+		loopButton.adjust(xChange, yChange);
+		goThereButton.adjust(xChange, yChange);
+		closeButton.adjust(xChange, yChange);
+	}
+
+	public TileDoor getDoor()
+	{
+		return door;
+	}
+}

@@ -1,0 +1,34 @@
+package com.unlogical.linked.entity.boss;
+
+import java.util.Random;
+
+import org.newdawn.slick.GameContainer;
+import org.newdawn.slick.geom.Vector2f;
+
+import com.unlogical.linked.entity.EntityType;
+import com.unlogical.linked.level.Level;
+import com.unlogical.linked.util.Dimension;
+
+public class EntityFrozenBoss extends EntityBoss
+{
+	public EntityFrozenBoss(EntityType type, Vector2f position, Level level, Dimension dimension, boolean allowMirrors)
+	{
+		super(type, position, level, dimension, allowMirrors);
+	}
+
+	@Override
+	public void init()
+	{
+		super.init();
+		
+		
+	}
+	
+	@Override
+	public void onUpdate(GameContainer container, float delta, Random rng)
+	{
+		super.onUpdate(container, delta, rng);
+		
+		
+	}
+}

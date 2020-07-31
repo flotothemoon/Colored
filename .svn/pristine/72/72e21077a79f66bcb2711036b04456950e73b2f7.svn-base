@@ -1,0 +1,76 @@
+package com.unlogical.colored.story;
+
+import java.util.Map;
+
+import org.newdawn.slick.Color;
+import org.newdawn.slick.GameContainer;
+
+import com.unlogical.colored.entity.EntityType;
+import com.unlogical.colored.entity.player.EntityPlayer;
+import com.unlogical.colored.level.Level;
+import com.unlogical.colored.levelrendering.LevelRenderer;
+import com.unlogical.colored.terrain.TriggerPort;
+import com.unlogical.colored.terrain.tile.logical.TileLever;
+import com.unlogical.colored.util.Dimension;
+
+public class BeginningStoryHandler extends CustomStoryHandler
+{
+	private boolean machineStopped;
+	
+	public BeginningStoryHandler(Level level)
+	{
+		super(level);
+	}
+
+	@Override
+	public CustomStoryHandler deepCopy(Map<Object, Object> copiedReferences)
+	{
+		BeginningStoryHandler copy = new BeginningStoryHandler((Level) Level.getCopy(this.level, copiedReferences));
+		
+		return copy;
+	}
+	
+	@Override
+	public void update(GameContainer container, int delta)
+	{
+		super.update(container, delta);
+	}
+	
+	@Override
+	public void onPreLevelInit()
+	{
+		super.onPreLevelInit();
+		
+		level.BACKGROUND_BRIGHTNESS = level.FOREGROUND_BRIGHTNESS;
+		level.getDimensionColor(Dimension.SHADOW).a = level.getDimensionColor(Dimension.LIGHT).a;
+		level.setBackgroundFactor(level.getForegroundFactor());
+	}
+	
+	@Override
+	public void onLevelInit()
+	{				
+		LevelRenderer.onDimensionToggle(false);
+	}
+	
+	@Override
+	public void onLeverPulled(TileLever lever, EntityPlayer interactor, boolean realInput)
+	{
+		if (interactor.getType() == EntityType.PLAYER && realInput && TriggerPort.getColor(lever.getPort()) == Color.blue)
+		{
+			LevelRenderer.onDimensionToggle(true);
+			machineStopped = true;
+		}	
+	}
+	
+	@Override
+	public boolean canPlayerTravelDimensions()
+	{
+		return machineStopped;
+	}
+	
+	@Override
+	public boolean shouldShatterWorldLikeMad()
+	{
+		return !machineStopped;
+	}
+}

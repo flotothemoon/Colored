@@ -1,0 +1,256 @@
+package com.unlogical.colored.gui.panel;
+
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+
+import org.newdawn.slick.Color;
+import org.newdawn.slick.GameContainer;
+import org.newdawn.slick.Graphics;
+import org.newdawn.slick.geom.Vector2f;
+
+import com.unlogical.colored.GameLauncher;
+import com.unlogical.colored.debug.Debug;
+import com.unlogical.colored.filesystem.FilePaths;
+import com.unlogical.colored.gui.UserInputLine;
+import com.unlogical.colored.gui.button.Button;
+import com.unlogical.colored.gui.menu.Menu;
+import com.unlogical.colored.level.Level;
+import com.unlogical.colored.mapeditor.MapEditor;
+import com.unlogical.colored.wrapper.WrapperTexture;
+
+import au.com.bytecode.opencsv.CSVReader;
+import au.com.bytecode.opencsv.CSVWriter;
+
+public class MoveWrapperPanel extends GUIPanel
+{
+	private UserInputLine oldPath;
+	private UserInputLine newPath;
+	private Button cancelButton;
+	private Button applyButton;
+
+	private int oldPathAlertTime;
+	private int newPathAlertTime;
+
+	public MoveWrapperPanel(String title, float xOffset, float yOffset, float width, float height)
+	{
+		super(title, xOffset, yOffset, width, height);
+
+		this.fillColor = new Color(MapEditor.panelColor);
+
+		int currentOffset = (int) yOffset + 5;
+
+		this.oldPath = new UserInputLine((int) xOffset + 5, (int) yOffset + 5, (int) width - 10, 40);
+		this.oldPath.setActive(true);
+		this.oldPath.setAllowSpecialCharacters(true);
+		this.oldPath.setOnlyNumeric(false);
+
+		currentOffset += 45;
+		
+		this.newPath = new UserInputLine((int) xOffset + 5, (int) currentOffset, (int) width - 10, 40);
+		this.newPath.setActive(true);
+		this.newPath.setAllowSpecialCharacters(true);
+		this.newPath.setOnlyNumeric(false);
+
+		currentOffset += 45;
+
+		this.cancelButton = new Button("Replace Missing", (int) (xOffset), (int) (currentOffset + height), (int) (width / 2), 40)
+		{
+			@Override
+			public void onClick()
+			{
+				replaceWrapperPaths(true);
+			}
+		};
+
+		this.applyButton = new Button("Replace All", (int) (xOffset + width / 2), (int) (currentOffset + height), (int) (width / 2), 40)
+		{
+			@Override
+			public void onClick()
+			{
+				replaceWrapperPaths(false);
+			}
+		};
+
+		this.setHeight(currentOffset + applyButton.getHeight() - yOffset + 25);
+	}
+	
+	private void replaceWrapperPaths(boolean onlyMissing)
+	{
+		if (oldPath.getInput().isEmpty())
+		{
+			oldPathAlertTime = 2000;
+			
+			return;
+		}
+		
+		if (newPath.getInput().isEmpty())
+		{
+			newPathAlertTime = 2000;
+			
+			return;
+		}
+		
+		if (oldPath.getInput().endsWith("/") != newPath.getInput().endsWith("/") || oldPath.getInput().equalsIgnoreCase(newPath.getInput()))
+		{
+			oldPathAlertTime = 2000;
+			newPathAlertTime = 2000;
+			
+			return;
+		}
+		
+		Debug.log("Old path and new path in move wrapper panel seem to make sense: " + oldPath.getInput() + " -> " + newPath.getInput() + ".");
+		
+		String relevantPath = oldPath.getInput();
+		String originalPath = FilePaths.WRAPPER_IMAGES + "/" + relevantPath;
+		String replacementPath = FilePaths.WRAPPER_IMAGES + "/" + newPath.getInput();
+		
+		MapEditor.saveItAll();
+
+		for (String levelID : Level.getLevelMap().keySet())
+		{
+			try
+			{
+				String wrapperFile = FilePaths.getFile(Level.getMapPathByID(levelID)) + "/wrappers.cfg";
+
+				CSVReader reader = new CSVReader(new FileReader(wrapperFile));
+				List<String[]> lines = new ArrayList<String[]>();
+
+				String[] buffer;
+
+				while ((buffer = reader.readNext()) != null)
+				{
+					if (buffer[0].startsWith(originalPath) && (!onlyMissing || !checkWrapper(buffer[0])))
+					{						
+						String remainder = buffer[0].substring(originalPath.length());
+														
+						buffer[0] = replacementPath + remainder;
+						
+						if (buffer[25].startsWith(relevantPath))
+						{
+							buffer[25] = buffer[0].substring((FilePaths.WRAPPER_IMAGES + "/").length());
+						}
+					}
+
+					lines.add(buffer);
+				}
+
+				reader.close();
+
+				CSVWriter writer = new CSVWriter(new FileWriter(wrapperFile));
+
+				for (String[] line : lines)
+				{
+					writer.writeNext(line);
+				}
+
+				writer.close();
+			}
+			catch (Exception e)
+			{
+				newPathAlertTime = 3000;
+
+				Debug.warn("Exception while updating wrapper path references for level " + levelID + ": " + e, e);
+
+				return;
+			}
+		}
+
+		Vector2f cameraOffset = MapEditor.getLevel().getCameraOffset();
+
+		MapEditor.initMap(MapEditor.getLevel().getID(), Level.getMapPathByID(MapEditor.getLevel().getID()));
+		MapEditor.adjustCameraOffset(GameLauncher.getContainer(), cameraOffset.x, cameraOffset.y);
+
+		try
+		{
+			MapEditor.getImportPanel().refresh();
+		}
+		catch (IOException e)
+		{
+			Debug.warn("Something went wrong while updating the wrapper list in import panel after wrappers were moved: " + e, e);
+		}
+	}
+
+	private boolean checkWrapper(String fullPath)
+	{
+		return FilePaths.getFile(fullPath + "-1.png").exists() && FilePaths.getFile(fullPath + "-1m.png").exists();
+	}
+
+	void init(String oldPath)
+	{
+		if (oldPath != null)
+		{
+			this.oldPath.setInput(oldPath);
+			this.newPath.setInput(oldPath);
+			
+			this.setActive(true);
+		}
+		else
+		{
+			this.setActive(false);
+		}
+	}
+	
+	public void init(WrapperTexture wrapper)
+	{
+		if (wrapper != null)
+		{
+			this.init(wrapper.getRelativePath().substring(FilePaths.WRAPPER_IMAGES.length() + 1));
+		}
+		else
+		{
+			this.setActive(false);
+		}
+	}
+
+	@Override
+	protected void customUpdate(GameContainer container, int delta)
+	{
+		this.oldPath.update(container, delta);
+		this.newPath.update(container, delta);
+		this.cancelButton.update(container, delta);
+		this.applyButton.update(container, delta);
+
+		if (oldPathAlertTime > 0)
+		{
+			oldPathAlertTime -= delta;
+			
+			this.oldPath.setBorderColor(Color.red);
+		}
+		else
+		{
+			this.oldPath.setBorderColor(Menu.UNSELECTED_COLOR);
+		}
+		
+		if (newPathAlertTime > 0)
+		{
+			newPathAlertTime -= delta;
+
+			this.newPath.setBorderColor(Color.red);
+		}
+		else
+		{
+			this.newPath.setBorderColor(Menu.UNSELECTED_COLOR);
+		}
+	}
+
+	@Override
+	protected void customRender(GameContainer container, float alphaFactor, Graphics g)
+	{
+		this.oldPath.render(container, alphaFactor, g);
+		this.newPath.render(container, alphaFactor, g);
+		this.cancelButton.render(container, alphaFactor, g);
+		this.applyButton.render(container, alphaFactor, g);
+	}
+
+	@Override
+	public void onPositionUpdate(int xChange, int yChange)
+	{
+		this.oldPath.adjust(xChange, yChange);
+		this.newPath.adjust(xChange, yChange);
+		this.cancelButton.adjust(xChange, yChange);
+		this.applyButton.adjust(xChange, yChange);
+	}
+}

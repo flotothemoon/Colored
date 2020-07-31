@@ -1,0 +1,42 @@
+package com.unlogical.linked.util;
+
+public class ScheduledEvent
+{
+	public final Object type;
+	public final Object object;
+	public final boolean inputBased;
+	
+	public ScheduledEvent(final Object eventType)
+	{
+		this.type = eventType;
+		this.object = null;
+		this.inputBased = false;
+	}
+	
+	public ScheduledEvent(final Object eventType, boolean inputBased)
+	{
+		this.type = eventType;
+		this.object = null;
+		this.inputBased = inputBased;
+	}
+
+	public ScheduledEvent(final Object eventType, final Object eventObject)
+	{
+		this.type = eventType;
+		this.object = eventObject;
+		this.inputBased = false;
+	}
+
+	public ScheduledEvent(final Object eventType, final Object eventObject, boolean inputBased)
+	{
+		this.type = eventType;
+		this.object = eventObject;
+		this.inputBased = inputBased;
+	}
+	
+	@Override
+	public String toString()
+	{
+		return "[ScheduledEvent type:" + type + (object == null ? "" : " object:" + object) + (inputBased ? " inputBased" : "") + "]";
+	}
+}

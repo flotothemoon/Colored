@@ -1,0 +1,70 @@
+package com.unlogical.linked.terrain.tile.logical;
+
+import org.newdawn.slick.geom.Vector2f;
+
+import com.unlogical.linked.entity.key.EntityKey;
+import com.unlogical.linked.entity.key.ITileKeyInteractable;
+import com.unlogical.linked.entity.key.KeyPort;
+import com.unlogical.linked.level.Level;
+import com.unlogical.linked.terrain.TileType;
+import com.unlogical.linked.terrain.property.TileProperty;
+import com.unlogical.linked.util.Dimension;
+
+public class TileKeyGate extends TileGate implements ITileKeyInteractable
+{
+	private KeyPort port;
+
+	public TileKeyGate(TileType type, String metadata, int innerType, float rotation, Vector2f position, Level level, Dimension dimension, TileProperty properties, boolean allowMirrors)
+	{
+		super(type, metadata, innerType, rotation, position, level, dimension, properties, allowMirrors);
+
+		if (this.hasMirror())
+		{
+			((TileKeyGate) this.getMirroredTile()).setKeyPort(this.port);
+		}
+	}
+
+	@Override
+	public void readMetadata()
+	{
+		try
+		{
+			this.port = KeyPort.getTrigger(Integer.parseInt(this.metadata));
+		}
+		catch (Exception e)
+		{
+			this.port = KeyPort.RED;
+		}
+	}
+
+	@Override
+	public void writeMetadata()
+	{
+		this.metadata = port.toPort() + "";
+	}
+
+	@Override
+	public void onInteract(EntityKey key)
+	{
+		this.open(false);
+		key.onUsage(key.getHoldingEntity(), this);
+	}
+
+	@Override
+	public void setKeyPort(KeyPort port)
+	{
+		this.port = port;
+	}
+
+	@Override
+	public boolean renderStatic()
+	{
+		return false;
+	}
+
+	@Override
+	public KeyPort getKeyPort()
+	{
+		return port;
+	}
+}

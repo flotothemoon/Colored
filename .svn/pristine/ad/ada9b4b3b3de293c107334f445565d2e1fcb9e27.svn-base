@@ -1,0 +1,698 @@
+package com.unlogical.linked.terrain;
+
+import java.util.HashMap;
+import java.util.Map;
+
+import org.newdawn.slick.Color;
+import org.newdawn.slick.Graphics;
+import org.newdawn.slick.Image;
+import org.newdawn.slick.geom.Vector2f;
+
+import com.unlogical.linked.collision.Hitbox;
+import com.unlogical.linked.configuration.Resolutions;
+import com.unlogical.linked.level.Level;
+import com.unlogical.linked.level.LevelType;
+import com.unlogical.linked.levelrendering.LevelRenderer;
+import com.unlogical.linked.resources.ResourceLoader;
+import com.unlogical.linked.terrain.handler.SharedAnimationHandler;
+import com.unlogical.linked.terrain.property.TileProperty;
+import com.unlogical.linked.terrain.tile.properties.ITileRotationListener;
+import com.unlogical.linked.util.ColorHelper;
+import com.unlogical.linked.util.Dimension;
+import com.unlogical.linked.util.IShareable;
+import com.unlogical.linked.util.LevelObject;
+import com.unlogical.linked.util.RealImage;
+import com.unlogical.linked.util.ShaderHandler;
+
+public abstract strictfp class TerrainObject extends LevelObject implements Cloneable
+{
+	private static final HashMap<TileType, RealImage[][]> bufferedImages = new HashMap<TileType, RealImage[][]>();
+
+	public static final Color FILL_COLOR = new Color(0.3f, 0.3f, 0.35f, 0.9f);
+	private static final Color colorBuffer = new Color(0.0f, 0.0f, 0.0f, 0.0f);
+	
+	protected TileProperty properties;
+
+	private int innerTypes;
+
+	private int duration;
+	private int timeToSwitch;
+	protected int lastInnerType;
+	private int lastImage;
+	private int totalInnertypesCount;
+	private int finalInnerType;
+
+	protected int relRenderStartOffset;
+	protected int relRenderEndOffset;
+
+	protected boolean resized;
+	protected boolean hasTextures = true;
+	protected boolean transitioning;
+	protected boolean reverseAnimation;
+
+	private boolean useOriginalTextures;
+
+	protected RealImage[][] availableImages;
+	private RealImage[] animationImages;
+
+	protected final TileType type;
+
+	public TerrainObject(final TileType type, int innerType, Vector2f position, final Level level, TileProperty properties, Dimension dimension)
+	{
+		super(null, position, dimension, level);
+
+		this.dimension = dimension;
+		this.type = type;
+		this.properties = properties;
+		this.level = level;
+		this.hasTextures = properties.hasTextures();
+
+		if (this.hasTextures)
+		{
+			this.availableImages = bufferedImages.get(type);
+
+			try
+			{
+				this.totalInnertypesCount = this.availableImages.length / Dimension.count();
+			}
+			catch (NullPointerException e)
+			{
+				throw new RuntimeException("No available textures found for " + this.type + ", error while loading. Sorry. Probably not my fault though.", e);
+			}
+
+			if (isAnimated())
+			{
+				this.duration = SharedAnimationHandler.getPerImageDuration(type, innerType);
+				this.animationImages = this.availableImages[innerType * Dimension.count() + dimension.code()];
+				this.image = this.animationImages[0];
+			}
+			else
+			{
+				this.image = this.availableImages[innerType * Dimension.count() + dimension.code()][0];
+			}
+
+			this.setInnerType(innerType);
+		}
+
+		if (position != null)
+		{
+			if (this.hasTextures && !this.properties.shouldUseDefaultSize())
+			{				
+				this.hitbox = new Hitbox(getX(), getY(), this.image.getWidth(), this.image.getHeight());
+			}
+			else
+			{
+				this.hitbox = new Hitbox(getX(), getY(), Resolutions.TILE_SIZE, Resolutions.TILE_SIZE);
+			}
+		}
+	}
+	
+	@Override
+	public LevelObject deepCopy(Map<Object, Object> copiedReferences)
+	{
+		TerrainObject copy = (TerrainObject) super.deepCopy(copiedReferences);
+		
+		copy.properties = this.properties.copy();
+		copy.innerTypes = this.innerTypes;
+		copy.duration = this.duration;
+		copy.timeToSwitch = this.timeToSwitch;
+		copy.lastImage = this.lastImage;
+		copy.totalInnertypesCount = this.totalInnertypesCount;
+		copy.finalInnerType = this.finalInnerType;
+		copy.relRenderEndOffset = this.relRenderEndOffset;
+		copy.relRenderStartOffset = this.relRenderStartOffset;
+		copy.resized = this.resized;
+		copy.hasTextures = this.hasTextures;
+		copy.transitioning = this.transitioning;
+		copy.reverseAnimation = this.reverseAnimation;
+		copy.useOriginalTextures = this.useOriginalTextures;
+		
+		return copy;
+	}
+
+	public static void loadImages(TileType type)
+	{
+		RealImage[][] availableImages = ResourceLoader.getTileImages(type.getTileName(), TileType.getProperty(type).isAnimated());
+
+		if (availableImages.length > 0)
+		{
+			bufferedImages.put(type, availableImages);
+		}
+	}
+
+	public static Image getMainImage(String type)
+	{
+		return bufferedImages.get(TileType.getTileType(type)) == null ? null : bufferedImages.get(TileType.getTileType(type))[0][0];
+	}
+
+	public static Image getMainImage(TileType type)
+	{
+		return bufferedImages.get(type) == null ? null : bufferedImages.get(type)[0][0];
+	}
+
+	public static void loadAll()
+	{
+		for (TileType type : TileType.values())
+		{
+			loadImages(type);
+		}
+	}
+
+	public Image getImage(Dimension dimension)
+	{
+		return this.availableImages[lastInnerType * Dimension.count() + dimension.code()][lastImage];
+	}
+	
+	public Image getLightImage()
+	{
+		return this.availableImages[lastInnerType * Dimension.count() + Dimension.LIGHT.code()][lastImage];
+	}
+
+	public Image getShadowImage()
+	{
+		return this.availableImages[lastInnerType * Dimension.count() + Dimension.SHADOW.code()][lastImage];
+	}
+
+	public final void initDraw()
+	{
+
+	}
+
+	protected void preDraw(Color color, Graphics g)
+	{
+
+	}
+
+	@Override
+	public final void draw(Graphics g)
+	{
+		if (!hidden)
+		{
+			if (isLightAffected())
+			{
+				ShaderHandler.applyLights(0);
+			}
+			else
+			{
+				ShaderHandler.disableLighting();
+			}
+
+			if (hasTextures)
+			{
+				if (renderImage)
+				{
+					if (level.getType() == LevelType.NORMAL && this.dimension == level.getForegroundDimension())
+					{
+						drawTextured(this.dimension.getOpposite(), g);
+					}
+					
+					drawTextured(dimension, g);
+					
+					if (level.getType() == LevelType.NORMAL && this.dimension != level.getForegroundDimension())
+					{
+						drawTextured(this.dimension.getOpposite(), g);
+					}
+				}
+			}
+			else
+			{
+				ColorHelper.applyAlphaAndCopy(FILL_COLOR, level.getControlAlpha(), g);
+				g.fill(this.hitbox);
+			}
+
+			customDraw(g);
+		}
+	}
+	
+	private void drawTextured(Dimension dimension, Graphics g)
+	{
+		Color color = getDrawColor(dimension, colorBuffer);
+
+		color = customModifiyDrawColor(color);
+
+		preDraw(color, g);
+
+		if (shared)
+		{
+			level.drawAsShared((IShareable<?>) this, g);
+		}
+		else
+		{
+			if (LevelRenderer.isCheckpointing() && isMoveable() || level.getLevelType() == LevelType.FROZEN && isTimeEffected() && isMoveable() && ((dimension == level.getForegroundDimension() || dimension == level.getBackgroundDimension() && level.isTransitioning()) && level.getControllingPlayer() != null && level.getControllingPlayer().isRawTimeEffected()))
+			{				
+				drawTrailImage(getImage(dimension), (int) (24 + 12 * LevelRenderer.getCheckpointingFactor()), 12, color, (LevelRenderer.isCheckpointing() && isMoveable() ? LevelRenderer.getCheckpointingFactor() : 1.0f) * 0.3f, g);
+			}
+
+			drawImage(getImage(dimension), color, g);
+		}
+	}
+
+	protected void customDraw(Graphics g)
+	{
+
+	}
+
+	public final void drawBlurryImage(Image image, Color color, Graphics g)
+	{
+		drawImage(image, color, g);
+	}
+
+	public final void drawImage(Image image, Color color, Graphics g)
+	{
+		drawImage(image, this.rotation, this.position.x, this.position.y, color, g);
+	}
+
+	public void drawImage(Image image, float rotation, float x, float y, Color color, Graphics g)
+	{
+		if (image == null)
+		{
+			image = this.image; //umm well no idea
+		}
+				
+		image.setCenterOfRotation(getCenterOfRotationX() - position.x, getCenterOfRotationY() - position.y);
+		image.setRotation(rotation);
+
+		x += level.getXOffset(this.dimension);
+		y += level.getYOffset(this.dimension);
+		
+		if (shouldDrawCustomImage())
+		{
+			drawCustomImage(image, x, y, color, g);
+		}
+		else
+		{
+			if (resized)
+			{
+				if (properties.shouldScaleImage())
+				{
+					image.draw(x, y, this.hitbox.getRawWidth(), this.hitbox.getRawHeight(), color);
+				}
+				else
+				{
+					RealImage.fillArea(image, x, y, this.hitbox.getRawWidth(), this.hitbox.getRawHeight(), getTextureOffsetX(), getTextureOffsetY(), getCenterOfRotationX(), getCenterOfRotationY(), color, true, g);
+				}
+			}
+			else
+			{
+				if (renderPartially())
+				{
+					g.drawImage(image, x + relRenderStartOffset, y, x + image.getWidth() - relRenderEndOffset, y + image.getHeight(), relRenderStartOffset, 0, image.getWidth() - relRenderEndOffset, image.getHeight(), color);
+				}
+				else
+				{						
+					image.draw(x, y, color);
+				}
+			}
+		}
+	}
+
+	protected Color getFinalDrawColor()
+	{
+		return ColorHelper.multiplyAndCopy(this.customModifiyDrawColor(this.getDrawColor(this.dimension, ColorHelper.buffer)), this.shared ? level.getFinalSharedColor() : Color.white);
+	}
+
+	public float getTextureOffsetX()
+	{
+		return 0.0f;
+	}
+
+	public float getTextureOffsetY()
+	{
+		return 0.0f;
+	}
+
+	protected void drawCustomImage(Image image, float x, float y, Color color, Graphics g)
+	{
+
+	}
+
+	protected boolean shouldDrawCustomImage()
+	{
+		return false;
+	}
+
+	protected Color getDrawColor(Dimension dimension, Color colorBuffer)
+	{
+		return level.getDimensionColor(dimension);
+	}
+
+	public void updateAnimation(float delta)
+	{
+		if (timeToSwitch <= 0)
+		{
+			this.image = animationImages[currentImage];
+			this.lastImage = currentImage;
+			this.lastInnerType = this.innerType;
+
+			if (reverseAnimation)
+			{
+				if (--currentImage < 0)
+				{
+					if (transitioning)
+					{
+						transitioning = false;
+						reverseAnimation = false;
+
+						onTransitionFinished(innerType, finalInnerType);
+
+						this.setInnerType(finalInnerType);
+
+						this.currentImage = 0;
+					}
+					else
+					{
+						currentImage = animationImages.length - 1;
+					}
+				}
+			}
+			else
+			{
+				if (++currentImage >= animationImages.length)
+				{
+					currentImage = 0;
+
+					if (transitioning)
+					{
+						transitioning = false;
+
+						this.setInnerType(finalInnerType);
+
+						onTransitionFinished(innerType, finalInnerType);
+					}
+				}
+			}
+
+			timeToSwitch = duration;
+		}
+
+		timeToSwitch -= delta;
+	}
+
+	protected void onTransitionFinished(int transitionInnerType, int finalInnerType)
+	{
+
+	}
+
+	protected void transitionAnimation(int transitionInnerType, int finalInnerType, boolean reversed, boolean reset)
+	{
+		this.transitioning = true;
+		this.finalInnerType = finalInnerType;
+		this.reverseAnimation = reversed;
+
+		this.setInnerType(transitionInnerType);
+
+		if (reset && reversed)
+		{
+			this.currentImage = animationImages.length - 1;
+			this.image = animationImages[currentImage];
+		}
+	}
+
+	public void nextInnertype()
+	{
+
+		this.innerType++;
+
+		if (this.innerType >= totalInnertypesCount)
+		{
+			this.innerType = 0;
+		}
+
+		updateInnertypeAndHitbox();
+	}
+
+	public void previousInnertype()
+	{
+		this.innerType--;
+
+		if (this.innerType < 0)
+		{
+			this.innerType = totalInnertypesCount - 1;
+		}
+
+		updateInnertypeAndHitbox();
+	}
+
+	private void updateInnertypeAndHitbox()
+	{
+		if (this.lastInnerType != this.innerType)
+		{
+			this.lastInnerType = this.innerType;
+
+			int beforeImageWidth = this.image.getWidth();
+			int beforeImageHeight = this.image.getHeight();
+
+			updateInnerType();
+
+			if (beforeImageHeight != this.image.getHeight() || beforeImageWidth != this.image.getWidth())
+			{
+				float beforeX = this.hitbox.getCenterX();
+				float beforeY = this.hitbox.getCenterY();
+
+				this.hitbox.set(this.position.x, this.position.y, this.image.getWidth(), this.image.getHeight());
+
+				this.setRotation(this.rotation);
+
+				this.adjustX(beforeX - this.hitbox.getCenterX());
+				this.adjustY(beforeY - this.hitbox.getCenterY());
+			}
+		}
+	}
+
+	public void setInnerType(int innerType)
+	{
+		if (this.innerType != innerType && innerType >= 0 && innerType < totalInnertypesCount)
+		{
+			this.innerType = innerType;
+
+			updateInnerType();
+
+			this.lastInnerType = this.innerType;
+		}
+	}
+
+	public void updateInnerType()
+	{
+		if (this.hasTextures)
+		{
+			this.image = availableImages[innerType * Dimension.count() + dimension.code()][0];
+
+			if (isAnimated())
+			{
+				this.duration = SharedAnimationHandler.getPerImageDuration(type, innerType);
+				this.animationImages = this.availableImages[innerType * Dimension.count() + dimension.code()];
+
+				this.currentImage = 0;
+				this.lastImage = 0;
+
+				this.image = animationImages[0];
+			}
+
+			this.image.setRotation(this.rotation);
+		}
+	}
+
+	public void onInnerTypeChanged()
+	{
+
+	}
+
+	public void updateHitbox()
+	{
+		hitbox.setLocation(position.x, position.y);
+		hitbox.update();
+	}
+
+	public boolean isRotateable()
+	{
+		return this.properties.isRotatable();
+	}
+
+	public void setRotation(float rotation)
+	{
+		if (this.properties.isRotatable() && (Math.abs(rotation) <= 90 || !isRotationLimited()))
+		{
+			if (this instanceof ITileRotationListener)
+			{
+				((ITileRotationListener) this).onRotationUpdate(rotation - this.rotation, rotation);
+			}
+
+			this.rotation = rotation;
+
+			if (this.hasTextures)
+			{
+				this.image.setRotation(rotation);
+			}
+
+			this.hitbox.setRotation(rotation, getCenterOfRotationX() - position.x, getCenterOfRotationY() - position.y);
+
+			onRotationChanged();
+		}
+	}
+
+	public boolean isLightAffected()
+	{
+		return true;
+	}
+
+	public boolean isRotationLimited()
+	{
+		return true;
+	}
+
+	protected boolean isMoveable()
+	{
+		return false;
+	}
+
+	protected void onRotationChanged()
+	{
+
+	}
+
+	public void onCreated()
+	{
+
+	}
+
+	@Override
+	public String customToString()
+	{
+		return "type:" + this.innerType + (this.rotation != 0.0f ? (" rotation:" + this.rotation) : "") + (this.image == null || this.hitbox.getRawWidth() != this.image.getWidth() || this.hitbox.getRawHeight() != this.image.getHeight() ? (" resized w:" + this.hitbox.getRawWidth() + " h:" + this.hitbox.getRawHeight()) : "");
+	}
+
+	public boolean isClimbable()
+	{
+		return this.properties.isClimbable();
+	}
+
+	protected boolean renderPartially()
+	{
+		return false;
+	}
+
+	public float getRotation()
+	{
+		return rotation;
+	}
+
+	public float getCenterOfRotationY()
+	{
+		return hitbox.getCenterY();
+	}
+
+	public float getCenterOfRotationX()
+	{
+		return hitbox.getCenterX();
+	}
+
+	public boolean isBlocked()
+	{
+		return properties.isBlocked();
+	}
+
+	public void setBlocked(boolean blocked)
+	{
+		properties.setBlocked(blocked);
+	}
+
+	public float getSlowdown()
+	{
+		return properties.getSlowdown();
+	}
+
+	public void setSlowdown(float slowdown)
+	{
+		properties.setSlowdown(slowdown);
+	}
+
+	public int getTouchDamage()
+	{
+		return properties.getTouchDamage();
+	}
+
+	public boolean isAnimated()
+	{
+		return properties.isAnimated();
+	}
+
+	public void setAnimated(boolean animated)
+	{
+		properties.setAnimated(animated);
+	}
+
+	public TileProperty getProperties()
+	{
+		return properties;
+	}
+
+	public TileType getType()
+	{
+		return type;
+	}
+
+	public Hitbox getHitbox()
+	{
+		return this.hitbox;
+	}
+
+	public int getInnerType()
+	{
+		return innerType;
+	}
+
+	public boolean dealsDamage()
+	{
+		return this.getTouchDamage() > 0;
+	}
+
+	public Level getLevel()
+	{
+		return level;
+	}
+
+	public void setLevel(Level level)
+	{
+		this.level = level;
+	}
+
+	public int getTotalInnertypesCount()
+	{
+		return totalInnertypesCount;
+	}
+
+	public Image[][] getAvailableImages()
+	{
+		return availableImages;
+	}
+
+	public boolean shouldDrawBehindTiles()
+	{
+		return properties.shouldRenderBehindTiles();
+	}
+
+	public boolean shouldDrawBehindEntities()
+	{
+		return properties.shouldRenderBehindEntities();
+	}
+
+	public boolean shouldUseOriginalTextures()
+	{
+		return useOriginalTextures;
+	}
+
+	public void useOriginalTextures()
+	{
+		this.useOriginalTextures = true;
+	}
+
+	public boolean hasTextures()
+	{
+		return this.hasTextures;
+	}
+
+	public int getInnerTypes()
+	{
+		return innerTypes;
+	}
+}

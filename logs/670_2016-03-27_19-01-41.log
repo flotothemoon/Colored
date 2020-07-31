@@ -1,0 +1,80 @@
+ -- General -- 
+Generated on: 2016-03-27_19-01-41
+Build: 670 from 10:25 AM - 27/03/16
+GameState: MAP_EDITOR (previous: IN_LEVEL)
+Target FPS: 60
+Actual FPS: 61
+
+ -- Display -- 
+Target Width / Height: 1920 / 1080
+Actual Width / Height: 1920 / 1017 (windowed)
+
+ -- Environment -- 
+GPU: GeForce GTX 980 Ti/PCIe/SSE2 (NVIDIA Corporation)
+OpenGL Version: 4.5.0 NVIDIA 361.43
+Allocated Memory: 15MB
+Used Memory: 0MB
+"os.name": Windows 10
+"os.version": 10.0
+"os.arch": x86
+"java.version": 1.8.0_66
+"java.vendor": Oracle Corporation
+"sun.arch.data.model": 32
+
+ -- Level --
+ID: 21-07 (internal: 07)
+LevelType: REVERSAL
+Dimension: LIGHT
+Location: ../worlds/maps/21-07
+
+ -- Stack Trace -- 
+java.lang.NullPointerException
+com.unlogical.colored.entity.boss.EntityReversalBoss.draw(EntityReversalBoss.java:201)
+com.unlogical.colored.mapeditor.MapEditor.render(MapEditor.java:1236)
+com.unlogical.colored.GameLauncher.render(GameLauncher.java:460)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication.mainLoop(LwjglApplication.java:218)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication$1.run(LwjglApplication.java:123)
+
+ -- Last 20 Log Entries -- 
+@Log: Play sound BALL_HIT_WALL at volume 0.0 and pitch 1.0 (once). (11)
+@Log: Play sound DEATH at volume 0.0 and pitch 1.0 (once). (11)
+@Log: Play sound DEATH at volume 0.0 and pitch 1.0 (once). (11)
+@Log: Play sound JUMP at volume 0.0 and pitch 1.0 (once). (11)
+@Log: Play sound BALL_HIT_WALL at volume 0.0 and pitch 1.0 (once). (11)
+@Log: Play sound BALL_HIT_WALL at volume 0.0 and pitch 1.0 (once). (11)
+@Log: Play sound JUMP at volume 0.0 and pitch 1.0 (once). (11)
+@Log: --- NEW UPDATE FRAME (17) --- (11)
+@Log: Play sound CANNON_SHOOT_BALL at volume 0.0 and pitch 1.0 (once). (11)
+@Log: Play sound BALL_HIT_WALL at volume 0.0 and pitch 1.0 (once). (11)
+@Log: Play sound BALL_HIT_WALL at volume 0.0 and pitch 1.0 (once). (11)
+@Log: Play sound BALL_HIT_WALL at volume 0.0 and pitch 1.0 (once). (11)
+@Log: Play sound BALL_HIT_WALL at volume 0.0 and pitch 1.0 (once). (11)
+@Log: --- NEW UPDATE FRAME (17) --- (11)
+@Log: Play sound BALL_HIT_WALL at volume 0.0 and pitch 1.0 (once). (11)
+@Log: Play sound DEATH at volume 0.0 and pitch 1.0 (once). (11)
+@Log: Play sound DEATH at volume 0.0 and pitch 1.0 (once). (11)
+@Log: Fetching lights for level "21-07" ... (11)
+@Log: Lights fetched for level "21-07", 3 lights found. (11)
+@Log: Loaded map Boss (21-07, ../worlds/maps/21-07), took 18ms. (11)
+
+ -- Last 20 Input Events -- 
+Key down: A (29) (2323ms ago)
+Key up: A (29) (2023ms ago)
+Key down: Space (62) (1990ms ago)
+Key up: Space (62) (1890ms ago)
+Key down: L-Shift (59) (1858ms ago)
+Key down: Space (62) (1690ms ago)
+Key down: A (29) (1657ms ago)
+Key up: A (29) (1573ms ago)
+Key up: L-Shift (59) (1557ms ago)
+Key up: S (47) (1507ms ago)
+Key up: Space (62) (1491ms ago)
+Key down: L-Ctrl (129) (1374ms ago)
+Key down: F (34) (1358ms ago)
+Key down: Space (62) (1341ms ago)
+Key up: Space (62) (1240ms ago)
+Key up: L-Ctrl (129) (1207ms ago)
+Key down: A (29) (907ms ago)
+Key up: A (29) (741ms ago)
+Key down: L-Ctrl (129) (624ms ago)
+Key down: M (41) (40ms ago)

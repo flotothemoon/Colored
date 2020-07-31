@@ -1,0 +1,188 @@
+package com.unlogical.linked.input;
+
+import java.lang.reflect.Field;
+
+import org.lwjgl.input.Controller;
+
+public class ControllerHandler
+{
+	public final static int USED_AXIS_COUNT = 4;
+	
+	public final float MAX_AXIS_FACTOR = 0.8f;
+	public final float MIN_AXIS_FACTOR = 0.4f;
+	
+	Controller controller;
+	private net.java.games.input.Controller target;
+	
+	private boolean[] lastButtons;
+	private boolean[] pressedButtons;
+	private boolean[] lastAxis;
+	private boolean[] currentAxis;
+	private boolean[] pressedAxis;
+	private boolean[] initialAxis;
+	private boolean initialising;
+	float[] currentAxisFactors;
+	
+	public ControllerHandler(Controller controller) throws Exception
+	{
+		this.controller = controller;
+		
+		//don't judge me :(
+		Field field = this.controller.getClass().getDeclaredField("target");
+		field.setAccessible(true);
+		target = (net.java.games.input.Controller) field.get(controller);
+		
+		this.lastButtons = new boolean[controller.getButtonCount()];
+		this.pressedButtons = new boolean[controller.getButtonCount()];
+		this.lastAxis = new boolean[USED_AXIS_COUNT];
+		this.currentAxis = new boolean[USED_AXIS_COUNT];
+		this.pressedAxis = new boolean[USED_AXIS_COUNT];
+		this.currentAxisFactors = new float[USED_AXIS_COUNT];
+		this.initialAxis = new boolean[USED_AXIS_COUNT];
+		
+		this.initialising = true;
+	}
+	
+	public boolean update(int delta)
+	{
+		if (!target.poll())
+		{						
+			return false;
+		}
+		
+		controller.poll();
+		
+		for (int i = 0; i < controller.getButtonCount(); i++)
+		{
+			pressedButtons[i] = controller.isButtonPressed(i) && !lastButtons[i];
+			
+			lastButtons[i] = controller.isButtonPressed(i); 
+		}
+		
+		float xAxis = controller.getXAxisValue();
+		float yAxis = controller.getYAxisValue();
+		
+		for (int i = 0; i < USED_AXIS_COUNT; i++)
+		{
+			currentAxisFactors[i] = 0.0f;
+			currentAxis[i] = false;
+		}
+		
+		if (xAxis < 0)
+		{
+			if (-xAxis > MIN_AXIS_FACTOR)
+			{				
+				currentAxisFactors[3] = (-xAxis - MIN_AXIS_FACTOR) * (1 / (MAX_AXIS_FACTOR - MIN_AXIS_FACTOR));
+
+				if (currentAxisFactors[3] > 1.0f)
+				{
+					currentAxisFactors[3] = 1.0f;
+				}
+			}
+		}
+		else
+		{
+			if (xAxis > MIN_AXIS_FACTOR)
+			{				
+				currentAxisFactors[1] = (xAxis - MIN_AXIS_FACTOR) * (1 / (MAX_AXIS_FACTOR - MIN_AXIS_FACTOR));
+
+				if (currentAxisFactors[1] > 1.0f)
+				{
+					currentAxisFactors[1] = 1.0f;
+				}
+			}
+		}
+		
+		if (yAxis < 0)
+		{
+			if (-yAxis > MIN_AXIS_FACTOR)
+			{				
+				currentAxisFactors[0] = (-yAxis - MIN_AXIS_FACTOR) * (1 / (MAX_AXIS_FACTOR - MIN_AXIS_FACTOR));
+
+				if (currentAxisFactors[0] > 1.0f)
+				{
+					currentAxisFactors[0] = 1.0f;
+				}
+			}
+		}
+		else
+		{
+			if (yAxis > MIN_AXIS_FACTOR)
+			{				
+				currentAxisFactors[2] = (yAxis - MIN_AXIS_FACTOR) * (1 / (MAX_AXIS_FACTOR - MIN_AXIS_FACTOR));
+
+				if (currentAxisFactors[2] > 1.0f)
+				{
+					currentAxisFactors[2] = 1.0f;
+				}
+			}
+		}
+		
+		for (int i = 0; i < USED_AXIS_COUNT; i++)
+		{
+			currentAxis[i] = currentAxisFactors[i] > 0.0f;
+			
+			if (initialAxis[i])
+			{
+				if (currentAxis[i])
+				{
+					currentAxis[i] = false;
+				}
+				else
+				{
+					initialAxis[i] = false;
+				}
+			}
+			
+			pressedAxis[i] = currentAxis[i] && !lastAxis[i];
+			
+			lastAxis[i] = currentAxis[i];
+		}
+		
+		if (initialising)
+		{
+			for (int i = 0; i < initialAxis.length; i++)
+			{
+				initialAxis[i] = currentAxis[i];
+			}
+			
+			initialising = false;
+		}
+		
+		return true;
+	}
+	
+	public boolean isButtonDown(InputAction action)
+	{
+		if (ControllerMapper.isButtonMapped(action))
+		{
+			return isButtonDown(ControllerMapper.mapButton(action));
+		}
+		else
+		{
+			return currentAxis[ControllerMapper.mapAxis(action)];
+		}
+	}
+	
+	public boolean isButtonPressed(InputAction action)
+	{
+		if (ControllerMapper.isButtonMapped(action))
+		{
+			return isButtonPressed(ControllerMapper.mapButton(action));
+		}
+		else
+		{
+			return pressedAxis[ControllerMapper.mapAxis(action)];
+		}
+	}
+	
+	public boolean isButtonDown(int index)
+	{
+		return controller.isButtonPressed(index);
+	}
+	
+	public boolean isButtonPressed(int index)
+	{
+		return pressedButtons[index];
+	}
+}

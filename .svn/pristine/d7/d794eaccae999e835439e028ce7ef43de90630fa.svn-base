@@ -1,0 +1,6 @@
+package com.unlogical.linked.terrain.tile.properties;
+
+public interface ITileBlockedFromAbove
+{
+
+}

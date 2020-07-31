@@ -1,0 +1,24 @@
+package com.unlogical.linked.level;
+
+public enum LevelType
+{
+	NORMAL,
+	REVERSAL,
+	TIME_SCALE,
+	FROZEN,
+	TIME_TRAVEL,
+	
+	;
+	
+	public LevelType next()
+	{
+		int nextIndex = this.ordinal() + 1;
+		
+		if (nextIndex >= values().length)
+		{
+			nextIndex = 0;
+		}
+		
+		return values()[nextIndex];
+	}
+}

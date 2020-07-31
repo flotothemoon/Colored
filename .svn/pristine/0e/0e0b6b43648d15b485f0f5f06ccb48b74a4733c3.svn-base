@@ -1,0 +1,75 @@
+package com.unlogical.linked.util;
+
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.Set;
+
+public class ZHandler
+{
+	public static final int TEXTURE_QUADRANT_SIZE = 32;
+
+	private static Set<ZDistortion> distortions = new HashSet<ZDistortion>();
+	private static float time;
+
+	public static void update(int delta)
+	{
+		Iterator<ZDistortion> iterator = distortions.iterator();
+
+		while (iterator.hasNext())
+		{
+			ZDistortion distortion = iterator.next();
+
+			distortion.update(delta);
+
+			if (distortion.isFinished())
+			{
+				iterator.remove();
+			}
+		}
+
+		time += delta;
+	}	
+	
+	public static void clearDistortions()
+	{
+		distortions.clear();
+	}
+	
+	public static void addDistortion(ZDistortion distortion)
+	{
+		distortions.add(distortion);
+	}
+
+	public static void removeDistortion(ZDistortion distortion)
+	{
+		distortions.remove(distortion);
+	}
+	
+	public static float getZ(float x, float y)
+	{
+		return calculateZ(x, y);
+	}
+
+	public static float getZ(float x, float y, float angle)
+	{
+		return calculateZ(x, y);
+	}
+
+	private static float calculateZ(float x, float y)
+	{
+		float z = 0.0f;
+
+		for (ZDistortion distortion : distortions)
+		{
+			z += distortion.getZDistortion(x, y);
+		}
+
+		return z;
+	}
+	
+	public static int getDistortionCount()
+	{
+		return distortions.size();
+	}
+
+}

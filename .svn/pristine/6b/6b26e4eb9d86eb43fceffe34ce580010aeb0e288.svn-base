@@ -1,0 +1,79 @@
+package com.unlogical.colored.inventory;
+
+import com.unlogical.colored.entity.item.EntityItem;
+
+public class Inventory
+{
+	private ItemStack[] items;
+	private int size;
+	private int filledSlots;
+
+	public Inventory(int size, ItemStack[] items)
+	{
+		this.items = new ItemStack[size];
+		this.size = size;
+		filledSlots = 0;
+		for (int i = 0; i < items.length; i++)
+		{
+			this.items[i] = items[i];
+		}
+	}
+
+	public boolean addItemStack(ItemStack item)
+	{
+		if (filledSlots == size)
+			return false;
+
+		items[filledSlots] = item;
+		filledSlots++;
+
+		return true;
+	}
+
+	public void setItemStack(int index, ItemStack item)
+	{
+		if (index < size)
+		{
+			items[index] = item;
+		}
+	}
+
+	public ItemStack getStackWith(EntityItem item)
+	{
+		ItemStack ret = null;
+
+		for (ItemStack is : items)
+		{
+			if (is != null)
+			{
+				if (is.getItem().equals(item) && is.getStackSize() < is.getItem().getMaxStack())
+				{
+					ret = is;
+				}
+			}
+		}
+
+		return ret;
+	}
+
+	public void setFilledSlots(int filledSlots)
+	{
+		this.filledSlots = filledSlots;
+	}
+
+	public int getSize()
+	{
+		return size;
+	}
+
+	public int getFilledSlots()
+	{
+		return filledSlots;
+	}
+
+	public ItemStack[] getItems()
+	{
+		return items;
+	}
+
+}

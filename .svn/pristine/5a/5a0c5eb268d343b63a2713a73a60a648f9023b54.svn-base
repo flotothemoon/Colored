@@ -1,0 +1,40 @@
+package com.unlogical.linked.entity.item;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+
+public class Drops {
+
+	private HashMap<EntityItem,Float> items;
+	
+	public Drops()
+	{
+		items  = new HashMap<EntityItem, Float>();
+	}
+	
+	public void addDrop(EntityItem e, int probability)
+	{
+		this.items.put(e, probability/100.0f);
+	}
+	
+	public List<String> toList()
+	{
+		List<String> dropList = new ArrayList<String>();
+		for(int i=0;i<EntityItem.ITEM_NAMES.length;i++)
+		{
+			if(items.containsKey(EntityItem.ITEM_NAMES[i]))
+			{
+				dropList.add(EntityItem.ITEM_NAMES[i]);	
+			}
+		}
+		
+		return dropList;
+	}
+	
+	public HashMap<EntityItem,Float> getItems()
+	{
+		return this.items;
+	}	
+	
+}

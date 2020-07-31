@@ -1,0 +1,9 @@
+#81859740f229f8a736cfd1c76411ccac2ec1b72cdb016d593cf39a2ed96b4b2c6a7
+player, climb, , 9, 2, 2, 80, 120
+player, climbh, , 9, 2, 126, 80, 120
+player, custom, , 2, 609, 250, 64, 112
+player, dead, , 1, 614, 488, 100, 100
+player, fall, , 2, 450, 488, 80, 110
+player, idle, , 9, 2, 250, 67, 120
+player, jump, , 6, 2, 488, 74, 110
+player, walk, , 8, 2, 374, 82, 110

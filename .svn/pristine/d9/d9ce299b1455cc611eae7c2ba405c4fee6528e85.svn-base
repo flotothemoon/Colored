@@ -1,0 +1,152 @@
+package com.unlogical.linked.filesystem;
+
+import java.io.File;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+
+import com.unlogical.linked.configuration.Settings;
+import com.unlogical.linked.input.KeyBindings;
+
+
+
+public class FileOrganisation
+{
+	private static List<String> defaultFiles = new ArrayList<String>();
+	private static List<String> customFiles = new ArrayList<String>();
+	private static HashMap<String, String> index = new HashMap<String, String>();
+	private static int outdatedFilesSize;
+
+	public static void init()
+	{
+		defaultFiles.add(FilePaths.GAME_LOG);
+		defaultFiles.add(FilePaths.OPTIONS_YML);
+
+		for (int i = 0; i < FilePaths.FOLDERS.length; i++)
+		{
+			File file = new File(FilePaths.FOLDERS[i]);
+			file.mkdirs();
+		}
+
+		for (int i = 0; i < defaultFiles.size(); i++)
+		{
+			File file = new File(defaultFiles.get(i));
+
+			if (!file.exists() && defaultFiles.get(i).equals(FilePaths.OPTIONS_YML))
+			{
+				KeyBindings.init();
+				Settings.saveSettings();
+			}
+		}
+
+		Settings.loadSettings();
+	}
+
+	public static void createMap(String mapname)
+	{
+		File map = new File(FilePaths.MAPS + "/" + mapname);
+
+		if (!map.exists())
+		{
+			map.mkdirs();
+		}
+	}
+
+	public static void createIndex()
+	{
+		File base = new File(".");
+		index.clear();
+
+		customFiles.clear();
+		customFiles.add("worlds/custom-maps");
+		customFiles.add("texture-packs");
+		customFiles.add("screenshots");
+		customFiles.add("saves");
+		customFiles.add("dev/logs");
+		customFiles.add("dev/options.yml");
+		customFiles.add("dev/clientIdentification.yml");
+		customFiles.add("temp");
+
+		getFiles(base);
+	}
+
+	public static HashMap<String, String> getOutdatedFiles(HashMap<String, String> clientIndex, HashMap<String, String> serverIndex)
+	{
+		if (clientIndex == null)
+		{
+			clientIndex = index;
+		}
+
+		HashMap<String, String> outdatedFiles = new HashMap<String, String>();
+		outdatedFilesSize = 0;
+
+		for (String file : serverIndex.keySet())
+		{
+			if (!clientIndex.containsKey(file) || (clientIndex.containsKey(file) && !clientIndex.get(file).equals(serverIndex.get(file))))
+			{
+				outdatedFiles.put(file, serverIndex.get(file));
+				outdatedFilesSize += Long.parseLong(serverIndex.get(file));
+			}
+		}
+
+		return outdatedFiles;
+	}
+
+	public static void getFiles(File ref)
+	{
+		if (!isCustomFile(ref.getPath().substring(ref.getPath().indexOf('/') + 1)))
+		{
+			if (ref.isDirectory())
+			{
+				for (File file : ref.listFiles())
+				{
+					getFiles(file);
+				}
+			}
+			else
+			{
+				index.put(ref.getPath().substring(ref.getPath().indexOf('/') + 1), ref.length() + "");
+			}
+		}
+	}
+
+	public static long getSize(File file)
+	{
+		long length = 0;
+
+		for (File f : file.listFiles())
+		{
+			if (f.isDirectory())
+			{
+				length += getSize(f);
+			}
+			else
+			{
+				length += f.length();
+			}
+		}
+
+		return length;
+	}
+
+	private static boolean isCustomFile(String name)
+	{
+		for (String str : customFiles)
+		{
+			if (name.equalsIgnoreCase(str))
+				return true;
+		}
+
+		return false;
+	}
+
+	public static int getOutdatedFilesSize()
+	{
+		return outdatedFilesSize;
+	}
+
+	public static void setOutdatedFilesSize(int outdatedFilesSize)
+	{
+		FileOrganisation.outdatedFilesSize = outdatedFilesSize;
+	}
+}

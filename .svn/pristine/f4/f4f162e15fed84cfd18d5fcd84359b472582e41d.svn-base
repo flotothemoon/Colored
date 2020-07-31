@@ -1,0 +1,210 @@
+package com.unlogical.colored.gui;
+
+import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.g2d.Batch;
+import com.badlogic.gdx.graphics.g2d.TextureRegion;
+import com.badlogic.gdx.math.Vector2;
+import com.unlogical.colored.GameLauncher;
+import com.unlogical.colored.util.ColorHelper;
+import com.unlogical.colored.util.Renderer;
+
+public class ItemOverlay
+{
+	private boolean fadingIn;
+	private boolean fadingOut;
+
+	private int fadeInTime;
+	private int fadeOutTime;
+
+	private float lifeTime;
+	private int displayTime;
+
+	private float alpha;
+
+	private TextureRegion image;
+
+	private Vector2 base;
+
+	private float xOffset;
+	private float yOffset;
+
+	public ItemOverlay(TextureRegion image, Vector2 base, float xOffset, float yOffset, int displayTime, int fadeInTime, int fadeOutTime, float startAlpha)
+	{
+		init(image, base, xOffset, yOffset, displayTime, fadeInTime, fadeOutTime, startAlpha);
+	}
+
+	public ItemOverlay init(TextureRegion image, Vector2 base, float xOffset, float yOffset, int displayTime, int fadeInTime, int fadeOutTime, float startAlpha)
+	{
+		this.image = image;
+		this.fadeInTime = fadeInTime;
+		this.fadeOutTime = fadeOutTime;
+
+		this.base = base;
+
+		this.xOffset = xOffset;
+		this.yOffset = yOffset;
+
+		this.displayTime = displayTime;
+
+		this.alpha = startAlpha;
+		this.fadingIn = true;
+		this.fadingOut = false;
+		this.lifeTime = 0;
+
+		return this;
+	}
+
+	public void update(float delta)
+	{
+		if (fadingIn)
+		{
+			if (alpha < 1.0f)
+			{
+				alpha += (delta) / (fadeInTime);
+			}
+
+			if (lifeTime >= fadeInTime)
+			{
+				fadingIn = false;
+			}
+		}
+		
+		if (!fadingOut && lifeTime >= displayTime - fadeOutTime)
+		{
+			fadingOut = true;
+		}
+
+		if (fadingOut && alpha > 0.0f)
+		{
+			alpha -= (delta) / (fadeOutTime);
+			
+			if (alpha < 0.0f)
+			{
+				alpha = 0.0f;
+			}
+		}
+		
+		lifeTime += delta;
+	}
+
+	public void draw(Batch batch)
+	{
+		if (image != null)
+		{		
+			Renderer.useSpriteBatch();
+						
+			batch.setColor(ColorHelper.applyAlphaAndCopy(Color.WHITE, alpha * GameLauncher.getLevelContext().getControlAlphaFactor()));
+			batch.draw(image, base.x + xOffset, base.y + yOffset);
+		}
+	}
+
+	public boolean isFadingIn()
+	{
+		return fadingIn;
+	}
+
+	public void setFadingIn(boolean fadingIn)
+	{
+		this.fadingIn = fadingIn;
+	}
+
+	public boolean isFadingOut()
+	{
+		return fadingOut;
+	}
+
+	public void setFadingOut(boolean fadingOut)
+	{
+		this.fadingOut = fadingOut;
+	}
+
+	public float getLifeTime()
+	{
+		return lifeTime;
+	}
+
+	public void setLifeTime(float lifeTime)
+	{
+		this.lifeTime = lifeTime;
+	}
+
+	public float getAlpha()
+	{
+		return alpha;
+	}
+
+	public void setAlpha(float alpha)
+	{
+		this.alpha = alpha;
+	}
+
+	public TextureRegion getImage()
+	{
+		return image;
+	}
+
+	public void setImage(TextureRegion image)
+	{
+		this.image = image;
+	}
+
+	public Vector2 getBase()
+	{
+		return base;
+	}
+
+	public void setBase(Vector2 base)
+	{
+		this.base = base;
+	}
+
+	public float getXOffset()
+	{
+		return xOffset;
+	}
+
+	public void setXOffset(float xOffset)
+	{
+		this.xOffset = xOffset;
+	}
+
+	public float getYOffset()
+	{
+		return yOffset;
+	}
+
+	public void setYOffset(float yOffset)
+	{
+		this.yOffset = yOffset;
+	}
+
+	public int getFadeInTime()
+	{
+		return fadeInTime;
+	}
+
+	public void setFadeInTime(int fadeInTime)
+	{
+		this.fadeInTime = fadeInTime;
+	}
+
+	public int getFadeOutTime()
+	{
+		return fadeOutTime;
+	}
+
+	public void setFadeOutTime(int fadeOutTime)
+	{
+		this.fadeOutTime = fadeOutTime;
+	}
+
+	public int getDisplayTime()
+	{
+		return displayTime;
+	}
+
+	public void setDisplayTime(int displayTime)
+	{
+		this.displayTime = displayTime;
+	}
+}

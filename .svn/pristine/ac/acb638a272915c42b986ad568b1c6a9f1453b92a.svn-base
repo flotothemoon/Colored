@@ -1,0 +1,649 @@
+package com.unlogical.linked;
+
+/*
+ * TODO:
+ * 
+ * - change delta to float
+ * - animations dependent on moving speed (not just delta) for entities
+ * 
+ * - dimensions
+ * 
+ */
+
+/*
+ * - dimensions:
+ * 
+ *   independent
+ *   time delay
+ *	 time scale
+ *   reversal
+ *    
+ * TODO:
+ *       
+ * - FIXME collision prediction for normal tiles sometimes glitches out when approaching from certain angle (45)
+ * - FIXME collisions with advanced tiles glitch out sometimes when they are moving (prediction not working?)
+ * - FIXME map sometimes moves too far out when moving on something with slowdown and small black area becomes visible inmap (seems to be both, vertically and horizontally)
+ * - FIXME events not cleared so an interaction event can be fired even if the key was initially just pressed a minute ago (interaction glitch)
+ *   
+ * - make not straight and every polygon (4 cornered) hitbox (stairs, etc.) work
+ * 
+ * - change distancetotile**** for non-straight tiles and take first point where it intersects
+ * 
+ * - maps linked to each other via doors
+ * 
+ * - music for whole world, not just level (for "instant" loading when switching between levels)
+ * 
+ * - better debug mode (gui; not just text)
+ *  
+ * - add info when clicking in userinputfield
+ * 
+ * - add ability to mapeditor to be able to "jump" to the linked level somehow by clicking the linkedTile
+ * 
+ * - "schizophrenic" character, two minds, turning that the player is actually (partially) the bad guy
+ * - visibile in backgrounds and textures (dark and good side)
+ *   
+ * - change hitbox detection to work with non-straight hitboxes
+ *  
+ * - worlds as maps where you can select which map to go
+ * 
+ * - add special animations triggerable by advancedtiles (like destruction)
+ * - add animations for destruction of objects
+ * 
+ * - calculate animationspeed out of methods depending on action and velocity etc
+ *    
+ * - remove resolutions option
+ * - smooth map moving
+ * - when spawned on spawnpoint instantly move everything to fit
+ * 
+ * - add thunderstorms
+ * 
+ * - interface for jumppad (scale y velocity with win value), ejectible (by cannons and similar things; see render modes)
+ *    
+ * - button images (buffered hashmap for buttonlabel)
+ *    
+ * - add possibility to change hitbox depending on the current action (table?), entitiy
+ *    
+ * - better ways for climbing ladders and climbables (ability to just not climb)
+ *   (change controls?; cimbable only for player with arrow keys; jump only for water)
+ *    
+ * - add render modes (to limit the image rendering vertically, horizontally or both; for platforms that slowly appear out of cannons)
+ *    
+ * - better sound system (ambient.rain, player.climbladder, terrain.water.slpash, ...); 
+ * - add sounds for ambient: (thunder, rain, wind, storm, enemies, jump, ladder, climb) 
+ * 
+ * - make settings work while in game
+ *    
+ * - add cloud platforms
+ * - add cannons and things that "shoot" platforms
+ *       
+ * - add custom mouse cursor 
+ * 
+ * - add wooden cages for lums (no key required) and iron cages (key required) and signal required iron cages
+ * - add climbable walls
+ * - add conveyer belts
+ * - add stairs
+ * - add keys (as entity) 
+ * - add key effected blocks (if all keys collected or if a certain key is collected and put right)
+ * - add grass/flowers etc (high grass, bushes).
+ * - add more types of ladders
+ * - add lanterns (raw and on "stick")
+ * - add bullets/"cannons", bullets and cannons that chase you
+ * 
+ * - add proper detection if advancedtiles are nearby
+ *   
+ * - add weather condition to options when creating map (bit rainy, rainy, strong rain, thunderstorm, snowfall) and in what layer it is
+ * 
+ * - update mapcreationmenu
+ * - add edit map settings option to mapeditormenu
+ * 
+ * - remove texture filters and linear scaling (hd textures!)
+ *  
+ * - add proper creating map and loading screen (just in case the loading takes longer than estimated)
+ * 
+ * - add falling/vanishing platforms (with respawning after cooldown)
+ * 
+ * - implement storyline (scripted)
+ * 
+ * - lots of riddles (medium difficult to very difficult)
+ * 
+ * - performance improvements
+ * 
+ * - game start in fullscreen, two logos instead of loading screen (game logo, team logo) (to hide startup loading ^^)
+ * - replace startup loading screen with logos of team/company and game (in that order) 
+ */
+
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
+
+import org.lwjgl.opengl.Display;
+import org.newdawn.slick.AppGameContainer;
+import org.newdawn.slick.BasicGame;
+import org.newdawn.slick.GameContainer;
+import org.newdawn.slick.Graphics;
+import org.newdawn.slick.Input;
+import org.newdawn.slick.SlickException;
+import org.newdawn.slick.TrueTypeFont;
+
+import com.unlogical.linked.crash.DebugScreen;
+import com.unlogical.linked.debug.Debug;
+import com.unlogical.linked.gui.menu.MenuDisplay;
+import com.unlogical.linked.gui.panel.CakePanel;
+import com.unlogical.linked.gui.panel.PerformancePanel;
+import com.unlogical.linked.input.InputHandler;
+import com.unlogical.linked.level.Level;
+import com.unlogical.linked.levelrendering.LevelRenderer;
+import com.unlogical.linked.mapeditor.MapEditor;
+import com.unlogical.linked.resources.font.Fonts;
+import com.unlogical.linked.sound.Sounds;
+import com.unlogical.linked.util.CursorType;
+import com.unlogical.linked.util.GameStatus;
+import com.unlogical.linked.util.LoadingHandler;
+import com.unlogical.linked.util.RealImage;
+import com.unlogical.linked.util.Renderer;
+import com.unlogical.linked.util.ShaderHandler;
+import com.unlogical.linked.util.ZDistortion;
+import com.unlogical.linked.util.ZHandler;
+
+public class GameLauncher extends BasicGame
+{
+	public static final int TARGET_WIDTH = 1920;
+	public static final int TARGET_HEIGHT = 1080;
+
+	public static final float TARGET_RATIO = ((float) TARGET_WIDTH) / ((float) TARGET_HEIGHT);
+
+	private static int targetFPS = 60;
+	private static int delta;
+	
+	private static long lastUpdate = System.nanoTime();
+	private static long totalTime;
+	private static long updateTime;
+	private static long renderTime;
+	private static long unspecifiedTime;
+	private static long idleTime;
+	private static long lastControlledTime;
+
+	private static boolean developerMode = true;
+	private static boolean lockFPS = true;
+	private static boolean windowed = developerMode;
+	private static boolean vSync = false;
+	private static boolean fullscreen;
+	private static boolean focused;
+	private static boolean continueLastSession = true;
+
+	private static Level levelContext;
+
+	private static RealImage compLogo;
+	
+	private static PerformancePanel performancePanel;
+	private static CakePanel cakePanel;
+	
+	private static GameStatus status;
+	private static AppGameContainer gameContainer;
+
+	public GameLauncher(String title)
+	{
+		super(title);
+	}
+
+	public static void main(String[] args)
+	{
+		try
+		{
+			for (String arg : args)
+			{
+				if (arg.equalsIgnoreCase("windowed"))
+				{
+					windowed = true;
+					Debug.log("Set to run in WINDOWED mode.");
+				}
+				else if (arg.equalsIgnoreCase("novsync"))
+				{
+					vSync = false;
+					Debug.log("Disabled vsync.");
+				}
+				else if (arg.equalsIgnoreCase("debug") || arg.equalsIgnoreCase("dev"))
+				{
+					developerMode = true;
+					Debug.log("Developer mode enabled.");
+				}
+				else if (arg.equalsIgnoreCase("forcemenu") || arg.equalsIgnoreCase("dontcontinue"))
+				{
+					continueLastSession = false;
+					Debug.log("Automatic session continuation disabled.");
+				}
+				else if (arg.equalsIgnoreCase("lockfps"))
+				{
+					lockFPS = true;
+					Debug.log("FPS locked to " + targetFPS + "fps.");
+				}
+				else if (arg.startsWith("forcefps"))
+				{
+					lockFPS = true;
+
+					try
+					{
+						targetFPS = Integer.parseInt(arg.substring("forcefps".length() - 1));
+					}
+					catch (Exception e)
+					{
+						Debug.log("Bacon argument " + arg);
+					}
+
+					Debug.log("FPS locked to " + targetFPS + "fps.");
+				}
+				else
+				{
+					Debug.log("Bacon argument: " + arg);
+				}
+			}
+
+			Debug.log("\n\n[Started Game " + new SimpleDateFormat("dd/MM/yy HH:mm:ss").format(Calendar.getInstance().getTime()) + "]");
+			Debug.log("Starting launcher...");
+
+			String[] icons = { "res/textures/misc/sun-16x16.png", "res/textures/misc/sun-32x32.png" };
+
+			gameContainer = new AppGameContainer(new GameLauncher("Linked " + (developerMode ? " [Developer View]" : "")));
+			gameContainer.setIcons(icons);			
+			gameContainer.setDisplayMode(TARGET_WIDTH, TARGET_HEIGHT, !windowed);
+
+			if (lockFPS)
+			{
+				lockFPS(targetFPS);
+			}
+
+			if (vSync)
+			{
+				gameContainer.setVSync(true);
+			}
+
+			Display.setResizable(true);
+
+			gameContainer.setAlwaysRender(true);
+			gameContainer.setShowFPS(false);
+			
+			Debug.log("Starting display...");
+			
+			gameContainer.start();
+		}
+		catch (SlickException e)
+		{
+			DebugScreen.handle(e);
+		}
+	}
+
+	@Override
+	public void init(GameContainer container)
+	{
+		setStatus(GameStatus.LOADING);
+
+		CursorType.useCursor(CursorType.DEFAULT, container);
+
+		try
+		{
+			compLogo = new RealImage("res/compLogo.png");
+			
+			Debug.log("Logos loaded.");
+		}
+		catch (SlickException e)
+		{
+			throw new RuntimeException("Damnit. Can't even load two simple images. Damnit! DAMNIT!");
+		}
+
+		Fonts.init();
+		Sounds.load();
+		Renderer.reScale(container);
+		
+		performancePanel = new PerformancePanel(0, GameLauncher.getHeight() - 250, 600, 250);
+		cakePanel = new CakePanel(GameLauncher.getWidth() - 400, GameLauncher.getHeight() - 400, 400, 400);
+		
+		performancePanel.setActive(developerMode);
+		cakePanel.setActive(developerMode);
+		
+		performancePanel.setShown(false);
+		cakePanel.setShown(false);
+	}
+
+	@Override
+	public void update(GameContainer container, int delta) throws SlickException
+	{		
+		idleTime = System.nanoTime() - lastControlledTime;
+		
+		long beforeUpdate = System.nanoTime();
+		
+		totalTime = System.nanoTime() - lastUpdate;
+		lastUpdate = System.nanoTime();
+		
+		if (developerMode)
+		{			
+			if (container.getInput().isKeyDown(Input.KEY_F4))
+			{
+				delta /= 2;
+			}
+			else if (container.getInput().isKeyDown(Input.KEY_F6))
+			{
+				delta *= 2;
+			}
+			
+			if (!container.getInput().isKeyDown(Input.KEY_LCONTROL) && !MapEditor.isRenamePanelActive())
+			{
+				if (container.getInput().isKeyPressed(Input.KEY_P))
+				{
+					if (container.getInput().isKeyDown(Input.KEY_LALT))
+					{
+						cakePanel.setShown(!cakePanel.isShown());
+					}
+					else
+					{
+						performancePanel.setShown(!performancePanel.isShown());
+					}
+				}
+			}
+			
+			if (container.getInput().isKeyPressed(Input.KEY_L) && !MapEditor.isRenamePanelActive())
+			{
+				ShaderHandler.toggleLighting();
+			}
+		}
+							
+		GameLauncher.delta = delta;
+
+		if (focused != gameContainer.hasFocus())
+		{
+			if (gameContainer.hasFocus())
+			{
+				Debug.log("Game focused.");
+			}
+			else
+			{
+				Debug.log("Game not focused anymore.");
+
+//				ZHandler.addDistortion(new ZDistortion(2000)
+//				{
+//					@Override
+//					public float getZDistortion(float x, float y)
+//					{
+//						return (float) Math.sin(y / 128 + age / 256) * ageFactor * invertedAgeFactor;
+//					}
+//				});
+								
+//				if (status == GameStatus.IN_MAP)
+//				{
+//					status = GameSdtatus.PAUSE_MENU;
+//					LevelRenderer.pause();
+//				}
+			}
+
+			focused = gameContainer.hasFocus();
+		}
+		
+		Renderer.update(container, delta);
+		ZHandler.update(delta);
+		InputHandler.update(delta, container);
+
+		if (status == GameStatus.MAP_EDITOR)
+		{
+			MapEditor.update(container, delta);
+		}
+		else if (status == GameStatus.IN_MAP || status == GameStatus.PAUSE_MENU)
+		{
+			LevelRenderer.update(container, delta);
+		}
+
+		if (container.getInput().isKeyPressed(Input.KEY_F10))
+		{
+			fullscreen = !fullscreen;
+			
+			gameContainer.setFullscreen(fullscreen);
+			gameContainer.setVSync(fullscreen || vSync);
+			
+			Debug.log("Game is now running in " + (fullscreen ? "FULLSCREEN" : "WINDOWED (" + Display.getWidth() + " x " + Display.getHeight() + ")") + " mode.");
+		}
+
+		if (levelContext != null && container.getInput().isKeyPressed(Input.KEY_F12))
+		{
+			levelContext.saveToActiveSave();
+			MenuDisplay.displaySavedMessage();
+		}
+		
+		if (status == GameStatus.LOADING)
+		{
+			if (LoadingHandler.hasFinishedLoading())
+			{
+				status = GameStatus.MAIN_MENU;
+			}
+
+			LoadingHandler.update(delta);
+		}
+		else
+		{
+			MenuDisplay.update(container, delta);
+		}
+		
+		performancePanel.update(container, delta);
+		
+		clearRecords();
+		
+		updateTime = System.nanoTime() - beforeUpdate;
+		
+		cakePanel.update(container, delta);
+	}
+
+	@Override
+	public void render(GameContainer container, Graphics g)
+	{	
+		try
+		{			
+			long beforeRender = System.nanoTime();
+			
+			Renderer.initRender();
+
+			g.setFont(Fonts.getDefaultFont());
+			g.setLineWidth(2.0f);
+			
+			if (status == GameStatus.LOADING)
+			{
+				g.drawImage(compLogo, container.getWidth() / 2 - compLogo.getWidth() / 2, container.getHeight() / 2 - compLogo.getHeight() / 2);
+			}
+			else if (status == GameStatus.IN_MAP || status == GameStatus.PAUSE_MENU)
+			{
+				LevelRenderer.render(container, g);
+			}
+			else if (status == GameStatus.MAP_EDITOR)
+			{
+				MapEditor.render(container, g);
+			}
+			
+			if (status != GameStatus.LOADING)
+			{
+				MenuDisplay.render(container, g);
+			}
+						
+			performancePanel.render(container, 1.0f, g);
+			
+			renderTime = System.nanoTime() - beforeRender;
+		}
+		catch (Exception e)
+		{
+			Debug.warn("Error while " + (status == GameStatus.LOADING ? "loading" : "rendering") + ", trying to continue...", e);
+		}
+				
+		if (!LoadingHandler.hasFinishedLoading())
+		{
+			LoadingHandler.loadNext();
+		}
+				
+		unspecifiedTime = totalTime - renderTime - updateTime - idleTime;
+		
+		cakePanel.storeCurrentValues();
+		cakePanel.render(container, 1.0f, g);
+
+		
+		lastControlledTime = System.nanoTime();
+	}
+
+	public static void lockFPS(int targetFPS)
+	{
+		gameContainer.setTargetFrameRate(targetFPS);
+		gameContainer.setMinimumLogicUpdateInterval(Math.max(1000 / targetFPS, 1));
+		gameContainer.setMaximumLogicUpdateInterval(Math.max(1000 / targetFPS, 1));
+		
+		GameLauncher.targetFPS = targetFPS;
+	}
+
+	public static void clearRecords()
+	{
+		gameContainer.getInput().clearKeyPressedRecord();
+		gameContainer.getInput().clearControlPressedRecord();
+		gameContainer.getInput().clearMousePressedRecord();
+	}
+
+	public static void exit()
+	{
+		gameContainer.exit();
+	}
+
+	public static int getFPS()
+	{
+		return gameContainer.getFPS();
+	}
+
+	public static boolean isFullscreenMode()
+	{
+		return fullscreen;
+	}
+
+	public static boolean isDeveloperMode()
+	{
+		return developerMode;
+	}
+
+	public static GameContainer getContainer()
+	{
+		return gameContainer;
+	}
+
+	public static void setFullscreenMode(boolean fullscreenMode)
+	{
+		GameLauncher.fullscreen = fullscreenMode;
+	}
+
+	public static Graphics getGraphics()
+	{
+		return gameContainer.getGraphics();
+	}
+
+	public static int getHeight()
+	{
+		return TARGET_HEIGHT;
+	}
+
+	public static int getWidth()
+	{
+		return TARGET_WIDTH;
+	}
+
+	public static void setStatus(GameStatus status)
+	{
+		GameLauncher.status = status;
+	}
+
+	public static GameStatus getStatus()
+	{
+		return status;
+	}
+
+	public static Level getLevelContext()
+	{
+		return levelContext;
+	}
+
+	public static void setLevelContext(Level levelContext)
+	{
+		GameLauncher.levelContext = levelContext;
+	}
+
+	public static TrueTypeFont getFont()
+	{
+		return Fonts.getDefaultFont();
+	}
+
+	public static TrueTypeFont getSmallFont()
+	{
+		return Fonts.getSmallFont();
+	}
+
+	public static int getTargetFPS()
+	{
+		return targetFPS;
+	}
+
+	public static String getVersion()
+	{
+		return null;
+	}
+
+	public static int getDelta()
+	{
+		return delta;
+	}
+	
+	public static int getRealDelta()
+	{
+		return performancePanel.getRealDelta();
+	}
+
+	public static long getTotalTime()
+	{
+		return totalTime;
+	}
+
+	public static long getUpdateTime()
+	{
+		return updateTime;
+	}
+
+	public static long getRenderTime()
+	{
+		return renderTime;
+	}
+	
+	public static long getIdleTime()
+	{
+		return idleTime;
+	}
+	
+	public static long getUnspecifiedTime()
+	{
+		return unspecifiedTime;
+	}
+
+	public static PerformancePanel getPerformancePanel()
+	{
+		return performancePanel;
+	}
+
+	public static CakePanel getCakePanel()
+	{
+		return cakePanel;
+	}
+	
+	public static long getUsedMemory()
+	{
+		return performancePanel.getUsedMemory();
+	}
+	
+	public static long getFreeMemory()
+	{
+		return performancePanel.getFreeMemory();
+	}
+	
+	public static long getAllocatedMemory()
+	{
+		return performancePanel.getAllocatedMemory();
+	}
+	
+	public static Runtime getRuntime()
+	{
+		return performancePanel.getRuntime();
+	}
+}

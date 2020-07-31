@@ -1,0 +1,187 @@
+package com.unlogical.colored.entity.property;
+
+import java.util.HashMap;
+import java.util.LinkedHashSet;
+import java.util.Map;
+import java.util.Set;
+
+import com.unlogical.colored.debug.Debug;
+import com.unlogical.colored.entity.EntityAction;
+import com.unlogical.colored.entity.EntityType;
+import com.unlogical.colored.filesystem.ConfigFileHandler;
+import com.unlogical.colored.filesystem.FileManager;
+import com.unlogical.colored.filesystem.FilePaths;
+
+@SuppressWarnings("serial")
+public class EntityProperties
+{
+	public static final int DEFAULT_ANIMATION_TIME = 100;
+
+	private static final Set<EntityProperties> rootProperties = new LinkedHashSet<EntityProperties>();
+
+	public static final EntityProperties PLAYER = new EntityProperties(FilePaths.ENTITIES + "/" + EntityType.PLAYER.toLowerCaseNameTag(), 0.00109375f, 0.29f, 0.32f, 0.00185f, DEFAULT_ANIMATION_TIME, 0, 1, new HashMap<EntityAction, Integer>()
+	{
+		{
+			put(EntityAction.JUMPING, 500);
+			put(EntityAction.CUSTOM_ONCE0, 250);
+		}
+	}, false);
+
+	public static final EntityProperties GOOMBA = new EntityProperties(FilePaths.ENTITIES + "/" + EntityType.GOOMBA.toLowerCaseNameTag(), 0.0006f, 0.125f, 0.0f, 0.0016f, 65, 1, 1, new HashMap<EntityAction, Integer>(), false);
+
+	public static final EntityProperties BOSS = new EntityProperties(FilePaths.ENTITIES + "/" + EntityType.BOSS.toLowerCaseNameTag(), 0.00025f, 0.15f, 0.0f, 0.0035f, 200, 2, 3, new HashMap<EntityAction, Integer>(), false);
+
+	public static final EntityProperties FROZEN_BOSS = new EntityProperties(FilePaths.ENTITIES + "/" + "frozenboss", 0.00015f, 0.1f, 0.0f, 0.0035f, 200, 2, 3, new HashMap<EntityAction, Integer>(), false);
+
+	public static final EntityProperties TIME_SCALE_BOSS = new EntityProperties(FilePaths.ENTITIES + "/" + "timescaleboss", 0.0006f, 0.26f, 0.0f, 0.0035f, 200, 2, 3, new HashMap<EntityAction, Integer>(), false);
+
+	public static final EntityProperties TIME_TRAVEL_BOSS = new EntityProperties(FilePaths.ENTITIES + "/" + "timetravelboss", 0.00025f, 0.15f, 0.0f, 0.0035f, 200, 2, 3, new HashMap<EntityAction, Integer>(), false);
+
+	public static final EntityProperties KEY = new EntityProperties(FilePaths.ENTITIES + "/" + EntityType.KEY.toLowerCaseNameTag(), 0.00014f, 0.08f, 0.0f, 0.0012f, DEFAULT_ANIMATION_TIME, 0, 1, new HashMap<EntityAction, Integer>(), false);
+
+	public static final EntityProperties SHADOW_BALL = new EntityProperties(FilePaths.ENTITIES + "/" + EntityType.SHADOWBALL.toLowerCaseNameTag(), 0.0f, 0.5f, 0.0f, 0.0011f, DEFAULT_ANIMATION_TIME, 1, 1, new HashMap<EntityAction, Integer>(), false);
+
+	public static final EntityProperties ICE_SPIKES = new EntityProperties(FilePaths.ENTITIES + "/" + EntityType.ICE_SPIKE.toLowerCaseNameTag(), 0.0f, 0.0f, 0.0f, 0.0008f, DEFAULT_ANIMATION_TIME, 1, 1, new HashMap<EntityAction, Integer>(), false);
+
+	public static final EntityProperties MINI_ICE_SPIKE = new EntityProperties(FilePaths.ENTITIES + "/" + EntityType.MINI_ICE_SPIKES.toLowerCaseNameTag(), 0.0f, 0.0f, 0.0f, 0.0009f, DEFAULT_ANIMATION_TIME, 1, 1, new HashMap<EntityAction, Integer>(), false);
+
+	public static final EntityProperties ANVIL = new EntityProperties(FilePaths.ENTITIES + "/" + EntityType.ANVIL.toLowerCaseNameTag(), 0.0f, 0.5f, 0.0f, 0.0011f, DEFAULT_ANIMATION_TIME, 1, 1, new HashMap<EntityAction, Integer>(), false);
+
+	private HashMap<EntityAction, Integer> perImageDurationsByAction = new HashMap<EntityAction, Integer>();
+	private final String basePath;
+	private float acceleration;
+	private float maxSpeed;
+	private float maxClimbSpeed;
+	private float gravity;
+	private int defaultPerImageTime;
+	private int damagePerHit;
+	private int maxHealth;
+
+	private EntityProperties(String basePath, float acceleration, float maxSpeed, float maxClimbSpeed, float gravity, int defaultPerImageDuration, int damagePerHit, int maxHealth, HashMap<EntityAction, Integer> durationPerImageByAction, boolean root)
+	{
+		this(basePath, acceleration, maxSpeed, maxClimbSpeed, gravity, defaultPerImageDuration, damagePerHit, maxHealth, durationPerImageByAction);
+
+		rootProperties.add(this);
+
+		readFromConfig(basePath + ".cfg");
+	}
+
+	public EntityProperties(String basePath, float acceleration, float maxSpeed, float maxClimbSpeed, float gravity, int defaultPerImageDuration, int damagePerHit, int maxHealth, HashMap<EntityAction, Integer> durationPerImageByAction)
+	{
+		this.acceleration = acceleration;
+		this.maxSpeed = maxSpeed;
+		this.maxClimbSpeed = maxClimbSpeed;
+		this.gravity = gravity;
+		this.damagePerHit = damagePerHit;
+		this.maxHealth = maxHealth;
+		this.perImageDurationsByAction = durationPerImageByAction;
+		this.defaultPerImageTime = defaultPerImageDuration;
+		this.basePath = basePath;
+	}
+
+	public EntityProperties copy()
+	{
+		return new EntityProperties(basePath, acceleration, maxSpeed, maxClimbSpeed, gravity, defaultPerImageTime, damagePerHit, maxHealth, perImageDurationsByAction);
+	}
+	
+	public static void reloadAll()
+	{
+		for (EntityProperties properties : rootProperties)
+		{
+			properties.readFromConfig(properties.basePath + ".cfg");
+		}
+	}
+
+	public void readFromConfig(String configPath)
+	{
+		try
+		{
+			Map<String, String> defaultValues = new HashMap<String, String>()
+			{
+				{
+					put("acceleration", acceleration + "");
+					put("maxspeed", maxSpeed + "");
+					put("maxclimbspeed", maxClimbSpeed + "");
+					put("gravity", gravity + "");
+					put("defaultperimagetime", defaultPerImageTime + "");
+					put("damageperhit", damagePerHit + "");
+					put("maxhealth", maxHealth + "");
+				}
+			};
+
+			ConfigFileHandler cfg = new ConfigFileHandler(FileManager.getFile(configPath), defaultValues);
+
+			this.acceleration = cfg.getFloat("acceleration");
+			this.maxSpeed = cfg.getFloat("maxspeed");
+			this.maxClimbSpeed = cfg.getFloat("maxclimbspeed");
+			this.gravity = cfg.getFloat("gravity");
+			this.damagePerHit = cfg.getInteger("damageperhit");
+			this.maxHealth = cfg.getInteger("maxhealth");
+			this.defaultPerImageTime = cfg.getInteger("defaultperimagetime");
+			
+			for (EntityAction action : EntityAction.values())
+			{
+				if (cfg.isSet(action.getIdentifier() + "time"))
+				{
+					this.perImageDurationsByAction.put(action, cfg.getInteger(action.getIdentifier() + "time"));
+				}
+			}
+		}
+		catch (Exception e)
+		{
+			Debug.warn("Exception while reading config file from " + configPath + ": " + e, e);
+		}
+	}
+
+	public float getMaxClimbSpeed()
+	{
+		return this.maxClimbSpeed;
+	}
+
+	public float getAcceleration(float delta)
+	{
+		return acceleration * delta;
+	}
+
+	public float getGravity(float delta)
+	{
+		return gravity * delta;
+	}
+
+	public int getDamagePerHit()
+	{
+		return damagePerHit;
+	}
+
+	public int getMaxHealth()
+	{
+		return maxHealth;
+	}
+
+	public float getMaxSpeed()
+	{
+		return maxSpeed;
+	}
+
+	public void setMaxSpeed(float maxSpeed)
+	{
+		this.maxSpeed = maxSpeed;
+	}
+
+	public int getImageDuration(EntityAction action)
+	{
+		Integer duration = perImageDurationsByAction.get(action);
+
+		return duration == null ? defaultPerImageTime : duration;
+	}
+
+	public void setAcceleration(float acceleration)
+	{
+		this.acceleration = acceleration;
+	}
+
+	public void setGravity(float gravity)
+	{
+		this.gravity = gravity;
+	}
+}

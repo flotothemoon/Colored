@@ -1,0 +1,173 @@
+package com.unlogical.colored.resources.image;
+
+import java.io.IOException;
+import java.util.HashMap;
+
+import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.g2d.Batch;
+import com.badlogic.gdx.graphics.g2d.TextureRegion;
+import com.unlogical.colored.debug.Debug;
+import com.unlogical.colored.filesystem.FilePaths;
+import com.unlogical.colored.input.InputAction;
+import com.unlogical.colored.resources.ResourceLoader;
+import com.unlogical.colored.util.Dimension;
+
+public class Images
+{
+	private static final HashMap<Object, ImageHandler> imageHandlers = new HashMap<Object, ImageHandler>();
+
+	public static ImageHandler registerAndLoadSilently(String item, String path)
+	{
+		try
+		{
+			return registerAndLoad(item, path);
+		}
+		catch (IOException e)
+		{
+			throw new RuntimeException("Exception while siltently loading and registering item \"" + item + "\": " + e, e);
+		}
+	}
+
+	public static ImageHandler registerAndLoadSilently(String item)
+	{
+		return registerAndLoadSilently(item, FilePaths.GUI + "/" + item + ".png");
+	}
+
+	public static ImageHandler registerAndLoad(String item) throws IOException
+	{
+		return registerAndLoad(item, FilePaths.GUI + "/" + item + ".png");
+	}
+
+	public static ImageHandler registerAndLoad(Object identifier, String path) throws IOException
+	{
+		if (identifier == null)
+		{
+			throw new IllegalArgumentException("identifier cannot be null");
+		}
+
+		if (!imageHandlers.containsKey(identifier))
+		{
+			ImageHandler handler = new ImageHandler(path);
+			handler.loadImages();
+			imageHandlers.put(identifier, handler);
+
+			return handler;
+		}
+
+		return imageHandlers.get(identifier);
+	}
+
+	public static TextureRegion getImage(Object identifier)
+	{
+		return getImage(identifier, Dimension.LIGHT);
+	}
+
+	public static TextureRegion getImage(Object identifier, Dimension dimension)
+	{
+		return imageHandlers.get(identifier).getImage();
+	}
+
+	public static ImageHandler getHandler(Object identifier)
+	{
+		return imageHandlers.get(identifier);
+	}
+
+	public static boolean isLoaded(Object identifier)
+	{
+		return imageHandlers.containsKey(identifier);
+	}
+
+	public static String toIdentifier(String str)
+	{
+		return str.replace(' ', '_').toLowerCase();
+	}
+
+	public static void draw(Object identifer, float centerX, float centerY, float scale, float rotation, Batch batch)
+	{
+		draw(identifer, centerX, centerY, scale, rotation, Color.WHITE, batch);
+	}
+
+	public static void draw(Object identifer, float centerX, float centerY, float scale, float rotation, Color color, Batch batch)
+	{
+		if (!imageHandlers.containsKey(identifer))
+		{
+			Debug.warn("Cannot draw " + identifer + ", is not loaded.");
+
+			return;
+		}
+
+		draw(imageHandlers.get(identifer), centerX, centerY, scale, rotation, color, batch);
+	}
+
+	public static void draw(ImageHandler handler, float centerX, float centerY, float scale, float rotation, Color color, Batch batch)
+	{
+		TextureRegion image = handler.getImage();
+		float width = image.getRegionWidth() * scale;
+		float height = image.getRegionHeight() * scale;
+
+		batch.setColor(color);
+		batch.draw(image, centerX - width / 2, centerY - height / 2, centerX, centerY, width, height, 1.0f, 1.0f, rotation);
+	}
+
+	public static class ImageHandler
+	{
+		private String path;
+		private TextureRegion[] images;
+
+		public ImageHandler(String path)
+		{
+			this.path = path;
+		}
+
+		private void loadImages() throws IOException
+		{
+			this.images = ResourceLoader.getImages(this.path);
+
+			if (this.images == null)
+			{
+				throw new RuntimeException("Failed to load images for " + this.path + ".");
+			}
+		}
+
+		public TextureRegion getImage()
+		{
+			return this.images[0];
+		}
+
+		public int getWidth()
+		{
+			return this.getImage().getRegionWidth();
+		}
+
+		public int getHeight()
+		{
+			return this.getImage().getRegionHeight();
+		}
+	}
+
+	public enum HintIdentifier
+	{
+		LEVER_HINT_INACTIVE("leverHintInactive", InputAction.INTERACT),
+		LEVER_HINT_ACTIVE("leverHintActive", InputAction.INTERACT),
+		CAGE_HINT("cageHint", InputAction.INTERACT),
+		DOOR_HINT("doorHint", InputAction.INTERACT),
+		CANT_TOGGLE("cantToggle", null);
+
+		public final String value;
+		public final InputAction linkedAction;
+
+		private HintIdentifier(String value, InputAction linkedAction)
+		{
+			this.value = value;
+			this.linkedAction = linkedAction;
+		}
+
+		public static void loadAll() throws IOException
+		{
+			for (HintIdentifier identifier : values())
+			{
+				registerAndLoad(identifier.value, FilePaths.GUI + "/" + identifier.value.toLowerCase() + ".png");
+			}
+		}
+	}
+}

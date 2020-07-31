@@ -1,0 +1,19 @@
+package com.unlogical.colored.story;
+
+import java.util.Map;
+
+import com.unlogical.colored.level.Level;
+
+public class EndingStoryHandler extends CustomStoryHandler
+{
+	public EndingStoryHandler(Level level)
+	{
+		super(level);
+	}
+
+	@Override
+	public CustomStoryHandler deepCopy(Map<Object, Object> copiedReferences)
+	{
+		return null;
+	}	
+}

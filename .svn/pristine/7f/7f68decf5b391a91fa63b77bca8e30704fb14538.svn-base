@@ -1,0 +1,37 @@
+package com.unlogical.linked.levelrendering.gui;
+
+import org.newdawn.slick.GameContainer;
+import org.newdawn.slick.Graphics;
+
+import com.unlogical.linked.entity.player.EntityPlayer;
+import com.unlogical.linked.level.Level;
+
+public final class GUIRenderer
+{
+	private static Level level;
+
+	public static void init()
+	{
+
+	}
+
+	public static void initMap(Level level)
+	{
+		GUIRenderer.level = level;
+	}
+
+	public static void update(GameContainer container, int delta)
+	{
+
+	}
+	
+	public static void render(GameContainer container, Graphics g)
+	{
+		level.getControllingPlayer().drawOverlay(g);
+
+		if (level.getControllingPlayer().hasMirror())
+		{
+			((EntityPlayer) level.getControllingPlayer().getMirroredEntity()).drawOverlay(g);
+		}
+	}
+}

@@ -1,0 +1,30 @@
+package com.unlogical.linked.inventory;
+
+import java.util.HashMap;
+
+public class ItemProperties {
+	
+	private static HashMap<String,ItemProperty> properties = new HashMap<String,ItemProperty>();
+
+	public static void init()
+	{
+		properties.clear();
+		
+		properties.put("stick", new ItemProperty(4, 100, 100, "none", false));
+		properties.put("knife", new ItemProperty(6, 150, 80, "none", false));
+		properties.put("throwable-knife", new ItemProperty(5, 140, 200, "none", true));
+		properties.put("sword", new ItemProperty(8, 80, 160, "none", false));
+		properties.put("longsword", new ItemProperty(9, 75, 180, "none", false));
+		properties.put("wand", new ItemProperty(7, 90, 110, "none", false));
+		properties.put("witchs-wand", new ItemProperty(9, 80, 120, "poison", false));
+		properties.put("fire-scroll", new ItemProperty(4, 50, 200, "fire", true));
+		properties.put("ice-scroll", new ItemProperty(4, 50, 200, "ice", true));
+		properties.put("adv-fire-scroll", new ItemProperty(6, 40, 200, "fire", true));
+		properties.put("adv-ice-scroll", new ItemProperty(6, 40, 200, "ice", true));
+	}
+	
+	public static ItemProperty getItem(String name)
+	{
+		return properties.get(name);
+	}
+}

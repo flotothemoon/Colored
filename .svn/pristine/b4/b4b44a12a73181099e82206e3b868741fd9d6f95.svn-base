@@ -1,0 +1,30 @@
+package com.unlogical.colored.gui.menu;
+
+import com.unlogical.colored.GameLauncher;
+import com.unlogical.colored.util.GameStatus;
+
+public class PlayMenu extends Menu
+{
+	public PlayMenu(float yOffset, float offset)
+	{
+		super(MenuOptions.PLAY, 0.0f, yOffset, 0.0f, offset, true);
+	}
+
+	@Override
+	public void onSelect(int selection)
+	{
+		switch (selection)
+		{
+			case 0:
+				GameLauncher.goToLastVisitedLevel();
+				break;
+			case 1:
+				GameLauncher.setStatus(GameStatus.CUSTOM_MAP_SELECTION);
+				break;
+			case 2:
+				GameLauncher.setStatus(GameStatus.MAIN_MENU);
+				break;
+		}
+	}
+
+}

@@ -1,0 +1,87 @@
+ -- General -- 
+Generated on: 2016-04-22_20-43-35
+Build: 694 from 09:40 PM - 21/04/16
+GameState: IN_LEVEL (previous: LOADING)
+Target FPS: 60
+Actual FPS: 60
+
+ -- Display -- 
+Target Width / Height: 1920 / 1080
+Actual Width / Height: 1920 / 1017 (windowed)
+
+ -- Environment -- 
+GPU: GeForce GTX 980 Ti/PCIe/SSE2 (NVIDIA Corporation)
+OpenGL Version: 4.5.0 NVIDIA 361.43
+Allocated Memory: 15MB
+Used Memory: 0MB
+"os.name": Windows 10
+"os.version": 10.0
+"os.arch": x86
+"java.version": 1.8.0_66
+"java.vendor": Oracle Corporation
+"sun.arch.data.model": 32
+
+ -- Level --
+ID: 20-04 (internal: 04)
+LevelType: NORMAL
+Dimension: LIGHT
+Location: ../worlds/maps/20-04
+
+ -- Stack Trace -- 
+java.lang.NullPointerException
+com.unlogical.colored.util.CustomVerticesSpriteBatch.draw(CustomVerticesSpriteBatch.java:737)
+com.unlogical.colored.terrain.tile.platform.TilePlatform.drawImage(TilePlatform.java:397)
+com.unlogical.colored.terrain.TerrainObject.drawImage(TerrainObject.java:295)
+com.unlogical.colored.terrain.TerrainObject.drawTextured(TerrainObject.java:279)
+com.unlogical.colored.terrain.TerrainObject.draw(TerrainObject.java:212)
+com.unlogical.colored.levelmanaging.MapManager.drawTile(MapManager.java:938)
+com.unlogical.colored.levelmanaging.MapManager.renderBehindAllEntities(MapManager.java:881)
+com.unlogical.colored.levelmanaging.LevelManager.renderGeometry(LevelManager.java:1175)
+com.unlogical.colored.levelmanaging.LevelManager.render(LevelManager.java:1134)
+com.unlogical.colored.GameLauncher.render(GameLauncher.java:464)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication.mainLoop(LwjglApplication.java:218)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication$1.run(LwjglApplication.java:123)
+
+ -- Last 20 Log Entries -- 
+@Log: Loading map ../worlds/maps/20-04 ... (11)
+@Log: Loading map files took 10ms. (11)
+@Log: Active save was saved to disk. (11)
+@Log: Level 20-04 cleared. (11)
+@Warning: Tried to load image(s) from path res/gui/icons/20_04, the resolved path res/gui/icons/20_04.png however does not exist. (11)
+@Warning: Couldn't load level icon for 20-04. (11)
+@Log: Fetching lights for level "20-04" ... (11)
+@Log: Lights fetched for level "20-04", 5 lights found. (11)
+@Log: Play sound CANNON_SHOOT_CLOUD at volume 0.17 and pitch 1.0 (once). (11)
+@Log: Play sound CANNON_SHOOT_CLOUD at volume 0.17 and pitch 1.0 (once). (11)
+@Log: Play sound CANNON_SHOOT_CLOUD at volume 0.17 and pitch 1.0 (once). (11)
+@Log: Play sound CANNON_SHOOT_CLOUD at volume 0.17 and pitch 1.0 (once). (11)
+@Log: Play sound CANNON_SHOOT_CLOUD at volume 0.17 and pitch 1.0 (once). (11)
+@Log: Play sound CANNON_SHOOT_CLOUD at volume 0.17 and pitch 1.0 (once). (11)
+@Log: Play sound CANNON_SHOOT_CLOUD at volume 0.17 and pitch 1.0 (once). (11)
+@Log: Play sound CANNON_SHOOT_CLOUD at volume 0.17 and pitch 1.0 (once). (11)
+@Log: Pre-simulating particles for 45000.0ms (300 x 150.0ms)... (11)
+@Log: Particle pre-simulation complete. Particles are now ahead of time by 45000.0ms. (11)
+@Log: Active save was saved to disk. (11)
+@Log: Loaded 20-04 (took 60ms). (11)
+
+ -- Last 20 Input Events -- 
+Key up: D (32) (3433ms ago)
+Key down: A (29) (3417ms ago)
+Key up: A (29) (3050ms ago)
+Key down: D (32) (2950ms ago)
+Key typed: d (charcode: 100) (2533ms ago)
+Key typed: d (charcode: 100) (2417ms ago)
+Key typed: d (charcode: 100) (2317ms ago)
+Key typed: d (charcode: 100) (2200ms ago)
+Key typed: d (charcode: 100) (2100ms ago)
+Key typed: d (charcode: 100) (1983ms ago)
+Key down: Space (62) (1967ms ago)
+Key typed:   (charcode: 32) (1966ms ago)
+Key up: Space (62) (1767ms ago)
+Key up: D (32) (1700ms ago)
+Key down: Space (62) (1300ms ago)
+Key down: D (32) (1133ms ago)
+Key up: Space (62) (1017ms ago)
+Key up: D (32) (617ms ago)
+Key down: W (51) (600ms ago)
+Key up: W (51) (417ms ago)

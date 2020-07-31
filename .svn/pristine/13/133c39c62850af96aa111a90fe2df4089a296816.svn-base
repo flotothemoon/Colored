@@ -1,0 +1,636 @@
+package com.unlogical.colored.resources;
+
+import java.io.File;
+import java.io.IOException;
+import java.nio.charset.Charset;
+import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import org.newdawn.slick.Image;
+import org.newdawn.slick.SlickException;
+import org.newdawn.slick.opengl.InternalTextureLoader;
+
+import com.unlogical.colored.debug.Debug;
+import com.unlogical.colored.entity.Entity;
+import com.unlogical.colored.entity.EntityAction;
+import com.unlogical.colored.entity.EntityType;
+import com.unlogical.colored.filesystem.FileManager;
+import com.unlogical.colored.filesystem.FilePaths;
+import com.unlogical.colored.level.Level;
+import com.unlogical.colored.util.Dimension;
+import com.unlogical.colored.util.RealImage;
+
+public class ResourceLoader
+{
+	public static LoadMode LOAD_MODE = LoadMode.SPRITESHEET;
+	private static Map<String, List<String[]>> imageConfigFiles = new HashMap<String, List<String[]>>();
+	private static Map<String, RealImage> spritesheets = new HashMap<String, RealImage>();
+	private static ArrayList<RealImage> imageBuffer = new ArrayList<RealImage>();
+
+	public static void releaseAll()
+	{
+		spritesheets.clear();
+		imageConfigFiles.clear();
+		InternalTextureLoader.get().clear();
+	}
+	
+	public static void release(String path)
+	{
+		String dataPath = getSpriteDataPath(path);
+				
+		imageConfigFiles.remove(dataPath);
+		spritesheets.remove(dataPath);
+		InternalTextureLoader.get().clear(); //TODO find better way because for some reason I can't just clear path + .png 
+	}
+
+	private static List<String[]> getConfigLines(String path) throws IOException
+	{
+		List<String[]> configLines = imageConfigFiles.get(path);
+
+		if (configLines == null)
+		{
+			File configFile = new File(path + ".dat");
+
+			if (!configFile.exists())
+			{
+				// Debug.log("Couldn't find spreadsheet data in " + path + ".");
+
+				return null;
+			}
+
+			List<String> lines = Files.readAllLines(configFile.toPath(), Charset.defaultCharset());
+			configLines = new ArrayList<String[]>();
+
+			for (String line : lines)
+			{
+				configLines.add(line.replaceAll(" ", "").split(","));
+			}
+
+			imageConfigFiles.put(path, configLines);
+		}
+		
+		return configLines;
+	}
+
+	private static RealImage getSpritesheet(String path)
+	{
+		if (spritesheets.containsKey(path))
+		{			
+			return spritesheets.get(path);
+		}
+
+		try
+		{			
+			spritesheets.put(path, new RealImage(path + ".png"));
+		}
+		catch (Exception e)
+		{
+			throw new RuntimeException("Spritesheet " + path + ".png not found or invalid: " + e, e);
+		}
+		
+		return spritesheets.get(path);
+	}
+
+	private static RealImage[] readFromSpritesheet(String dataPath, String[] imageInfo)
+	{
+		int imageCount = Integer.parseInt(imageInfo[3]);
+		int startX = Integer.parseInt(imageInfo[4]);
+		int startY = Integer.parseInt(imageInfo[5]);
+		int baseWidth = Integer.parseInt(imageInfo[6]);
+		int baseHeight = Integer.parseInt(imageInfo[7]);
+
+		RealImage spritesheet = getSpritesheet(dataPath);
+		RealImage[] images = new RealImage[imageCount];
+		
+		for (int i = 0; i < imageCount; i++)
+		{
+			images[i] = spritesheet.getSubImage(startX + i * baseWidth, startY, baseWidth, baseHeight);
+		}
+
+		return images;
+	}
+
+	private static String getSpriteDataPath(String path)
+	{
+		String dataPath = path;
+		dataPath = dataPath.replace('\\', '/');
+		dataPath = dataPath.substring(0, dataPath.lastIndexOf('/'));
+		dataPath = dataPath + "/_" + (dataPath.contains("/") ? dataPath.substring(dataPath.lastIndexOf('/') + 1) : dataPath);
+
+		return dataPath;
+	}
+
+	public static RealImage[][] getAnimatedImages(String fullPath) throws IOException
+	{
+		return getAnimatedImages(fullPath, LOAD_MODE);
+	}
+
+	public static RealImage[][] getAnimatedImages(String fullPath, LoadMode loadMode) throws IOException
+	{
+		if (loadMode == LoadMode.SPRITESHEET)
+		{
+			String dataPath = getSpriteDataPath(fullPath);
+			List<String[]> configLines = getConfigLines(dataPath);
+			List<RealImage[]> images = new ArrayList<RealImage[]>();
+			String base = fullPath.substring(fullPath.lastIndexOf('/') + 1);
+
+			if (configLines == null)
+			{
+				return null;
+			}
+
+			for (String[] line : configLines)
+			{
+				if (base.equals(line[0]))
+				{
+					images.add(readFromSpritesheet(dataPath, line));
+				}
+			}
+
+			RealImage[][] availableImages = new RealImage[images.size()][];
+
+			for (int i = 0; i < images.size(); i++)
+			{
+				availableImages[i] = images.get(i);
+			}
+
+			if (availableImages.length == 0)
+			{
+				Debug.log("Couldn't find any images for " + dataPath);
+				Debug.printStackTrace(5);
+				
+				return null;
+			}
+
+			return availableImages;
+		}
+		else if (loadMode == LoadMode.INDIVIDUAL_FILES)
+		{
+			RealImage[][] availableImages;
+			RealImage[] mainImages;
+			String path = fullPath.endsWith(".png") ? fullPath.substring(0, fullPath.length() - 4) : fullPath;
+			String imgPath = path + "-1.png";
+			String imgPathMonochrome = path + "-1m.png";
+
+			imageBuffer.clear();
+
+			int counter = 0;
+			
+			while (FileManager.existsFile(imgPath))
+			{
+				try
+				{
+					imageBuffer.add(new RealImage(imgPath));
+					imageBuffer.add(new RealImage(imgPathMonochrome));
+				}
+				catch (SlickException e)
+				{
+					throw new IOException("BaconException: Could not load textures, " + e);
+				}
+
+				counter++;
+
+				imgPath = path + counter + "-1.png";
+				imgPathMonochrome = path + counter + "-1m.png";
+			}
+
+			if (imageBuffer.isEmpty())
+			{				
+				return null;
+			}
+
+			mainImages = new RealImage[imageBuffer.size()];
+
+			for (int i = 0; i < imageBuffer.size(); i++)
+			{
+				mainImages[i] = imageBuffer.get(i);
+			}
+
+			availableImages = new RealImage[mainImages.length][];
+
+			for (int i = 0; i < availableImages.length; i++)
+			{
+				availableImages[i] = getAnimationImages(path + (i / 2 > 0 ? i / 2 : ""), (i % 2 == 0) ? "" : "m");
+			}
+
+			return availableImages;
+		}
+
+		throw new UnsupportedOperationException("Load mode " + loadMode + " doesn't exist.");
+	}
+
+	public static HashMap<String, RealImage[][]> getTileImages(String tileName, boolean animated)
+	{
+		HashMap<String, RealImage[][]> availableImages = new HashMap<String, RealImage[][]>();
+
+		for (String chapter : Level.getChapters())
+		{
+			RealImage[][] images = null;
+
+			try
+			{
+				images = getTileImages(chapter, tileName, animated);
+
+				if (images == null)
+				{
+					if (chapter.equals("20"))
+					{
+						Debug.warn("Unable to find base tile images for " + tileName + ".");
+					}
+
+					images = availableImages.get("20");
+				}
+			}
+			catch (IOException e)
+			{
+				throw new RuntimeException("Exception while loading tile images for " + tileName + ": " + e, e);
+			}
+
+			availableImages.put(chapter, images);
+
+		}
+
+		return availableImages;
+	}
+
+	private static RealImage[][] getTileImages(String chapter, String tileName, boolean animated) throws IOException
+	{
+		RealImage[][] images = null;
+		RealImage[] mainImages;
+		String path = FilePaths.TILE_TEXTURES + (chapter.equals("20") ? "" : ("/" + chapter)) + (animated ? FilePaths.TILE_ANIMATIONS_POSTFIX : "") + "/" + tileName;
+
+		imageBuffer.clear();
+
+		if (LOAD_MODE == LoadMode.SPRITESHEET)
+		{
+			String dataPath = getSpriteDataPath(path + (animated ? "/" : ""));
+			List<String[]> configLines = getConfigLines(dataPath);
+			List<RealImage[]> tempImages = new ArrayList<RealImage[]>();
+			String base = tileName.toLowerCase();
+
+			if (configLines == null)
+			{
+				return null;
+			}
+
+			String lastPostfix = "m";
+
+			for (String[] line : configLines)
+			{
+				if (base.equals(line[0]))
+				{
+					if (lastPostfix.equals(line[2]))
+					{
+						tempImages.add(null);
+					}
+
+					tempImages.add(readFromSpritesheet(dataPath, line));
+
+					lastPostfix = line[2];
+				}
+			}
+
+			if (!lastPostfix.equals("m"))
+			{
+				tempImages.add(null);
+			}
+
+			if (tempImages.isEmpty())
+			{
+				return null;
+			}
+
+			images = new RealImage[tempImages.size()][];
+
+			for (int i = 0; i < images.length; i++)
+			{
+				images[i] = tempImages.get(i);
+
+				if (images[i] == null)
+				{
+					images[i] = new RealImage[1];
+				}
+			}
+		}
+		else if (LOAD_MODE == LoadMode.INDIVIDUAL_FILES)
+		{
+			String imgPath = animated ? (path + "/" + tileName + "-1.png") : (path + ".png");
+			String imgPathMonochrome = animated ? (path + "/" + tileName + "-1m.png") : (path + "m.png");
+
+			if (!FileManager.existsFile(imgPath))
+			{
+				return null;
+			}
+
+			int counter = 0;
+
+			while (FileManager.existsFile(imgPath))
+			{
+				try
+				{
+					imageBuffer.add(new RealImage(imgPath));
+				}
+				catch (Exception e)
+				{
+					throw new RuntimeException("A required resource for tile " + tileName + " was not found, " + imgPath + ": " + e, e);
+				}
+
+				try
+				{
+					imageBuffer.add(new RealImage(imgPathMonochrome));
+				}
+				catch (Exception e)
+				{
+					imageBuffer.add(null);
+
+					Debug.log("No monochrome version for tile " + tileName + ", searched in path " + imgPathMonochrome + ".");
+				}
+
+				counter++;
+
+				imgPath = animated ? (path + "/" + tileName + counter + "-1.png") : (path + counter + ".png");
+				imgPathMonochrome = animated ? (path + "/" + tileName + counter + "-1m.png") : (path + counter + "m.png");
+			}
+
+			mainImages = new RealImage[imageBuffer.size()];
+
+			for (int i = 0; i < imageBuffer.size(); i++)
+			{
+				if (imageBuffer.get(i) != null)
+				{
+					imageBuffer.get(i).setFilter(Image.FILTER_NEAREST);
+				}
+
+				mainImages[i] = imageBuffer.get(i);
+			}
+
+			images = new RealImage[mainImages.length][];
+
+			for (int i = 0; i < images.length; i++)
+			{
+				if (animated)
+				{
+					images[i] = getAnimationImages(path + "/" + tileName + (i / 2 > 0 ? i / 2 : ""), i % 2 == 0 ? "" : "m");
+				}
+				else
+				{
+					images[i] = new RealImage[1];
+					images[i][0] = mainImages[i];
+				}
+			}
+		}
+
+		return images;
+	}
+
+	private static RealImage[] getAnimationImages(String path, String dimensionPrefix)
+	{
+		RealImage[] animationImages;
+		int counter = 1;
+		String imgPath = path + "-1" + dimensionPrefix + ".png";
+
+		imageBuffer.clear();
+
+		while (FileManager.existsFile(imgPath))
+		{
+			try
+			{
+				imageBuffer.add(new RealImage(imgPath));
+			}
+			catch (Exception e)
+			{
+			}
+
+			counter++;
+			imgPath = path + "-" + counter + dimensionPrefix + ".png";
+		}
+
+		animationImages = new RealImage[imageBuffer.size()];
+		for (int i = 0; i < imageBuffer.size(); i++)
+		{
+			animationImages[i] = imageBuffer.get(i);
+		}
+
+		return animationImages;
+	}
+
+	public static HashMap<String, HashMap<EntityAction, RealImage[][]>> getEntityImages(EntityType type)
+	{
+		HashMap<String, HashMap<EntityAction, RealImage[][]>> availableImages = new HashMap<String, HashMap<EntityAction, RealImage[][]>>();
+
+		Entity entity = Entity.createEntity(type, null, null, Dimension.LIGHT, false);
+
+		if (entity == null)
+		{
+			Debug.warn("Tried to load entity images for " + type + ", but an entity for it could not be instantiated (createEntity returned null).");
+
+			return null;
+		}
+
+		for (String chapter : Level.getChapters())
+		{			
+			HashMap<EntityAction, RealImage[][]> chapterImages = new HashMap<EntityAction, RealImage[][]>();
+			availableImages.put(chapter, chapterImages);
+			
+			for (EntityAction action : EntityAction.values())
+			{
+				if (entity.supportsAction(action))
+				{
+					RealImage[][] images = null;
+
+					try
+					{
+						images = getEntityImages(chapter, action, type, entity);
+					}
+					catch (IOException e)
+					{
+						throw new RuntimeException("Exception while loading entity images for " + entity + " " + action + ": " + e, e);
+					}
+
+					if (images == null)
+					{
+						if (chapter.equals("20"))
+						{
+							Debug.warn("Base textures (chapter 20) for entity " + type + " missing for action " + action + ".");
+						}
+						
+						images = availableImages.get("20").get(action);
+					}
+
+					chapterImages.put(action, images);
+				}
+			}
+		}
+
+		return availableImages;
+	}
+
+	public static RealImage[][] getEntityImages(String chapter, EntityAction action, EntityType type, Entity entity) throws IOException
+	{
+		RealImage[][] images = new RealImage[4][];
+		RealImage[] unfocusedImages = null;
+		RealImage[] focusedImages = null;
+		RealImage[] unfocusedImagesMonochrome = null;
+		RealImage[] focusedImagesMonochrome = null;
+
+		ArrayList<RealImage> tempImages = new ArrayList<RealImage>();
+		ArrayList<RealImage> tempImagesMonochrome = new ArrayList<RealImage>();
+
+		String directory = entity.getTextureDirectory() + "/" + type.toLowerCaseNameTag() + "/" + (!chapter.equals("20") ? (chapter + "/") : "");
+
+		if (LOAD_MODE == LoadMode.SPRITESHEET)
+		{
+			String dataPath = getSpriteDataPath(directory);
+			List<String[]> configLines = getConfigLines(dataPath);
+			
+			if (configLines == null)
+			{
+				return null;
+			}
+			
+			String base = type.toLowerCaseNameTag();
+
+			for (String[] line : configLines)
+			{
+				if (base.equals(line[0]) && action.getIdentifier().equals(line[1]))
+				{
+					RealImage[] innertypeImages = readFromSpritesheet(dataPath, line);
+					int focusedIndex = line[2].equals("m") ? (entity.hasDefaultFocus() ? 2 : 3) : (entity.hasDefaultFocus() ? 0 : 1);
+					int unfocusedIndex = line[2].equals("m") ? (entity.hasDefaultFocus() ? 3 : 2) : (entity.hasDefaultFocus() ? 1 : 0);
+
+					images[focusedIndex] = new RealImage[innertypeImages.length];
+					images[unfocusedIndex] = new RealImage[innertypeImages.length];
+
+					for (int i = 0; i < innertypeImages.length; i++)
+					{
+						images[focusedIndex][i] = innertypeImages[i];
+						images[unfocusedIndex][i] = innertypeImages[i].getFlippedCopy(true, false);
+					}
+				}
+			}
+		}
+		else if (LOAD_MODE == LoadMode.INDIVIDUAL_FILES)
+		{
+			if (!FileManager.existsFile(directory + type.toLowerCaseNameTag() + "-" + action.getIdentifier() + "-1.png"))
+			{
+				return null;
+			}
+
+			directory = directory + type.toLowerCaseNameTag();
+
+			int count = 1;
+
+			try
+			{
+				while (FileManager.existsFile(directory + "-" + action.getIdentifier() + "-" + count + ".png"))
+				{
+					tempImages.add(new RealImage(directory + "-" + action.getIdentifier() + "-" + count + ".png"));
+					tempImagesMonochrome.add(new RealImage(directory + "-" + action.getIdentifier() + "-" + count + "m.png"));
+
+					count++;
+				}
+
+				unfocusedImages = new RealImage[tempImages.size()];
+				focusedImages = new RealImage[tempImages.size()];
+				unfocusedImagesMonochrome = new RealImage[tempImages.size()];
+				focusedImagesMonochrome = new RealImage[tempImages.size()];
+
+				for (int i = 0; i < tempImages.size(); i++)
+				{
+					if (entity.hasDefaultFocus())
+					{
+						focusedImages[i] = tempImages.get(i);
+						unfocusedImages[i] = focusedImages[i].getFlippedCopy(true, false);
+						focusedImagesMonochrome[i] = tempImagesMonochrome.get(i);
+						unfocusedImagesMonochrome[i] = focusedImagesMonochrome[i].getFlippedCopy(true, false);
+					}
+					else
+					{
+						unfocusedImages[i] = tempImages.get(i);
+						focusedImages[i] = unfocusedImages[i].getFlippedCopy(true, false);
+						unfocusedImagesMonochrome[i] = tempImagesMonochrome.get(i);
+						focusedImagesMonochrome[i] = unfocusedImagesMonochrome[i].getFlippedCopy(true, false);
+					}
+				}
+
+				images[0] = focusedImages;
+				images[1] = unfocusedImages;
+				images[2] = focusedImagesMonochrome;
+				images[3] = unfocusedImagesMonochrome;
+			}
+			catch (SlickException e)
+			{
+				Debug.warn("Error while loading textures for " + type + " at " + count + " " + action + " (" + e + ").", e);
+			}
+		}
+
+		return images;
+	}
+
+	public static Image[] getWrapperAnimationImages(String path)
+	{
+		imageBuffer.clear();
+		RealImage[] images;
+		int counter = 0;
+		String imgPath = path + "";
+
+		while (FileManager.existsFile(imgPath))
+		{
+			try
+			{
+				imageBuffer.add(new RealImage(path));
+			}
+			catch (Exception e)
+			{
+				Debug.warn("Exception while loading image \"" + path + "\": " + e, e);
+			}
+
+			counter++;
+			imgPath = path + counter + ".png";
+		}
+
+		images = (RealImage[]) imageBuffer.toArray();
+
+		return images;
+	}
+
+	public static RealImage[] getImages(String fullPath, boolean useDimensions)
+	{
+		RealImage[] images = new RealImage[2];
+
+		String path = fullPath.endsWith(".png") ? fullPath.substring(0, fullPath.length() - 4) : fullPath;
+		String imgPath = path + ".png";
+		String imgPathMonochrome = path + "m.png";
+
+		if (FileManager.existsFile(imgPath))
+		{
+			try
+			{
+				images[0] = new RealImage(imgPath);
+
+				if (useDimensions)
+				{
+					images[1] = new RealImage(imgPathMonochrome);
+				}
+			}
+			catch (Exception e)
+			{
+				Debug.warn("BaconException: Could not load images: " + e, e);
+			}
+		}
+		else
+		{
+			Debug.warn("Tried to load image(s) from path " + fullPath + ", the resolved path " + imgPath + " however does not exist.");
+		}
+
+		return images;
+	}
+
+	public enum LoadMode
+	{
+		INDIVIDUAL_FILES, SPRITESHEET
+	}
+}

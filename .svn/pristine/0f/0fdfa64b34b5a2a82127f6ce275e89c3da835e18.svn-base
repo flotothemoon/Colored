@@ -1,0 +1,315 @@
+package com.unlogical.colored.filesystem;
+
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
+import java.security.InvalidParameterException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.NoSuchElementException;
+
+import com.unlogical.colored.debug.Debug;
+
+public class ConfigFileHandler
+{
+	public static final String DEFAULT_COMMENT_BEGIN = "#";
+	public static final String DEFAULT_SEPERATOR = "=:";
+	public static final boolean DEFAULT_TRIM_WHITESPACE = true;
+
+	private FileHandle handle;
+	private List<String> allLines = new ArrayList<String>();
+	private Map<String, String> values = new HashMap<String, String>();
+	private Map<String, String> linesByKey = new HashMap<String, String>();
+	private Map<String, String> defaultValues;
+	private String commentBegin;
+	private String seperators;
+	private boolean trimWhitespace;
+	private boolean loaded;
+
+	public ConfigFileHandler(String path) throws IOException
+	{
+		this(FileManager.getFile(path), null, DEFAULT_COMMENT_BEGIN, DEFAULT_SEPERATOR, DEFAULT_TRIM_WHITESPACE);
+	}
+	
+	public ConfigFileHandler(String path, Map<String, String> defaultValues) throws IOException
+	{
+		this(FileManager.getFile(path), defaultValues, DEFAULT_COMMENT_BEGIN, DEFAULT_SEPERATOR, DEFAULT_TRIM_WHITESPACE);
+	}
+	
+	public ConfigFileHandler(String path, Map<String, String> defaultValues, String commentBegin, String seperators, boolean trimWhitespace) throws IOException
+	{
+		this(FileManager.getFile(path), defaultValues, commentBegin, seperators, trimWhitespace);
+	}
+	
+	public ConfigFileHandler(FileHandle handle)
+	{
+		this(handle, null, DEFAULT_COMMENT_BEGIN, DEFAULT_SEPERATOR, DEFAULT_TRIM_WHITESPACE);
+	}
+
+	public ConfigFileHandler(FileHandle handle, Map<String, String> defaultValues)
+	{
+		this(handle, defaultValues, DEFAULT_COMMENT_BEGIN, DEFAULT_SEPERATOR, DEFAULT_TRIM_WHITESPACE);
+	}
+
+	public ConfigFileHandler(FileHandle handle, Map<String, String> defaultValues, String commentBegin, String seperators, boolean trimWhitespace)
+	{
+		if (handle == null)
+		{
+			throw new NullPointerException("File handle cannot be null.");
+		}
+		
+		if (seperators.isEmpty())
+		{
+			throw new IllegalArgumentException("Seperators cannbot be empty.");
+		}
+
+		this.handle = handle;
+		this.defaultValues = defaultValues;
+		this.commentBegin = commentBegin;
+		this.seperators = seperators;
+		this.trimWhitespace = trimWhitespace;
+	}
+
+	public void load() throws IOException
+	{
+		load(false);
+	}
+
+	public void load(boolean reload) throws IOException
+	{
+		if (loaded && !reload)
+		{
+			return;
+		}
+
+		BufferedReader reader = new BufferedReader(new InputStreamReader(handle.createInputStream()));
+
+		String line;
+
+		allLines.clear();
+		values.clear();
+
+		while ((line = reader.readLine()) != null)
+		{
+			try
+			{
+				allLines.add(line);
+				
+				if (line.startsWith(commentBegin))
+				{
+					continue;
+				}
+
+				Character usedSeperator = null;
+				
+				for (char seperator : seperators.toCharArray())
+				{
+					if (line.contains(seperator + "") && line.indexOf(seperator) == line.lastIndexOf(seperator))
+					{
+						usedSeperator = seperator;
+					}
+				}
+								
+				if (usedSeperator == null)
+				{
+					continue;
+				}
+
+				String originalLine = line;
+
+				String key = line.substring(0, line.indexOf(usedSeperator));
+				String value = line.substring(line.indexOf(usedSeperator) + 1);
+
+				if (trimWhitespace)
+				{
+					key = key.trim();
+					value = value.trim();
+				}
+				
+				if (values.containsKey(key))
+				{
+					Debug.log("Duplicate value for key \"" + key + "\": \"" + value + "\" (before: \"" + values.get(key) + "\")");
+				}
+
+				values.put(key, value);
+				linesByKey.put(key, originalLine);
+			}
+			catch (Exception e)
+			{
+				Debug.warn("Invalid log line \"" + line + "\": " + e, e);
+			}
+
+			if (defaultValues != null)
+			{
+				for (String key : defaultValues.keySet())
+				{
+					if (!values.containsKey(key))
+					{
+						values.put(key, defaultValues.get(key));
+					}
+				}
+			}
+		}
+
+		handle.closeInputStream();
+
+		loaded = true;
+	}
+
+	public void write() throws IOException
+	{
+		write(this.handle);
+	}
+
+	public void write(FileHandle handle) throws IOException
+	{
+		if (handle == null)
+		{
+			throw new NullPointerException("File handle cannot be null.");
+		}
+
+		BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(handle.createOutputStream()));
+
+		for (String line : allLines)
+		{
+			writer.write(line + "\n");
+		}
+
+		writer.flush();
+		handle.closeOutputStream();
+	}
+
+	public void set(String key, boolean value)
+	{
+		set(key, value + "");
+	}
+
+	public void set(String key, int value)
+	{
+		set(key, value + "");
+	}
+
+	public void set(String key, float value)
+	{
+		set(key, value + "");
+	}
+
+	public void set(String key, double value)
+	{
+		set(key, value + "");
+	}
+
+	public void set(String key, String value)
+	{
+		if (!loaded)
+		{
+			try
+			{
+				load();
+			}
+			catch (Exception e)
+			{
+				throw new RuntimeException("Failed to silently load and parse the file " + handle + ": " + e, e);
+			}
+		}
+
+		if (values.containsKey(key))
+		{
+			String line = linesByKey.get(key);
+			int index = allLines.indexOf(line);
+
+			if (index < 0)
+			{
+				throw new IllegalStateException("All lines (" + allLines + ") is not in sync with linesByKey (" + linesByKey + ").");
+			}
+
+			allLines.remove(index);
+			allLines.add(index, toLine(key, value));
+
+			linesByKey.remove(line);
+			linesByKey.put(key, allLines.get(index));
+		}
+		else
+		{
+			values.put(key, value);
+			allLines.add(toLine(key, value));
+			linesByKey.put(key, allLines.get(allLines.size() - 1));
+		}
+	}
+
+	private String toLine(String key, String value)
+	{
+		return key + (trimWhitespace ? " " : "") + seperators.charAt(0) + (trimWhitespace ? " " : "") + value;
+	}
+
+	public boolean getBoolean(String key)
+	{
+		checkKey(key);
+
+		String value = values.get(key);
+
+		if (value.equalsIgnoreCase("yes") || value.equalsIgnoreCase("true"))
+		{
+			return true;
+		}
+
+		if (value.equalsIgnoreCase("no") || value.equalsIgnoreCase("false"))
+		{
+			return false;
+		}
+
+		throw new InvalidParameterException("Invalid parameter \"" + value + "\" for key \"" + key + "\".");
+	}
+
+	public int getInteger(String key)
+	{
+		checkKey(key);
+
+		return Integer.parseInt(values.get(key));
+	}
+
+	public float getFloat(String key)
+	{
+		checkKey(key);
+
+		return Float.parseFloat(values.get(key));
+	}
+
+	public double getDouble(String key)
+	{
+		checkKey(key);
+
+		return Double.parseDouble(values.get(key));
+	}
+
+	public String getString(String key)
+	{
+		checkKey(key);
+
+		return values.get(key);
+	}
+
+	private void checkKey(String key)
+	{
+		if (!loaded)
+		{
+			try
+			{
+				load();
+			}
+			catch (Exception e)
+			{
+				throw new RuntimeException("Failed to silently load and parse the file " + handle + ": " + e, e);
+			}
+		}
+
+		if (!values.containsKey(key))
+		{									
+			throw new NoSuchElementException("No value mapping found for key \"" + key + "\" in " + this.handle + ".");
+		}
+	}
+}

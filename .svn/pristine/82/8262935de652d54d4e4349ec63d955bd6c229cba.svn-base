@@ -1,0 +1,43 @@
+package com.unlogical.linked.levelrendering.entity;
+
+import org.newdawn.slick.Color;
+import org.newdawn.slick.GameContainer;
+import org.newdawn.slick.Graphics;
+
+import com.unlogical.linked.entity.Entity;
+import com.unlogical.linked.levelrendering.LevelRenderer;
+import com.unlogical.linked.util.ColorHelper;
+import com.unlogical.linked.util.Dimension;
+import com.unlogical.linked.util.ShaderHandler;
+
+public class EntityRenderer
+{
+	public static void renderDimension(GameContainer container, Graphics g, Dimension dimension, boolean shared)
+	{		
+		for (int i = 0; i < LevelRenderer.getEntities().size(); i++)
+		{
+			Entity entity = LevelRenderer.getEntities().get(i);
+
+			if (entity.getDimension() == dimension && !entity.isShared() || shared && entity.isShared())
+			{
+				entity.draw(g);
+				
+				if (LevelRenderer.getLevel().shouldShowHitboxes())
+				{
+					ShaderHandler.disableLighting();
+					
+					if (dimension == LevelRenderer.getLevel().getForegroundDimension())
+					{
+						g.setColor(Color.blue);
+					}
+					else
+					{
+						g.setColor(ColorHelper.applyAlphaAndCopy(Color.blue, 0.7f));
+					}
+
+					g.draw(entity.getHitbox());
+				}
+			}
+		}
+	}
+}

@@ -1,0 +1,175 @@
+package com.unlogical.colored.gui;
+
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Input;
+import com.badlogic.gdx.InputAdapter;
+import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.g2d.Batch;
+import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
+import com.badlogic.gdx.graphics.glutils.ShapeRenderer.ShapeType;
+import com.unlogical.colored.input.InputHandler;
+import com.unlogical.colored.mapeditor.MapEditor;
+import com.unlogical.colored.resources.font.Fonts;
+import com.unlogical.colored.util.Renderer;
+
+public class InputField
+{
+	private static final String allowedChars = "ABCDEFGHIJKLMNOPQRSTUVWQXYZabcdefghijklmnopqrstuvwxyz;,.-_=&:!?*#'^|@/()[]{}<>1234567890 ";
+
+	private boolean active;
+
+	private int width;
+	private int height;
+	private int xOffset;
+	private int yOffset;
+
+	private int deleteTime;
+
+	private char pressedChar;
+
+	private Color borderColor = Color.BLACK;
+	private Color fillColor = MapEditor.panelColor;
+
+	private StringBuilder text;
+
+	private InputChangeListener listener;
+
+	public InputField(float x, float y, float width, float height)
+	{
+		this((int) x, (int) y, (int) width, (int) height);
+
+		InputHandler.addInputProcessor(new InputAdapter()
+		{
+			@Override
+			public boolean keyTyped(char character)
+			{
+				if (allowedChars.contains(character + ""))
+				{
+					text.append(character);
+					
+					return true;
+				}
+				
+				return false;
+			}
+		});
+	}
+
+	public InputField(int x, int y, int width, int height)
+	{
+		this.xOffset = x;
+		this.yOffset = y;
+		this.width = width;
+		this.height = height;
+	}
+
+	public void init(String text)
+	{
+		this.text = new StringBuilder(text);
+		this.pressedChar = '"';
+	}
+
+	public void onKeyPressed(int key, char c)
+	{
+		pressedChar = c;
+	}
+
+	public void onKeyReleased(int key, char c)
+	{
+
+	}
+
+	public void update(int delta)
+	{
+		if (active)
+		{
+			Input input = Gdx.input;
+			String prevText = text.toString();
+
+			boolean deletePressed = input.isKeyPressed(Input.Keys.BACK);
+
+			if (deletePressed || input.isKeyPressed(Input.Keys.BACK))
+			{
+				if (input.isKeyPressed(Input.Keys.BACK))
+				{
+					deleteTime += delta;
+				}
+
+				if (!prevText.isEmpty() && (deletePressed || deleteTime >= 800))
+				{
+					text.deleteCharAt(text.length() - 1);
+				}
+			}
+			else if (allowedChars.contains(pressedChar + ""))
+			{
+				text.append(pressedChar + "");
+			}
+			else
+			{
+				deleteTime = 0;
+			}
+
+			if (listener != null && !prevText.equals(text.toString()))
+			{
+				listener.onInputChanged();
+			}
+
+			pressedChar = '"';
+		}
+	}
+
+	public void render(Batch batch)
+	{
+		if (active)
+		{
+			ShapeRenderer sr = Renderer.useShapeRenderer();
+
+			sr.setColor(fillColor);
+			sr.set(ShapeType.Filled);
+			sr.rect(xOffset, yOffset, width, height);
+
+			sr.setColor(borderColor);
+			sr.set(ShapeType.Line);
+			sr.rect(xOffset, yOffset, width, height);
+
+			Fonts.drawFancy(text.toString() + (System.currentTimeMillis() % 1500 > 750 ? "|" : ""), Fonts.getDefaultFont(), Color.WHITE, xOffset, yOffset, width, height, false, false, batch);
+		}
+	}
+
+	public void adjust(int xChange, int yChange)
+	{
+		this.xOffset += xChange;
+		this.yOffset += yChange;
+	}
+
+	public boolean isActive()
+	{
+		return active;
+	}
+
+	public void setActive(boolean active)
+	{
+		this.active = active;
+	}
+
+	public void addListener(InputChangeListener listener)
+	{
+		this.listener = listener;
+	}
+
+	public String getText()
+	{
+		return text.toString();
+	}
+
+	public void setBorderColor(Color borderColor)
+	{
+		this.borderColor = borderColor;
+	}
+
+	public Color getBorderColor()
+	{
+		return borderColor;
+	}
+
+}

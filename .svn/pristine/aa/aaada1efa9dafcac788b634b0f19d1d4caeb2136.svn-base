@@ -1,0 +1,106 @@
+package com.unlogical.colored.filesystem;
+
+import java.io.File;
+import java.io.UnsupportedEncodingException;
+import java.net.URLDecoder;
+
+import com.unlogical.colored.GameLauncher;
+import com.unlogical.colored.debug.Debug;
+
+public final class FilePaths
+{
+	public static final String[] FOLDERS = { "dev", "dev/logs", "worlds", "worlds/maps", "res", "res/textures", "res/sounds", "res/music", "res/textures/entities", "res/wrapper", "res/textures/blocks", "res/textures/misc", "res/textures/entities/mobs", "res/textures/entities/other", "res/textures/entities/boss", "res/light", "res/textures/blocks/animations", "res/textures", "saves", "temp", "res/font", "deleted" };
+
+	public static final String BASE_PATH = getBasePath();
+	private static boolean useBase;
+
+	public static final String TEXTURES = "res/textures";
+	public static final String OPTIONS_YML = "dev/options.yml";
+	public static final String PLAYER = TEXTURES + "/entities";
+	public static final String GAME_LOG = "dev/logs/gameLog.log";
+	public static final String MAPS = "worlds/maps";
+	public static final String WRAPPER_IMAGES = "res/wrapper";
+	public static final String MUSIC = "res/music";
+	public static final String TILE_TEXTURES = TEXTURES + "/blocks";
+	public static final String TILE_ANIMATIONS_POSTFIX = "/animations";
+	public static final String PARTICLES = "res/particle";
+	public static final String DEFAULT_WORLDS = "worlds/default";
+	public static final String ENTITY_BOSS = TEXTURES + "/entities/boss";
+	public static final String ENTITY_MOB = TEXTURES + "/entities/mobs";
+	public static final String ENTITY_OTHER = TEXTURES + "/entities/other";
+	public static final String PROJECTILES = TEXTURES + "/entities/projectiles";
+	public static final String SCREENSHOTS = "screenshots";
+	public static final String SOUNDS = "res/sounds";
+	public static final String GUI = "res/gui";
+	public static final String CURSOR = "res/gui/cursor";
+	public static final String WORLDS = "worlds";
+	public static final String CUSTOM_WORLDS = WORLDS + "/custom";
+	public static final String WORLD_TEXTURES = TEXTURES + "/world";
+	public static final String SHADERS = "res/shaders";
+	public static final String DELETED = "deleted";
+	public static final String SAVES = "saves";
+
+	private static final String getBasePath()
+	{
+		if (!(new File("res").exists()))
+		{
+			useBase = true;
+		}
+
+		String base = null;
+
+		try
+		{
+			base = URLDecoder.decode(GameLauncher.class.getProtectionDomain().getCodeSource().getLocation().getPath(), "UTF-8");
+		}
+		catch (UnsupportedEncodingException e)
+		{
+			base = ClassLoader.getSystemClassLoader().getResource(".").getPath();
+		}
+		
+		if (base.endsWith(".jar"))
+		{
+			base = base.substring(0, base.lastIndexOf("/"));
+		}
+		
+		if (base.endsWith("bin") || base.endsWith("bin/"))
+		{
+			base = base.substring(0, base.lastIndexOf("bin") - 1);
+		}
+
+		if (base.startsWith("/") || base.startsWith("\\"))
+		{
+			base = base.substring(1);
+		}
+
+		return base;
+	}
+
+	public static File getFile(String file)
+	{
+		try
+		{
+			if (useBase)
+			{
+				file = file.replace('\\', '/');
+
+				if (file.contains(BASE_PATH))
+				{
+					file = file.substring(BASE_PATH.length());
+				}
+
+				return new File(BASE_PATH + "/" + file);
+			}
+			else
+			{
+				return new File(file);
+			}
+		}
+		catch (Exception e)
+		{
+			Debug.warn("Couldn't create file " + file, e);
+
+			throw new RuntimeException("Couldn't create file " + file + " :( - " + e, e);
+		}
+	}
+}

@@ -1,0 +1,258 @@
+package com.unlogical.colored.gui.selection;
+
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Input;
+import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.g2d.Batch;
+import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
+import com.badlogic.gdx.graphics.glutils.ShapeRenderer.ShapeType;
+import com.badlogic.gdx.math.Rectangle;
+import com.unlogical.colored.configuration.DisplayConstants;
+import com.unlogical.colored.gui.GUIItem;
+import com.unlogical.colored.gui.panel.GUIPanel;
+import com.unlogical.colored.input.InputHandler;
+import com.unlogical.colored.util.ColorHelper;
+import com.unlogical.colored.util.Renderer;
+
+public abstract class GUIItemSelection extends GUIPanel
+{
+	private GUIItem[] items;
+	private GUIItem selected;
+
+	private float barHeight;
+	private float barOffset;
+	private float actualOffset;
+
+	private int itemsPerLine;
+	private int itemBoxHeight;
+	private int totalRows;
+
+	private Rectangle moveableScrollbar;
+	private Rectangle scrollbarBorder;
+
+	private boolean scrolling = false;
+	private boolean moveable = true;
+
+	public GUIItemSelection(String title, GUIItem[] items, int itemsPerLine, int itemsPerColumn, int xOffset, int yOffset)
+	{
+		super(title, xOffset, yOffset, (10 * 2 + 50) * itemsPerLine + DisplayConstants.SELECTION_MENU_SCROLLBAR_WIDTH, (10 * 2 + 50) * itemsPerColumn);
+
+		this.items = items;
+		this.itemsPerLine = itemsPerLine;
+		this.itemBoxHeight = 10 * 2 + 50;
+		this.totalRows = items.length / itemsPerLine;
+
+		if (items.length % itemsPerLine != 0)
+		{
+			this.totalRows++;
+		}
+
+		this.height = this.itemBoxHeight * itemsPerColumn;
+		this.width = this.itemBoxHeight * itemsPerLine + DisplayConstants.SELECTION_MENU_SCROLLBAR_WIDTH;
+		this.barHeight = (int) ((float) itemsPerColumn / (float) this.totalRows * this.height);
+
+		if (itemsPerColumn > this.totalRows)
+		{
+			this.barHeight = this.height;
+		}
+
+		this.moveableScrollbar = new Rectangle(xOffset + this.itemBoxHeight * itemsPerLine, yOffset, DisplayConstants.SELECTION_MENU_SCROLLBAR_WIDTH, this.barHeight);
+		this.scrollbarBorder = new Rectangle(this.moveableScrollbar.getX(), this.moveableScrollbar.getY(), this.moveableScrollbar.getWidth(), this.contentBox.getHeight());
+	}
+
+	@Override
+	public void customUpdate(int delta)
+	{
+		Input input = Gdx.input;
+
+		if (this.moveableScrollbar.contains(InputHandler.getCurrentInputX(), InputHandler.getCurrentInputY()))
+		{
+			if (input.isButtonPressed(Input.Buttons.LEFT))
+			{
+				this.scrolling = true;
+			}
+		}
+		else if (!input.isButtonPressed(Input.Buttons.LEFT))
+		{
+			this.scrolling = false;
+		}
+
+		if (this.scrolling)
+		{
+			if (this.barOffset + this.barHeight > this.height)
+			{
+				this.barOffset = this.height - this.barHeight;
+			}
+			else if (this.barOffset < 0)
+			{
+				this.barOffset = 0;
+			}
+		}
+
+		this.scrollbarBorder.setX(this.contentBox.getX() + this.contentBox.width - DisplayConstants.SELECTION_MENU_SCROLLBAR_WIDTH);
+		this.scrollbarBorder.setY(this.yOffset);
+
+		this.moveableScrollbar.setX(this.contentBox.x + this.contentBox.width - DisplayConstants.SELECTION_MENU_SCROLLBAR_WIDTH);
+		this.moveableScrollbar.setY(this.yOffset + this.barOffset);
+
+		this.actualOffset = -(int) (this.barOffset / this.height * (this.itemBoxHeight * this.totalRows));
+
+		for (int i = 0; i < this.items.length; i++)
+		{
+			if (this.items[i].isSelected() && (this.selected != this.items[i] || this.selected == null))
+			{
+				this.itemSelected(i, this.items[i].getName(), this.items[i].getMetadata());
+
+				if (this.selected != null)
+				{
+					this.selected.setSelected(false);
+				}
+
+				this.selected = this.items[i];
+			}
+
+			this.items[i].setXPos((int) (this.xOffset + i % this.itemsPerLine * this.itemBoxHeight));
+			this.items[i].setYPos((int) (this.yOffset + this.actualOffset + i / this.itemsPerLine * this.itemBoxHeight));
+			this.items[i].updateBox();
+
+			if (this.items[i].getYPos() >= this.yOffset - this.items[i].getItemBox().getHeight() && this.items[i].getYPos() + this.itemBoxHeight <= this.yOffset + this.height + this.items[i].getItemBox().getHeight())
+			{
+				this.items[i].setActive(true);
+				this.items[i].setEnabled(this.items[i].getYPos() >= this.yOffset && this.items[i].getYPos() + this.itemBoxHeight <= this.yOffset + this.height);
+				this.items[i].update(delta);
+			}
+			else
+			{
+				this.items[i].setActive(false);
+			}
+		}
+	}
+
+	@Override
+	public void customRender(float alphaFactor, Batch batch)
+	{
+		ShapeRenderer sr = Renderer.useShapeRenderer();
+
+		Renderer.setGrayScaleFactor(0.0f);
+
+		sr.set(ShapeType.Filled);
+
+		ColorHelper.applyAlphaAndCopy(Color.WHITE, alphaFactor, sr);
+		sr.rect(this.scrollbarBorder.x, this.scrollbarBorder.y, this.scrollbarBorder.width, this.scrollbarBorder.height);
+
+		ColorHelper.applyAlphaAndCopy(Color.DARK_GRAY, alphaFactor, sr);
+		sr.rect(this.moveableScrollbar.x, this.moveableScrollbar.y, this.moveableScrollbar.width, this.moveableScrollbar.height);
+
+		sr.set(ShapeType.Line);
+
+		ColorHelper.applyAlphaAndCopy(Color.BLACK, alphaFactor, sr);
+		sr.rect(this.scrollbarBorder.x, this.scrollbarBorder.y, this.scrollbarBorder.width, this.scrollbarBorder.height);
+
+		Renderer.push2DScissor((int) this.xOffset - 50, (int) this.yOffset, (int) this.width - 2, (int) this.height - 2);
+
+		for (int j = 0; j <= this.totalRows; j++)
+		{
+			for (int i = this.itemsPerLine - 1; i >= 0; i--)
+			{
+				if (i + j * this.itemsPerLine < this.items.length)
+				{
+					this.items[i + j * this.itemsPerLine].render(alphaFactor == 0.8f ? 1.0f : alphaFactor, batch);
+				}
+			}
+		}
+
+		Renderer.popScissor();
+	}
+
+	public void clearSelection()
+	{
+		if (this.selected != null)
+		{
+			this.selected.setSelected(false);
+
+			this.selected = null;
+		}
+	}
+
+	@Override
+	public boolean touchDragged(int newx, int newy, int pointer)
+	{
+		if (this.scrolling)
+		{
+			this.barOffset += newy - InputHandler.getLastInputY();
+		}
+		else if (this.movingMode && this.moveable)
+		{
+			return super.touchDragged(newx, newy, pointer);
+		}
+
+		return false;
+	}
+
+	public abstract void itemSelected(int number, String name, String metadata);
+
+	public GUIItem getItemByName(String name)
+	{
+		for (GUIItem item : this.items)
+		{
+			if (item.getName().equalsIgnoreCase(name))
+			{
+				return item;
+			}
+		}
+
+		return null;
+	}
+
+	public GUIItem getItemByMetadata(String metadata)
+	{
+		for (GUIItem item : this.items)
+		{
+			if (item.getMetadata().equalsIgnoreCase(metadata))
+			{
+				return item;
+			}
+		}
+
+		return null;
+	}
+
+	public void select(GUIItem item)
+	{
+		if (item != null)
+		{
+			if (this.selected != null)
+			{
+				this.selected.setSelected(false);
+			}
+
+			item.setSelected(true);
+			this.selected = item;
+		}
+	}
+
+	public GUIItem[] getItems()
+	{
+		return this.items;
+	}
+
+	public boolean isMovingMode()
+	{
+		return this.scrolling;
+	}
+
+	public void setMovingMode(boolean movingMode)
+	{
+		this.scrolling = movingMode;
+	}
+
+	public boolean isMoveable()
+	{
+		return this.moveable;
+	}
+
+	public void setMoveable(boolean moveable)
+	{
+		this.moveable = moveable;
+	}
+}

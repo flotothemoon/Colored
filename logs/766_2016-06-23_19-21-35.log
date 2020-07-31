@@ -1,0 +1,90 @@
+ -- General -- 
+Generated on: 2016-06-23_19-21-35
+Build: 766 from 09:45 PM - 22/06/16
+GameState: IN_LEVEL (previous: MAP_EDITOR)
+Target FPS: 60
+Actual FPS: 60
+
+ -- Display -- 
+Target Width / Height: 1920 / 1080
+Actual Width / Height: 1920 / 1017 (windowed)
+
+ -- Environment -- 
+GPU: GeForce GTX 980 Ti/PCIe/SSE2 (NVIDIA Corporation)
+OpenGL Version: 4.5.0 NVIDIA 361.43
+Allocated Memory: 123MB
+Used Memory: 30MB
+"os.name": Windows 10
+"os.version": 10.0
+"os.arch": x86
+"java.version": 1.8.0_66
+"java.vendor": Oracle Corporation
+"sun.arch.data.model": 32
+
+ -- Level --
+ID: test (internal: unknown)
+LevelType: NORMAL
+Dimension: COLORED
+Location: ../worlds/maps/test
+
+ -- Stack Trace -- 
+java.lang.RuntimeException: Exception while silently getting file dev/notes.txt: java.io.FileNotFoundException: File "dev/notes.txt" is not contained in any of the currently used file packages.
+com.unlogical.colored.filesystem.FileManager.getFileQuietly(FileManager.java:368)
+com.unlogical.colored.util.NotePrinter.printNotes(NotePrinter.java:33)
+com.unlogical.colored.GameLauncher.update(GameLauncher.java:336)
+com.unlogical.colored.GameLauncher.render(GameLauncher.java:460)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication.mainLoop(LwjglApplication.java:218)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication$1.run(LwjglApplication.java:123)
+Caused by: java.io.FileNotFoundException: File "dev/notes.txt" is not contained in any of the currently used file packages.
+com.unlogical.colored.filesystem.FileManager.getFile(FileManager.java:400)
+com.unlogical.colored.filesystem.FileManager.getFile(FileManager.java:374)
+com.unlogical.colored.filesystem.FileManager.getFileQuietly(FileManager.java:364)
+com.unlogical.colored.util.NotePrinter.printNotes(NotePrinter.java:33)
+com.unlogical.colored.GameLauncher.update(GameLauncher.java:336)
+com.unlogical.colored.GameLauncher.render(GameLauncher.java:460)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication.mainLoop(LwjglApplication.java:218)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication$1.run(LwjglApplication.java:123)
+
+ -- Last 20 Log Entries -- 
+@Log    : Play sound HARDLANDING at volume 0.0, pitch 1.0 and pan -0.0134 (once). (tid: 15)
+@Log    : Fetching lights for level "test" ... (tid: 15)
+@Log    : Lights fetched for level "test", 0 lights found. (tid: 15)
+@Warning: Unable to load music "unknown": java.lang.RuntimeException: Main music for "unknown_colored" not found (tid: 15)
+@Warning: Unable to play music "unknown". (tid: 15)
+@Log    : Loaded map Test (test, ../worlds/maps/test), took 3ms. (tid: 15)
+@Warning: Currently in session levelmng, cannot end update (tid: 15)
+@Log    : Loading map ../worlds/maps/test ... (tid: 15)
+@Log    : Loading map files took 1ms. (tid: 15)
+@Warning: Tried to load image(s) from path res/gui/icons/test, the resolved path res/gui/icons/test.png however does not exist. (tid: 15)
+@Warning: Couldn't load level icon for test. (tid: 15)
+@Warning: Unable to load music "unknown": java.lang.RuntimeException: Main music for "unknown_colored" not found (tid: 15)
+@Warning: Unable to play music "unknown". (tid: 15)
+@Log    : Fetching lights for level "test" ... (tid: 15)
+@Log    : Lights fetched for level "test", 0 lights found. (tid: 15)
+@Log    : Pre-simulating particles for 45000.0ms (300 x 150.0ms)... (tid: 15)
+@Log    : Particle pre-simulation complete. Particles are now ahead of time by 45000.0ms. (tid: 15)
+@Log    : Active save was saved to disk. (tid: 15)
+@Log    : Loaded test (took 5ms). (tid: 15)
+@Log    : Play sound HARDLANDING at volume 0.0, pitch 1.0 and pan -0.0134 (once). (tid: 15)
+
+ -- Last 20 Input Events -- 
+Key down: 5 (12) (23416ms ago)
+Key up: 5 (12) (23348ms ago)
+Key down: 0 (7) (23332ms ago)
+Key up: 0 (7) (23265ms ago)
+Key down: 0 (7) (23182ms ago)
+Key up: 0 (7) (23115ms ago)
+Key down: 0 (7) (23016ms ago)
+Key up: 0 (7) (22948ms ago)
+Key down: 0 (7) (22848ms ago)
+Key up: 0 (7) (22716ms ago)
+Touch down: 0 (pointer: 0) at x:1038 y: 554 (22065ms ago)
+Touch up: 0 (pointer: 0) at x:1038 y: 554 (22015ms ago)
+Key down: F11 (254) (21498ms ago)
+Key up: F11 (254) (21448ms ago)
+Key down: L-Ctrl (129) (8432ms ago)
+Key up: L-Ctrl (129) (7766ms ago)
+Key down: L-Ctrl (129) (4282ms ago)
+Key up: L-Ctrl (129) (3633ms ago)
+Key down: L-Ctrl (129) (332ms ago)
+Key down: , (55) (15ms ago)

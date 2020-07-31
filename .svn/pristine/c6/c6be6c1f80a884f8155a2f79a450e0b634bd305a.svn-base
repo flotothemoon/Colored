@@ -1,0 +1,130 @@
+package com.unlogical.colored.util;
+
+import org.newdawn.slick.Color;
+import org.newdawn.slick.Graphics;
+
+public class ColorHelper
+{
+	public static Color buffer = new Color(0.0f, 0.0f, 0.0f, 0.0f);
+	public static Color secondBuffer = new Color(0.0f, 0.0f, 0.0f, 0.0f);
+	
+	public static Color copy(Color src, Color dest)
+	{
+		dest.a = src.a;
+		dest.r = src.r;
+		dest.g = src.g;
+		dest.b = src.b;
+		
+		return dest;
+	}
+	
+	public static Color multiplyAlphaAndCopy(Color color, float alpha)
+	{
+		copy(color, buffer);
+		
+		buffer.a *= alpha;
+		
+		return buffer;
+	}
+	
+	public static Color applyAlphaAndCopy(Color color, float alpha)
+	{
+		copy(color, buffer);
+		
+		buffer.a = alpha;
+		
+		return buffer;
+	}
+	
+	public static Color applyAlphaAndCopy(Color color, float alpha, Graphics g)
+	{
+		copy(color, buffer);
+		
+		buffer.a *= alpha;
+		
+		g.setColor(buffer);
+	
+		return buffer;
+	}
+	
+	public static Color multiplyAndCopy(Color color, Color factor)
+	{
+		copy(color, buffer);
+		
+		buffer.a *= factor.a;
+		buffer.r *= factor.r;
+		buffer.g *= factor.g;
+		buffer.b *= factor.b;
+		
+		return buffer;
+	}
+	
+	public static Color inverseMultiplyRGBAndCopy(Color color, Color factor)
+	{
+		copy(color, buffer);
+		
+		buffer.r *= (1.0f - factor.r);
+		buffer.g *= (1.0f - factor.g);
+		buffer.b *= (1.0f - factor.b);
+		
+		return buffer;
+	}
+	
+	public static Color inverseMultiplyRGBAndCopy(Color color, Color factor, float inverseFactor)
+	{
+		copy(color, buffer);
+		
+		buffer.r *= (factor.r * inverseFactor) + (1.0f - inverseFactor);
+		buffer.g *= (factor.g * inverseFactor) + (1.0f - inverseFactor);
+		buffer.b *= (factor.b * inverseFactor) + (1.0f - inverseFactor);
+		
+		return buffer;
+	}
+	
+	public static Color multiplyRGBAndCopy(Color color, Color factor)
+	{
+		copy(color, buffer);
+		
+		buffer.r *= factor.r;
+		buffer.g *= factor.g;
+		buffer.b *= factor.b;
+		
+		return buffer;
+	}
+	
+	public static void add(Color color, Color factor)
+	{
+		color.a += factor.a;
+		color.r += factor.r;
+		color.g += factor.g;
+		color.b += factor.b;
+	}
+	
+	public static void copyAndAdd(Color src, Color dest, Color factor)
+	{
+		copy(src, dest);
+		add(dest, factor);
+	}
+	
+	public static void set(Color color, float r, float g, float b)
+	{
+		color.r = r;
+		color.g = g;
+		color.b = b;
+	}
+	
+	public static void set(Color color, float r, float g, float b, float a)
+	{
+		set(color, r, g, b);
+		
+		color.a = a;
+	}
+
+	public static void set(Color color, Color other)
+	{
+		color.a = other.a;
+		color.r = other.r;
+		color.g = other.g;
+		color.b = other.b;
+	}
+}

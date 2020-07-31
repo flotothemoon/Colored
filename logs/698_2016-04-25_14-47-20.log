@@ -1,0 +1,82 @@
+ -- General -- 
+Generated on: 2016-04-25_14-47-20
+Build: 698 from 09:43 PM - 24/04/16
+GameState: IN_LEVEL (previous: LOADING)
+Target FPS: 60
+Actual FPS: 60
+
+ -- Display -- 
+Target Width / Height: 1920 / 1080
+Actual Width / Height: 1920 / 1017 (windowed)
+
+ -- Environment -- 
+GPU: GeForce GTX 980 Ti/PCIe/SSE2 (NVIDIA Corporation)
+OpenGL Version: 4.5.0 NVIDIA 361.43
+Allocated Memory: 15MB
+Used Memory: 0MB
+"os.name": Windows 10
+"os.version": 10.0
+"os.arch": x86
+"java.version": 1.8.0_66
+"java.vendor": Oracle Corporation
+"sun.arch.data.model": 32
+
+ -- Level --
+ID: 21-01 (internal: 01)
+LevelType: REVERSAL
+Dimension: COLORED
+Location: ../worlds/maps/21-01
+
+ -- Stack Trace -- 
+java.lang.RuntimeException: Unable to init music, unknown error while decoding
+com.unlogical.colored.audio.MusicManager.initLevel(MusicManager.java:38)
+com.unlogical.colored.mapeditor.MapEditor.initMap(MapEditor.java:1087)
+com.unlogical.colored.levelmanaging.LevelManager.update(LevelManager.java:505)
+com.unlogical.colored.GameLauncher.update(GameLauncher.java:376)
+com.unlogical.colored.GameLauncher.render(GameLauncher.java:430)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication.mainLoop(LwjglApplication.java:218)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication$1.run(LwjglApplication.java:123)
+
+ -- Last 20 Log Entries -- 
+@Warning: Tried to load image(s) from path res/gui/icons/21_01, the resolved path res/gui/icons/21_01.png however does not exist. (11)
+@Warning: Couldn't load level icon for 21-01. (11)
+@Log: Fetching lights for level "21-01" ... (11)
+@Log: Lights fetched for level "21-01", 1 light found. (11)
+@Log: Pre-simulating particles for 45000.0ms (300 x 150.0ms)... (11)
+@Log: Particle pre-simulation complete. Particles are now ahead of time by 45000.0ms. (11)
+@Log: Active save was saved to disk. (11)
+@Log: Loaded 21-01 (took 11ms). (11)
+@Log: Play sound JUMP at volume 0.0, pitch 1.0 and pan 0.0 (once). (11)
+@Log: Play sound JUMP at volume 0.0, pitch 1.0 and pan 0.0 (once). (11)
+@Log: Play sound JUMP at volume 0.0, pitch 1.0 and pan 0.0 (once). (11)
+@Log: Play sound JUMP at volume 0.0, pitch 1.0 and pan 0.0 (once). (11)
+@Log: Play sound JUMP at volume 0.0, pitch 1.0 and pan 0.0 (once). (11)
+@Log: Play sound JUMP at volume 0.0, pitch 1.0 and pan 0.0 (once). (11)
+@Log: Play sound JUMP at volume 0.0, pitch 1.0 and pan 0.0 (once). (11)
+@Log: Play sound JUMP at volume 0.0, pitch 1.0 and pan 0.0 (once). (11)
+@Log: Play sound JUMP at volume 0.0, pitch 1.0 and pan 0.0 (once). (11)
+@Log: Play sound JUMP at volume 0.0, pitch 1.0 and pan 0.0 (once). (11)
+@Log: Fetching lights for level "21-01" ... (11)
+@Log: Lights fetched for level "21-01", 1 light found. (11)
+
+ -- Last 20 Input Events -- 
+Key down: Space (62) (269099ms ago)
+Key up: Space (62) (268933ms ago)
+Key up: D (32) (268849ms ago)
+Key down: A (29) (268783ms ago)
+Key typed: a (charcode: 97) (268366ms ago)
+Key typed: a (charcode: 97) (268249ms ago)
+Key down: Space (62) (268233ms ago)
+Key up: Space (62) (268049ms ago)
+Key down: Space (62) (267249ms ago)
+Key up: A (29) (267183ms ago)
+Key down: W (51) (267133ms ago)
+Key up: Space (62) (267083ms ago)
+Key down: A (29) (266633ms ago)
+Key up: W (51) (266316ms ago)
+Key up: A (29) (266049ms ago)
+Key down: D (32) (266033ms ago)
+Key up: D (32) (265883ms ago)
+Touch down: 0 (pointer: 0) at x:912 y: 798 (998ms ago)
+Touch up: 0 (pointer: 0) at x:912 y: 798 (964ms ago)
+Key down: F11 (254) (14ms ago)

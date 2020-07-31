@@ -1,0 +1,52 @@
+ -- General -- 
+Generated on: 2016-02-23_21-04-11
+Build: 641 from 07:18 PM - 23/02/16
+GameState: IN_LEVEL (previous: PAUSE_MENU)
+Target FPS: 60
+Actual FPS: 61
+
+ -- Display -- 
+Target Width / Height: 1920 / 1080
+Actual Width / Height: 1920 / 1017 (windowed)
+
+ -- Environment -- 
+GPU: GeForce GTX 980 Ti/PCIe/SSE2 (NVIDIA Corporation)
+OpenGL Version: 4.5.0 NVIDIA 361.43
+Allocated Memory: 15MB
+Used Memory: 0MB
+"os.name": Windows 10
+"os.version": 10.0
+"os.arch": x86
+"java.version": 1.8.0_66
+"java.vendor": Oracle Corporation
+"sun.arch.data.model": 32
+
+ -- Level --
+ID: 20-01 (internal: 01)
+LevelType: SEPERATED
+Dimension: SHADOW
+Location: ../worlds/maps/20-01
+
+ -- Stack Trace -- 
+java.lang.NullPointerException
+com.unlogical.colored.gui.menu.MenuHandler.update(MenuHandler.java:83)
+com.unlogical.colored.GameLauncher.update(GameLauncher.java:362)
+com.unlogical.colored.GameLauncher.render(GameLauncher.java:424)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication.mainLoop(LwjglApplication.java:218)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication$1.run(LwjglApplication.java:123)
+
+ -- Last 6 Log Entries -- 
+@Log: Fetching lights for level "20-01" ... (11)
+@Log: Lights fetched for level "20-01", 14 lights found. (11)
+@Log: Pre-simulating particles for 45000.0ms (300 x 150.0ms)... (11)
+@Log: Particle pre-simulation complete. Particles are now ahead of time by 45000.0ms. (11)
+@Log: Active save was saved to disk. (11)
+@Log: Loaded 20-01 (took 111ms). (11)
+
+ -- Last 20 Input Events -- 
+Touch up: 0(pointer: 0) at x:747 y: 428 (2555ms ago)
+Key down: Escape (131) (1458ms ago)
+Key up: Escape (131) (1410ms ago)
+Touch down: 0(pointer: 0) at x:945 y: 136 (343ms ago)
+Touch up: 0(pointer: 0) at x:945 y: 136 (277ms ago)
+Touch down: 0(pointer: 0) at x:961 y: 140 (27ms ago)

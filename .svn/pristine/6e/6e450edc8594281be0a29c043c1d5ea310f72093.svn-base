@@ -1,0 +1,370 @@
+package com.unlogical.colored.particle;
+
+import java.io.IOException;
+
+import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.g2d.TextureRegion;
+import com.unlogical.colored.filesystem.files.WrapperTextureHandler;
+import com.unlogical.colored.gui.panel.ImportWrapperPanel;
+import com.unlogical.colored.particle.ParticleEmitterImpl.FloatRange;
+import com.unlogical.colored.particle.ParticleEmitterImpl.IntegerRange;
+import com.unlogical.colored.resources.ResourceLoader;
+import com.unlogical.colored.wrapper.WrapperTexture;
+
+public enum EmitterType
+{
+	SHARED("shared"),
+
+	TIME_RESISTANT_SURFACE("time_res_surface")
+	{
+		{
+			useAttractors = true;
+		}
+	},
+
+	TIME_RESISTANT_AREA("time_res_area"),
+
+	LIGHT_CAGE_CLOSED("cage_closed"),
+
+	LIGHT_CAGE_OPENING("cage_opening"),
+
+	LIGHT_CAGE_CLOSING("cage_closing"),
+
+	TIME_TRAVEL_CHANGED("tt_changed")
+	{
+		{
+			foreground = false;
+			limitLifetimeToParticles = true;
+		}
+	},
+
+	PIXELIFY(null, new Color(Color.WHITE), 0, new IntegerRange(0, 0), new IntegerRange(0, 0), new IntegerRange(2000, 3000), null, null, null, new FloatRange(0.0f, 0.0f), new FloatRange(0.0f, 0.0f), new FloatRange(0, 0), new FloatRange(0, 0), new FloatRange(0, 0), new FloatRange(0.0002f, 0.0001f), new FloatRange(0.0f, 0.0f), new IntegerRange(256, 256), new IntegerRange(0, 0), new IntegerRange(1000, 2000), false, true, false, false, false, false, false, 0, 0)
+	{
+		{
+			shouldUpdateEmitter = false;
+			renderMode = ParticleEmitter.RENDER_PARTIAL;
+			rotateAccelerations = false;
+			limitLifetimeToParticles = true;
+		}
+	},
+
+	MENU_MAIN_EMITTER_20("menu_main_emitter_20"),
+	MENU_MAIN_EMITTER_21("menu_main_emitter_21"),
+	MENU_MAIN_EMITTER_22("menu_main_emitter_22"),
+	MENU_MAIN_EMITTER_23("menu_main_emitter_23"),
+	MENU_MAIN_EMITTER_24("menu_main_emitter_24"),
+
+	SCROLLBAR("scrollbar"), SELECTION_BOX("selection_box"),
+
+	SLIDER_FULL("slider_full"), SLIDER_SELECTED("slider_selected"),
+
+	CREATURE_PRESHOOT("creature_preshoot")
+	{
+		{
+			foreground = false;
+			limitLifetimeToParticles = true;
+		}
+	},
+	BALL_PRESHOOT("creature_preshoot")
+	{
+		{
+			foreground = false;
+			limitLifetimeToParticles = true;
+		}
+	},
+	CLOUD_PRESHOOT("creature_preshoot")
+	{
+		{
+			foreground = false;
+			limitLifetimeToParticles = true;
+		}
+	},
+
+	;
+
+	public TextureRegion[][] sprites;
+
+	public Color startTint;
+	public Color endTint;
+	public Color addTint = Color.BLACK;
+	public IColorDistributionMode colorDistrMode = ColorDistributionMode.RGB_AREA;
+
+	public float trailFactor;
+
+	public int renderMode = ParticleEmitter.RENDER_IDENTICAL;
+	public int lifeTime;
+	public int maxParticles;
+	public int originalWidth;
+	public int originalHeight;
+
+	public IntegerRange spawnInterval;
+	public IntegerRange spawnCount;
+	public IntegerRange initialLife;
+	public IntegerRange initalSize;
+
+	public FloatRange xOffset;
+	public FloatRange yOffset;
+	public FloatRange velocityX;
+	public FloatRange velocityY;
+	public FloatRange startRotation;
+	public FloatRange rotationVelocity;
+	public FloatRange growthFactor;
+	public FloatRange gravityFactor;
+	public FloatRange windFactor;
+
+	public IntegerRange startAlpha;
+	public IntegerRange fadeInTime;
+	public IntegerRange fadeOutTime;
+
+	public boolean shouldUpdateEmitter = true;
+	public boolean shouldFadeIn;
+	public boolean shouldFadeOut;
+	public boolean limitToWrapper;
+	public boolean tightBounce;
+	public boolean shouldBounceOutOfArea;
+	public boolean hasLimitedLifetime;
+	public boolean useAttractors;
+	public boolean scaleWithWidth;
+	public boolean scaleWithHeight;
+	public boolean foreground = true;
+	public boolean rotateAccelerations = true;
+	public boolean limitLifetimeToParticles;
+	public boolean maxOutParticles = true;
+	public boolean circularEmitter;
+
+	private String templateName;
+	private boolean readFromTemplate;
+
+	private EmitterType(String templateName)
+	{
+		this.templateName = templateName;
+		this.readFromTemplate = true;
+
+		readFromTemplate(templateName);
+	}
+
+	private EmitterType(String spritePath, Color tint, int lifeTime, IntegerRange spawnInterval, IntegerRange spawnCount, IntegerRange initialLife, IntegerRange initialSize, FloatRange xOffset, FloatRange yOffset, FloatRange velocityX, FloatRange velocityY, FloatRange startRotation, FloatRange rotationVelocity, FloatRange growthFactor, FloatRange gravityFactor, FloatRange windFactor, IntegerRange startAlpha, IntegerRange fadeInTime, IntegerRange fadeOutTime, boolean shouldFadeIn, boolean shouldFadeOut, boolean limitToWrapper, boolean tightBounce, boolean shouldBounceOutOfArea, boolean hasLimitedLifetime, boolean scaleWithSize, int originalWidth, int originalHeight)
+	{
+		try
+		{
+			if (spritePath != null)
+			{
+				if (WrapperTextureHandler.bufferedWrappers.get(spritePath) == null)
+				{
+					this.sprites = ResourceLoader.getAnimatedImages(spritePath);
+
+				}
+				else
+				{
+					this.sprites = WrapperTextureHandler.bufferedWrappers.get(spritePath);
+				}
+			}
+			else
+			{
+				this.sprites = null;
+			}
+		}
+		catch (IOException e)
+		{
+			throw new RuntimeException("Woooooww, wait there man! Errors while loading images for emitter " + spritePath + " .. (" + e + ")", e);
+		}
+
+		this.startTint = tint;
+		this.endTint = tint;
+		this.lifeTime = lifeTime;
+		this.spawnInterval = spawnInterval;
+		this.spawnCount = spawnCount;
+		this.initialLife = initialLife;
+		this.initalSize = initialSize;
+		this.xOffset = xOffset;
+		this.yOffset = yOffset;
+		this.velocityX = velocityX;
+		this.velocityY = velocityY;
+		this.startRotation = startRotation;
+		this.rotationVelocity = rotationVelocity;
+		this.growthFactor = growthFactor;
+		this.gravityFactor = gravityFactor;
+		this.windFactor = windFactor;
+		this.startAlpha = startAlpha;
+		this.fadeInTime = fadeInTime;
+		this.fadeOutTime = fadeOutTime;
+		this.shouldFadeIn = shouldFadeIn;
+		this.shouldFadeOut = shouldFadeOut;
+		this.limitToWrapper = limitToWrapper;
+		this.shouldBounceOutOfArea = shouldBounceOutOfArea;
+		this.hasLimitedLifetime = hasLimitedLifetime;
+		this.originalHeight = originalHeight;
+		this.originalWidth = originalWidth;
+	}
+
+	private EmitterType(String spritePath, Color tint, int lifeTime, IntegerRange spawnInterval, IntegerRange spawnCount, IntegerRange initialLife, IntegerRange initialSize, FloatRange xOffset, FloatRange yOffset, FloatRange velocityX, FloatRange velocityY, FloatRange startRotation, FloatRange rotationVelocity, FloatRange growthFactor, FloatRange gravityFactor, FloatRange windFactor, IntegerRange startAlpha, IntegerRange fadeInTime, IntegerRange fadeOutTime, boolean shouldFadeIn, boolean shouldFadeOut, boolean limitToWrapper, boolean tightBounce, boolean shouldBounceOutOfArea, boolean hasLimitedLifetime, boolean scaleWithSize, int originalWidth, int originalHeight, float trailFactor, int maxParticles)
+	{
+		this(spritePath, tint, lifeTime, spawnInterval, spawnCount, initialLife, initialSize, xOffset, yOffset, velocityX, velocityY, startRotation, rotationVelocity, growthFactor, gravityFactor, windFactor, startAlpha, fadeInTime, fadeOutTime, shouldFadeIn, shouldFadeOut, limitToWrapper, tightBounce, shouldBounceOutOfArea, hasLimitedLifetime, scaleWithSize, originalWidth, originalHeight);
+
+		this.maxParticles = maxParticles;
+	}
+
+	private void readFromTemplate(String templateName)
+	{
+		WrapperTexture template = ImportWrapperPanel.getTemplate(templateName);
+
+		if (template == null)
+		{
+			throw new RuntimeException("Wrapper template for " + templateName + " is missing, fatal error.");
+		}
+
+		ParticleEmitterImpl emitter = template.getEmitter();
+
+		this.startTint = template.getStartEmitterTint();
+		this.endTint = template.getEndEmitterTint();
+		this.addTint = template.getAddEmitterTint();
+		this.colorDistrMode = template.getColorDistributionMode();
+		this.sprites = template.getEmitterSprites();
+
+		this.lifeTime = emitter.getLifeTime();
+		this.maxParticles = emitter.getMaxParticles();
+		this.originalWidth = template.getWidth();
+		this.originalHeight = template.getHeight();
+
+		this.spawnInterval = emitter.getSpawnInterval();
+		this.spawnCount = emitter.getSpawnCount();
+		this.initialLife = emitter.getInitialLife();
+		this.initalSize = emitter.getInitialSize();
+
+		this.xOffset = emitter.getXOffset();
+		this.yOffset = emitter.getYOffset();
+		this.velocityX = emitter.getVelocityX();
+		this.velocityY = emitter.getVelocityY();
+		this.startRotation = emitter.getStartRotation();
+		this.rotationVelocity = emitter.getRotationVelocity();
+		this.growthFactor = emitter.getGrowthFactor();
+		this.gravityFactor = emitter.getGravityFactor();
+		this.windFactor = emitter.getGravityFactor();
+
+		this.startAlpha = emitter.getStartAlpha();
+		this.fadeInTime = emitter.getFadeInTime();
+		this.fadeOutTime = emitter.getFadeOutTime();
+
+		this.shouldFadeIn = emitter.shouldFadeIn();
+		this.shouldFadeOut = emitter.shouldFadeOut();
+		this.limitToWrapper = emitter.limittedToWrapper();
+		this.shouldBounceOutOfArea = emitter.shouldBounceOutOfArea();
+		this.hasLimitedLifetime = emitter.hasLimitedLifetime();
+		this.scaleWithWidth = emitter.isScaleWithWidth();
+		this.scaleWithHeight = emitter.isScaleWithHeight();
+		this.rotateAccelerations = emitter.isRotateAccelerations();
+		this.maxOutParticles = emitter.isMaxOutParticles();
+		this.circularEmitter = emitter.isCircularEmitter();
+
+		this.templateName = templateName;
+		this.readFromTemplate = true;
+	}
+
+	public static void reloadAllTemplates()
+	{
+		for (EmitterType type : values())
+		{
+			if (type.readFromTemplate)
+			{
+				type.readFromTemplate(type.templateName);
+			}
+		}
+	}
+
+	public float getScaleFactor(int width, int height)
+	{
+		if (scaleWithWidth)
+		{
+			if (scaleWithHeight)
+			{
+				return ((float) (width * height) / ((float) (this.originalWidth * this.originalHeight)));
+			}
+			else
+			{
+				return ((float) width) / ((float) this.originalWidth);
+			}
+		}
+		else if (scaleWithHeight)
+		{
+			return ((float) height) / ((float) this.originalHeight);
+		}
+		else
+		{
+			return 1.0f;
+		}
+	}
+
+	public static boolean contains(String enumName)
+	{
+		for (EmitterType type : values())
+		{
+			if (type.name().equalsIgnoreCase(enumName))
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	public EmitterType setScaleWithWidthOnly()
+	{
+		this.scaleWithWidth = true;
+
+		return this;
+	}
+
+	public EmitterType setScaleWithHeightOnly()
+	{
+		this.scaleWithHeight = true;
+
+		return this;
+	}
+
+	public EmitterType setBackground()
+	{
+		this.foreground = false;
+
+		return this;
+	}
+
+	protected EmitterType setUseAttractors()
+	{
+		this.useAttractors = true;
+
+		return this;
+	}
+
+	public int getMaxParticles(EmitterType type, int width, int height)
+	{
+		return (int) (type.maxParticles * type.getScaleFactor(width, height));
+	}
+
+	public String getTemplateName()
+	{
+		return templateName;
+	}
+
+	public boolean shouldRemoveOnCompletion()
+	{
+		return false;
+	}
+
+	public boolean isReadFromTemplate()
+	{
+		return readFromTemplate;
+	}
+
+	public static boolean isTemplateUsed(String templateName)
+	{
+		for (EmitterType type : values())
+		{
+			if (templateName.equalsIgnoreCase(type.templateName))
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
+}

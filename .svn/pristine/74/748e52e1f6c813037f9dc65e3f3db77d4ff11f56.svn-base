@@ -1,0 +1,6 @@
+package com.unlogical.linked.gui;
+
+public interface InputChangeListener
+{
+	public void onInputChanged();
+}

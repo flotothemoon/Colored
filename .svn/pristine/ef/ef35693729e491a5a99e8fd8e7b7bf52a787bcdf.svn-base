@@ -1,0 +1,89 @@
+package com.unlogical.linked.gui.panel;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import org.newdawn.slick.Color;
+import org.newdawn.slick.GameContainer;
+import org.newdawn.slick.Graphics;
+import org.newdawn.slick.Input;
+
+import com.unlogical.linked.debug.Debug;
+import com.unlogical.linked.gui.InputField;
+import com.unlogical.linked.mapeditor.MapEditor;
+import com.unlogical.linked.resources.font.Fonts;
+
+public class CheatPanel extends GUIPanel
+{
+	private InputField inputField;
+	private List<String> log = new ArrayList<String>();
+
+	public CheatPanel(float xOffset, float yOffset, float width, float height)
+	{
+		super("Command Panel", xOffset, yOffset, width, height);
+
+		this.fillColor = new Color(MapEditor.panelColor);
+		this.inputField = new InputField(xOffset + 5, yOffset + height - 55, width - 10, 50);
+		this.inputField.init("");
+		this.inputField.setActive(true);
+	}
+
+	@Override
+	protected void customUpdate(GameContainer container, int delta)
+	{
+		inputField.update(container, delta);
+
+		if (container.getInput().isKeyPressed(Input.KEY_ENTER))
+		{
+			processCommand(inputField.getText());
+
+			this.inputField.init("");
+		}
+	}
+
+	private void processCommand(String command)
+	{
+		Debug.log("Processing command \"" + command + "\" ...");
+
+		try
+		{
+			if (command.startsWith("reset "))
+			{
+				String subCommand = command.substring(0);
+			}
+			else
+			{
+				log.add("Unknown command: \"" + command + "\"");
+			}
+		}
+		catch (Exception e)
+		{
+			log.add("Invalid command: \"" + command + "\"");
+		}
+	}
+
+	@Override
+	protected void customRender(GameContainer container, float alphaFactor, Graphics g)
+	{
+		inputField.render(container, g);
+
+		if (!log.isEmpty())
+		{
+			int maxLines = (int) ((this.height - 55) / Fonts.getSmallFont().getLineHeight()) - 1;
+
+			g.setFont(Fonts.getSmallFont());
+			g.setColor(Color.white);
+			
+			for (int i = log.size() - 1; log.size() - i < maxLines && i >= 0; i--)
+			{
+				g.drawString(log.get(i), xOffset + 5, yOffset + (i - log.size()) * g.getFont().getLineHeight() + height - 55);
+			}
+		}
+	}
+
+	@Override
+	public void onPositionUpdate(int xChange, int yChange)
+	{
+		inputField.adjust(xChange, yChange);
+	}
+}

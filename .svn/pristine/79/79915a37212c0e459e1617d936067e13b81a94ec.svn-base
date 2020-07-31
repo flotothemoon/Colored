@@ -1,0 +1,33 @@
+package com.unlogical.linked.entity.key;
+
+import java.util.Random;
+
+import org.newdawn.slick.GameContainer;
+import org.newdawn.slick.geom.Vector2f;
+
+import com.unlogical.linked.entity.EntityType;
+import com.unlogical.linked.level.Level;
+import com.unlogical.linked.util.Dimension;
+
+public class EntityStickyKey extends EntityKey
+{
+	public EntityStickyKey(Vector2f position, Level level, Dimension dimension, boolean allowMirrors)
+	{
+		super(EntityType.STICKYKEY, position, level, dimension, allowMirrors);
+	}
+	
+	@Override
+	public void updateEntity(GameContainer container, float delta, Random rng)
+	{
+		super.updateEntity(container, delta, rng);
+		
+		this.velocity.x = 0.0f;
+		this.oldVelocity.x = 0.0f;
+		
+		if (this.collidedLeft || this.collidedRight || this.collidedAbove || this.collidedBelow || this.closeBelow)
+		{
+			this.velocity.y = 0.0f;
+			this.oldVelocity.y = 0.0f;
+		}
+	}
+}

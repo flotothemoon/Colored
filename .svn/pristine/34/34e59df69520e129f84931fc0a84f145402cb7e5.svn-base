@@ -1,0 +1,41 @@
+package com.unlogical.linked.entity;
+
+public enum EntityAction
+{
+	STANDING("Standing", ""),
+	WALKING("Walking", "walk"),
+	FALLING("Falling", "fall"),
+	
+	STANDING_V2("StandingV2", "v2"),
+	WALKING_V2("WalkingV2", "walkv2"),
+	FALLING_V2("FallingV2", "fallv2"),
+	
+	DEAD("DeadFalling", "die"),
+	
+	CLIMBING("Climbing", "climb"),
+	ATTACKING("Attacking", "att"),
+	
+	OPENING_CAGE("OpenCage", "oc"),
+	
+	CUSTOM("Custom", "c");
+
+	private String description;
+	private String prefix;
+	
+	private EntityAction(String description, String saveName)
+	{
+		this.description = description;
+		this.prefix = saveName;
+	}
+	
+	public String getPrefix() //well, actually, it's a postfix, but 1337 whatevs
+	{
+		return prefix;
+	}
+
+	@Override
+	public String toString()
+	{
+		return this.description;
+	}
+}

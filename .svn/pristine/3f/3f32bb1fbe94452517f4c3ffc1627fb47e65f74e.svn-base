@@ -1,0 +1,42 @@
+package com.unlogical.colored.input;
+
+import java.util.HashMap;
+
+@SuppressWarnings("serial")
+public class ControllerMapper
+{
+	private static final HashMap<InputAction, Integer> defaultButtonMapping = new HashMap<InputAction, Integer>(){{
+		put(InputAction.JUMP, 0);
+		put(InputAction.INTERACT, 2);
+		put(InputAction.TOGGLE_DIMENSIONS, 3);
+		put(InputAction.PAUSE, 7);
+		put(InputAction.BACK, 1);
+	}};
+	
+	private static final HashMap<InputAction, Integer>  defaultAxisMapping = new HashMap<InputAction, Integer>(){{
+		put(InputAction.MOVE_UP, 0);
+		put(InputAction.MOVE_RIGHT, 1);
+		put(InputAction.MOVE_DOWN, 2);
+		put(InputAction.MOVE_LEFT, 3);
+	}};
+	
+	public int getIndex(InputAction action)
+	{
+		return defaultButtonMapping.get(action);
+	}
+
+	public static int mapButton(InputAction action)
+	{
+		return defaultButtonMapping.get(action);
+	}
+	
+	public static boolean isButtonMapped(InputAction action)
+	{
+		return defaultButtonMapping.containsKey(action);
+	}
+
+	public static int mapAxis(InputAction action)
+	{
+		return defaultAxisMapping.get(action);
+	}
+}

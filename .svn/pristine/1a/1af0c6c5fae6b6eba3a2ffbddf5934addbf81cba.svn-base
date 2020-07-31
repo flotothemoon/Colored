@@ -1,0 +1,32 @@
+package com.unlogical.linked.filesystem;
+
+import java.io.File;
+
+import com.unlogical.linked.debug.Debug;
+
+public class DataHandler
+{
+	public static void delete(File file)
+	{
+		Debug.log("Requested deletion of \"" + file.getName() + "\" at \"" + file.getPath() + "\" ...");
+		
+		if (file.isDirectory())
+		{
+			Debug.log("File is a directory, deleting everything inside...");
+			
+			for (File f : file.listFiles())
+			{
+				delete(f);
+			}
+		}
+
+		file.delete();
+		
+		Debug.log("File \"" + file.getName() + "\" deleted.");
+	}
+
+	public static void delete(String file)
+	{
+		delete(new File(file));
+	}
+}

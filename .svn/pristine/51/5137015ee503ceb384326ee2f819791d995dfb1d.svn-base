@@ -1,0 +1,612 @@
+package com.unlogical.colored.gui;
+
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Input;
+import com.badlogic.gdx.InputAdapter;
+import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.g2d.Batch;
+import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
+import com.badlogic.gdx.graphics.glutils.ShapeRenderer.ShapeType;
+import com.badlogic.gdx.math.Rectangle;
+import com.unlogical.colored.input.InputHandler;
+import com.unlogical.colored.resources.font.Fonts;
+import com.unlogical.colored.util.ColorHelper;
+import com.unlogical.colored.util.Renderer;
+import com.unlogical.colored.util.ShaderHandler;
+
+public class UserInputLine
+{
+	private final int DELETE_COOLDOWN = 100;	
+	private int timeToSwitchBlink = 0;
+	private int deleteCooldown = 0;
+
+	private int width;
+	private int height;
+	private int xOffset;
+	private int yOffset;
+	private int fontSize = 25;
+	private int charHeight;
+	private int blinkOffset = 0;
+	private int maxChars = 99999;
+
+	private final int BLINK_TIME = 500;
+
+	private boolean isActive = false;
+	private boolean textFieldFull = false;
+	private boolean isFocused = false;
+	private boolean allowUserInput = true;
+	private boolean protectedInput = false;
+	private boolean onlyNumeric = false;
+	private boolean allowSpecialCharacters = false;
+	private boolean displayBlinkingChar = true;
+	private boolean alwaysFocus = false;
+
+	private final char BLINKING_CHAR = '|';
+	private char blinkingChar = '|';
+	private char secretChar = '*';
+	private char userInputChar = ' ';
+
+	private InputChangeListener inputListener;
+
+	private String userInput = "";
+	private String displayedInput = "";
+	private String suggestedInput = "";
+	private Rectangle textField;
+
+	private Color borderColor = new Color(0.8f, 0.8f, 0.8f, 1.0f);
+	private Color fillColor = new Color(0.1f, 0.1f, 0.1f, 0.6f);
+	private Color alertColor = Color.RED;
+	private Color suggestedColor = Color.GRAY;
+	private Color forbiddenColor = new Color(0.08f, 0.08f, 0.08f, 1.0f);
+	private Color textColor = new Color(Color.WHITE);;
+
+	private String allowedChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.,:;!?\"'+-*/\\<>_~()[]{}%^�&= ";
+
+	public UserInputLine(int xOffset, int yOffset, int width, int height)
+	{
+		this.userInput = "";
+		this.displayedInput = "";
+		this.width = width;
+		this.height = height;
+		this.xOffset = xOffset;
+		this.yOffset = yOffset;
+
+		updateInterface();
+
+		addInputProcessor();
+	}
+
+	public UserInputLine(int width, int height, int xOffset, int yOffset, UserInputLine other)
+	{
+		this(xOffset, yOffset, width, height);
+		
+		this.allowUserInput = other.isAllowUserInput();
+		this.allowSpecialCharacters = other.isAllowWhitespace();
+		this.alertColor = other.getAlertColor();
+		this.fillColor = other.getFillColor();
+		this.borderColor = other.getBorderColor();
+		this.forbiddenColor = other.getForbiddenColor();
+		this.textColor = other.getTextColor();
+		this.blinkingChar = other.getBlinkingChar();
+		this.maxChars = other.getMaxChars();
+		this.displayBlinkingChar = other.isDisplayBlinkingChar();
+		this.onlyNumeric = other.onlyNumeric;
+
+		updateInterface();
+
+		addInputProcessor();
+	}
+
+	private void addInputProcessor()
+	{
+		InputHandler.addInputProcessor(new InputAdapter()
+		{
+			@Override
+			public boolean keyUp(int keycode)
+			{
+				return false;
+			}
+
+			@Override
+			public boolean keyTyped(char c)
+			{
+				if (Character.isLetterOrDigit(c) || (Character.isWhitespace(c)) || (allowSpecialCharacters && allowedChars.contains(c + "")) || c == '.' || c == '-' || c == '_')
+					userInputChar = c;
+				else
+					userInputChar = '\\';
+
+				if (userInputChar != '\\' && (!Character.isWhitespace(userInputChar) || allowSpecialCharacters) && isFocused && allowUserInput && (!onlyNumeric || Character.isDigit(userInputChar) || userInputChar == '-'))
+				{
+					if (userInput.length() < maxChars && ((displayedInput.isEmpty() && (Renderer.getWidth(userInput + userInputChar, Fonts.getSmallFont()) + 15) <= width) || (!displayedInput.isEmpty() && (Renderer.getWidth(displayedInput + userInputChar, Fonts.getSmallFont()) + 15) <= width)))
+					{
+						userInput = userInput + userInputChar;
+						if (protectedInput)
+						{
+							displayedInput = displayedInput + secretChar;
+						}
+
+						if (inputListener != null)
+						{
+							try
+							{
+								inputListener.onInputChanged();
+							}
+							catch (NumberFormatException e)
+							{
+							}
+						}
+					}
+				}
+
+				if ((Renderer.getWidth(userInput + userInputChar, Fonts.getSmallFont()) + 15) > width && !allowUserInput)
+				{
+					for (int i = 0; Renderer.getWidth(userInput.substring(userInput.length() - i, userInput.length()), Fonts.getSmallFont()) + 15 < width && i < userInput.length(); i++)
+					{
+						displayedInput = userInput.substring(userInput.length() - i, userInput.length());
+					}
+				}
+
+				return false;
+			}
+
+			@Override
+			public boolean keyDown(int keycode)
+			{
+				return false;
+			}
+		});
+	}
+
+	public void update(int delta)
+	{
+		if (Gdx.input.isButtonPressed(Input.Buttons.LEFT))
+		{
+			isFocused = textField.contains(InputHandler.getCurrentInputX(), InputHandler.getCurrentInputY());
+		}
+
+		if (alwaysFocus)
+		{
+			isFocused = true;
+		}
+
+		Renderer.setFont(Fonts.getSmallFont());
+
+		if (deleteCooldown > 0)
+		{
+			deleteCooldown -= delta;
+		}
+
+		if (Gdx.input.isKeyPressed(Input.Keys.DEL) && (userInput.length() - 1) >= 0 && isFocused && deleteCooldown <= 0 && allowUserInput)
+		{
+			userInput = userInput.substring(0, userInput.length() - 1);
+			if (!displayedInput.isEmpty())
+			{
+				displayedInput = displayedInput.substring(0, displayedInput.length() - 1);
+			}
+
+			if (inputListener != null)
+			{
+				try
+				{
+					inputListener.onInputChanged();
+				}
+				catch (NumberFormatException e)
+				{
+				}
+			}
+
+			deleteCooldown = DELETE_COOLDOWN;
+		}
+
+		if ((Renderer.getWidth(userInput + userInputChar, Fonts.getSmallFont()) + 15) > width)
+		{
+			textFieldFull = true;
+		}
+		else
+		{
+			textFieldFull = false;
+		}
+
+		if (timeToSwitchBlink > 0)
+		{
+			timeToSwitchBlink -= delta;
+		}
+		else
+		{
+			timeToSwitchBlink = BLINK_TIME;
+
+			if (blinkingChar == BLINKING_CHAR)
+			{
+				blinkingChar = ' ';
+			}
+			else
+			{
+				blinkingChar = BLINKING_CHAR;
+			}
+		}
+
+		customUpdate(delta);
+	}
+
+	public void render(float alphaFactor, Batch batch)
+	{
+		if (isActive)
+		{
+			ShaderHandler.disableLighting();
+
+			ShapeRenderer sr = Renderer.useShapeRenderer();
+
+			ColorHelper.applyAlphaAndCopy(fillColor, alphaFactor, sr);
+
+			if (!allowUserInput)
+			{
+				ColorHelper.applyAlphaAndCopy(forbiddenColor, alphaFactor, sr);
+			}
+
+			Renderer.setFont(Fonts.getSmallFont());
+			sr.set(ShapeType.Filled);
+			sr.rect(textField.x, textField.y, textField.width, textField.height);
+			ColorHelper.applyAlphaAndCopy(borderColor, alphaFactor, batch);
+
+			sr.set(ShapeType.Line);
+			sr.rect(textField.x, textField.y, textField.width, textField.height);
+			ColorHelper.applyAlphaAndCopy(textColor, alphaFactor, batch);
+
+			Renderer.useSpriteBatch();
+
+			if (displayedInput.isEmpty())
+			{
+				Renderer.drawString(userInput, xOffset + 5, yOffset + (height - charHeight) / 2, batch);
+			}
+			else
+			{
+				Renderer.drawString(displayedInput, xOffset + 5, yOffset + (height - charHeight) / 2, batch);
+			}
+
+			if (!textFieldFull && isFocused && allowUserInput)
+			{
+				if (displayedInput.isEmpty())
+				{
+					blinkOffset = xOffset + 5 + Renderer.getWidth(userInput);
+				}
+				else
+				{
+					blinkOffset = xOffset + 5 + Renderer.getWidth(displayedInput);
+				}
+
+				if (displayBlinkingChar)
+				{
+					Renderer.drawString(blinkingChar + "", blinkOffset, yOffset + (height - charHeight) / 2, batch);
+				}
+			}
+
+			if (!isFocused && userInput.isEmpty() && !suggestedInput.isEmpty() && allowUserInput)
+			{
+				ColorHelper.applyAlphaAndCopy(suggestedColor, alphaFactor, batch);
+				Renderer.drawString(suggestedInput, xOffset + 5, yOffset + (height / 2) - Fonts.getSmallFont().getLineHeight() / 2, batch);
+			}
+
+			customRender(batch);
+
+			ShaderHandler.enableLighting();
+		}
+	}
+
+	public void updateInterface()
+	{
+		textField = new Rectangle(xOffset, yOffset, width, height);
+		charHeight = (int) Fonts.getSmallFont().getCapHeight();
+	}
+
+	public void adjustX(int xChange)
+	{
+		this.xOffset += xChange;
+		this.textField.setX(textField.getX() + xChange);
+	}
+
+	public void adjustY(int yChange)
+	{
+		this.yOffset += yChange;
+		this.textField.setY(textField.getY() + yChange);
+	}
+
+	public void adjust(int xChange, int yChange)
+	{
+		adjustX(xChange);
+		adjustY(yChange);
+	}
+
+	public void addInputChangedListener(InputChangeListener listener)
+	{
+		this.inputListener = listener;
+	}
+
+	public void alert(int timeInMiliseconds)
+	{
+	}
+
+	public void setInput(String userInput)
+	{
+		this.userInput = userInput == null ? "" : userInput;
+	}
+
+	public void customUpdate(int delta)
+	{
+
+	}
+
+	public void customRender(Batch batch)
+	{
+
+	}
+
+	public int getWidth()
+	{
+		return width;
+	}
+
+	public void setWidth(int width)
+	{
+		this.width = width;
+	}
+
+	public int getHeight()
+	{
+		return height;
+	}
+
+	public void setHeight(int height)
+	{
+		this.height = height;
+	}
+
+	public int getX()
+	{
+		return xOffset;
+	}
+
+	public void setxOffset(int xOffset)
+	{
+		this.xOffset = xOffset;
+	}
+
+	public int getY()
+	{
+		return yOffset;
+	}
+
+	public void setyOffset(int yOffset)
+	{
+		this.yOffset = yOffset;
+	}
+
+	public int getFontSize()
+	{
+		return fontSize;
+	}
+
+	public void setFontSize(int fontSize)
+	{
+		this.fontSize = fontSize;
+	}
+
+	public boolean isActive()
+	{
+		return isActive;
+	}
+
+	public void setActive(boolean isActive)
+	{
+		this.isActive = isActive;
+	}
+
+	public char getBlinkingChar()
+	{
+		return blinkingChar;
+	}
+
+	public void setBlinkingChar(char blinkingChar)
+	{
+		this.blinkingChar = blinkingChar;
+	}
+
+	public char getUserInputChar()
+	{
+		return userInputChar;
+	}
+
+	public void setUserInputChar(char userInputChar)
+	{
+		this.userInputChar = userInputChar;
+	}
+
+	public String getInput()
+	{
+		return userInput;
+	}
+
+	public Color getBorderColor()
+	{
+		return borderColor;
+	}
+
+	public void setBorderColor(Color borderColor)
+	{
+		this.borderColor = borderColor;
+	}
+
+	public Color getFillColor()
+	{
+		return fillColor;
+	}
+
+	public void setFillColor(Color fillColor)
+	{
+		this.fillColor = fillColor;
+	}
+
+	public Color getTextColor()
+	{
+		return textColor;
+	}
+
+	public void setTextColor(Color textColor)
+	{
+		this.textColor = textColor;
+	}
+
+	public boolean isFocused()
+	{
+		return isFocused;
+	}
+
+	public void setFocused(boolean isFocused)
+	{
+		this.isFocused = isFocused;
+	}
+
+	public boolean isAllowUserInput()
+	{
+		return allowUserInput;
+	}
+
+	public void setAllowUserInput(boolean allowUserInput)
+	{
+		this.allowUserInput = allowUserInput;
+	}
+
+	public boolean isOnlyNumeric()
+	{
+		return onlyNumeric;
+	}
+
+	public void setOnlyNumeric(boolean onlyNumeric)
+	{
+		this.onlyNumeric = onlyNumeric;
+	}
+
+	public Color getAlertColor()
+	{
+		return alertColor;
+	}
+
+	public void setAlertColor(Color alertColor)
+	{
+		this.alertColor = alertColor;
+	}
+
+	public boolean isProtectedInput()
+	{
+		return protectedInput;
+	}
+
+	public void setProtectedInput(boolean protectedInput)
+	{
+		this.protectedInput = protectedInput;
+	}
+
+	public char getSecretChar()
+	{
+		return secretChar;
+	}
+
+	public void setSecretChar(char secretChar)
+	{
+		this.secretChar = secretChar;
+	}
+
+	public String getSuggestedInput()
+	{
+		return suggestedInput;
+	}
+
+	public void setSuggestedInput(String suggestedInput)
+	{
+		this.suggestedInput = suggestedInput;
+	}
+
+	public String getDisplayedInput()
+	{
+		return displayedInput;
+	}
+
+	public void setDisplayedInput(String displayedInput)
+	{
+		this.displayedInput = displayedInput;
+	}
+
+	public Color getSuggestedColor()
+	{
+		return suggestedColor;
+	}
+
+	public void setSuggestedColor(Color suggestedColor)
+	{
+		this.suggestedColor = suggestedColor;
+	}
+
+	public Color getForbiddenColor()
+	{
+		return forbiddenColor;
+	}
+
+	public void setForbiddenColor(Color forbiddenColor)
+	{
+		this.forbiddenColor = forbiddenColor;
+	}
+
+	public boolean isAllowWhitespace()
+	{
+		return allowSpecialCharacters;
+	}
+
+	public void setAllowSpecialCharacters(boolean allowSpecialCharacters)
+	{
+		this.allowSpecialCharacters = allowSpecialCharacters;
+	}
+
+	public int getMaxChars()
+	{
+		return maxChars;
+	}
+
+	public void setMaxChars(int maxChars)
+	{
+		this.maxChars = maxChars;
+	}
+
+	public boolean isDisplayBlinkingChar()
+	{
+		return displayBlinkingChar;
+	}
+
+	public void setDisplayBlinkingChar(boolean displayBlinkingChar)
+	{
+		this.displayBlinkingChar = displayBlinkingChar;
+	}
+
+	public float getCenterY()
+	{
+		return this.textField.getY() + this.textField.height / 2;
+	}
+
+	public String getAllowedChars()
+	{
+		return allowedChars;
+	}
+
+	public void setAllowedChars(String allowedChars)
+	{
+		this.allowedChars = allowedChars;
+	}
+
+	public void setAlwaysFocus(boolean alwaysFocus)
+	{
+		this.alwaysFocus = alwaysFocus;
+	}
+
+	public boolean isAlwaysFocus()
+	{
+		return alwaysFocus;
+	}
+}

@@ -1,0 +1,70 @@
+ -- General -- 
+Generated on: 2016-04-09_15-44-25
+Build: 687 from 07:54 PM - 08/04/16
+GameState: IN_LEVEL (previous: LOADING)
+Target FPS: 60
+Actual FPS: 23
+
+ -- Display -- 
+Target Width / Height: 1920 / 1080
+Actual Width / Height: 1920 / 1017 (windowed)
+
+ -- Environment -- 
+GPU: GeForce GTX 980 Ti/PCIe/SSE2 (NVIDIA Corporation)
+OpenGL Version: 4.5.0 NVIDIA 361.43
+Allocated Memory: 15MB
+Used Memory: 0MB
+"os.name": Windows 10
+"os.version": 10.0
+"os.arch": x86
+"java.version": 1.8.0_66
+"java.vendor": Oracle Corporation
+"sun.arch.data.model": 32
+
+ -- Level --
+ID: 20-03 (internal: 03)
+LevelType: NORMAL
+Dimension: LIGHT
+Location: ../worlds/maps/20-03
+
+ -- Stack Trace -- 
+java.lang.ArrayIndexOutOfBoundsException
+java.lang.System.arraycopy(Native Method)
+com.unlogical.colored.util.CustomVerticesSpriteBatch.draw(CustomVerticesSpriteBatch.java:706)
+com.badlogic.gdx.graphics.g2d.BitmapFontCache.draw(BitmapFontCache.java:237)
+com.badlogic.gdx.graphics.g2d.BitmapFont.draw(BitmapFont.java:191)
+com.unlogical.colored.util.Renderer.drawString(Renderer.java:313)
+com.unlogical.colored.gui.panel.SanityPanel.customRender(SanityPanel.java:325)
+com.unlogical.colored.gui.panel.GUIPanel.render(GUIPanel.java:164)
+com.unlogical.colored.GameLauncher.render(GameLauncher.java:478)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication.mainLoop(LwjglApplication.java:218)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication$1.run(LwjglApplication.java:123)
+
+ -- Last 20 Log Entries -- 
+@Warning: com.badlogic.gdx.utils.GdxRuntimeException: Cannot write to an internal file: screenshots\test.png (8)
+@Warning: com.badlogic.gdx.files.FileHandle.write(FileHandle.java:265) (8)
+@Warning: com.unlogical.colored.gui.panel.SanityPanel.saveScreenshot(SanityPanel.java:251) (8)
+@Warning: com.unlogical.colored.gui.panel.SanityPanel.preDraw(SanityPanel.java:260) (8)
+@Warning: com.unlogical.colored.gui.panel.GUIPanel.render(GUIPanel.java:130) (8)
+@Warning: com.unlogical.colored.GameLauncher.render(GameLauncher.java:478) (8)
+@Warning: com.badlogic.gdx.backends.lwjgl.LwjglApplication.mainLoop(LwjglApplication.java:218) (8)
+@Warning: com.badlogic.gdx.backends.lwjgl.LwjglApplication$1.run(LwjglApplication.java:123) (8)
+@Log: Loading map ../worlds/maps/20-03 ... (8)
+@Log: Loading map files took 9ms. (8)
+@Log: Active save was saved to disk. (8)
+@Log: Level 20-03 cleared. (8)
+@Warning: Tried to load image(s) from path res/gui/icons/20_03, the resolved path res/gui/icons/20_03.png however does not exist. (8)
+@Warning: Couldn't load level icon for 20-03. (8)
+@Log: Fetching lights for level "20-03" ... (8)
+@Log: Lights fetched for level "20-03", 4 lights found. (8)
+@Log: Pre-simulating particles for 45000.0ms (300 x 150.0ms)... (8)
+@Log: Particle pre-simulation complete. Particles are now ahead of time by 45000.0ms. (8)
+@Log: Active save was saved to disk. (8)
+@Log: Loaded 20-03 (took 29ms). (8)
+
+ -- Last 5 Input Events -- 
+Touch up: 0 (pointer: 0) at x:499 y: 20 (4678ms ago)
+Key down: F2 (245) (3057ms ago)
+Key up: F2 (245) (2958ms ago)
+Touch down: 0 (pointer: 0) at x:979 y: 713 (2408ms ago)
+Touch up: 0 (pointer: 0) at x:979 y: 713 (2288ms ago)

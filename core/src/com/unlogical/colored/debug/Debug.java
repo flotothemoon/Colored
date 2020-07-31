@@ -1,0 +1,162 @@
+package com.unlogical.colored.debug;
+
+import java.io.IOException;
+import java.io.OutputStream;
+import java.io.PrintStream;
+import java.util.ArrayList;
+
+public class Debug
+{
+	private static final ArrayList<String> log = new ArrayList<String>();
+	private static PrintStream consoleOut;
+	private static PrintStream bufferOut;
+	private static PrintStream consoleErr;
+	private static PrintStream bufferErr;
+
+	static
+	{
+		consoleOut = System.out;
+		bufferOut = System.out;
+		consoleErr = System.err;
+		bufferErr = System.err;
+
+		if (shouldReRouteSystemStreams())
+		{
+			reRouteSystemStreams();
+		}
+	}
+
+	private static boolean shouldReRouteSystemStreams()
+	{
+		return false;// !GameLauncher.isDeveloperMode();
+	}
+
+	private static void reRouteSystemStreams()
+	{
+		try
+		{
+			bufferOut = new PrintStream(new OutputStream()
+			{
+				@Override
+				public void write(int b) throws IOException
+				{
+
+				}
+			});
+			consoleOut = System.out;
+			System.setOut(bufferOut);
+
+			log("System.out re-routed.");
+
+			bufferErr = new PrintStream(new OutputStream()
+			{
+				@Override
+				public void write(int b) throws IOException
+				{
+
+				}
+			});
+			consoleErr = System.err;
+			System.setErr(bufferErr);
+
+			log("System.err re-routed.");
+		}
+		catch (Exception e)
+		{
+			warn("Couldn't create temporary output file, using default system.out / system.err instead: " + e, e);
+		}
+	}
+
+	public static synchronized String log(String message)
+	{
+		if (shouldWriteLog())
+		{
+			String data = "@Log    : " + message + " (tid: " + Thread.currentThread().getId() + ")";
+
+			log.add(data);
+
+			consoleOut.println(data);
+		}
+
+		return message;
+	}
+
+	public static synchronized void log(String data, Throwable e)
+	{
+		if (shouldWriteLog())
+		{
+			log(data);
+			logStackTrace(e);
+		}
+	}
+
+	public static synchronized void logStackTrace(Throwable e)
+	{
+		if (shouldWriteLog())
+		{
+			log(e.toString());
+			for (int i = 0; i < e.getStackTrace().length; i++)
+			{
+				log(e.getStackTrace()[i] + "");
+			}
+		}
+	}
+
+	public static String warn(String message)
+	{
+		if (shouldWriteWarnings())
+		{
+			String data = "@Warning: " + message + " (tid: " + Thread.currentThread().getId() + ")";
+
+			log.add(data);
+
+			consoleErr.println(data);
+		}
+
+		return message;
+	}
+
+	public static void warn(String message, Throwable e)
+	{
+		if (shouldWriteWarnings())
+		{
+			warn(message);
+			warnStackTrace(e);
+		}
+	}
+
+	public static synchronized void warnStackTrace(Throwable e)
+	{
+		if (shouldWriteLog())
+		{
+			warn(e.toString());
+			for (int i = 0; i < e.getStackTrace().length; i++)
+			{
+				warn(e.getStackTrace()[i] + "");
+			}
+		}
+	}
+
+	private static boolean shouldWriteLog()
+	{
+		return true;
+	}
+
+	private static boolean shouldWriteWarnings()
+	{
+		return true;
+	}
+
+	public static void printStackTrace(int elements)
+	{
+		for (int i = 0; i < elements && i + 3 < Thread.currentThread().getStackTrace().length; i++)
+		{
+			consoleOut.println(Thread.currentThread().getStackTrace()[i + 3]);
+		}
+	}
+
+	public static ArrayList<String> getLog()
+	{
+		return log;
+	}
+}

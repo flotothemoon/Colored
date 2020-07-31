@@ -1,0 +1,65 @@
+ -- General -- 
+Generated on: 2016-04-03_17-19-48
+Build: 674 from 11:17 AM - 03/04/16
+GameState: PLAY_MAP_SELECTION (previous: IN_LEVEL)
+Target FPS: 60
+Actual FPS: 10
+
+ -- Display -- 
+Target Width / Height: 1920 / 1080
+Actual Width / Height: 1920 / 1053 (windowed)
+
+ -- Environment -- 
+GPU: GeForce GTX 980 Ti/PCIe/SSE2 (NVIDIA Corporation)
+OpenGL Version: 4.5.0 NVIDIA 361.43
+Allocated Memory: 15MB
+Used Memory: 8MB
+"os.name": Windows 10
+"os.version": 10.0
+"os.arch": x86
+"java.version": 1.8.0_66
+"java.vendor": Oracle Corporation
+"sun.arch.data.model": 32
+
+ -- Level --
+ID: 23-03 (internal: 03)
+LevelType: FROZEN
+Dimension: LIGHT
+Location: ../worlds/maps/23-03
+
+ -- Stack Trace -- 
+java.lang.ClassCastException: com.unlogical.colored.terrain.tile.TileCameraControl cannot be cast to com.unlogical.colored.terrain.tile.properties.ITileMirrorable
+com.unlogical.colored.terrain.tile.Tile.isChangeable(Tile.java:1611)
+com.unlogical.colored.levelmanaging.MapManager.renderBehindAllEntities(MapManager.java:870)
+com.unlogical.colored.levelmanaging.LevelManager.renderGeometry(LevelManager.java:1172)
+com.unlogical.colored.levelmanaging.LevelManager.render(LevelManager.java:1132)
+com.unlogical.colored.GameLauncher.render(GameLauncher.java:464)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication.mainLoop(LwjglApplication.java:218)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication$1.run(LwjglApplication.java:123)
+
+ -- Last 20 Log Entries -- 
+@Warning: com.badlogic.gdx.backends.lwjgl.LwjglApplication.mainLoop(LwjglApplication.java:218) (8)
+@Warning: com.badlogic.gdx.backends.lwjgl.LwjglApplication$1.run(LwjglApplication.java:123) (8)
+@Warning: Error while updating level / physics - jumping back to menu screen. (8)
+@Warning: java.lang.ClassCastException: com.unlogical.colored.terrain.tile.TileBase cannot be cast to com.unlogical.colored.terrain.tile.properties.ITileMirrorable (8)
+@Warning: com.unlogical.colored.terrain.tile.Tile.isChangeable(Tile.java:1611) (8)
+@Warning: com.unlogical.colored.entity.Entity.update(Entity.java:720) (8)
+@Warning: com.unlogical.colored.levelmanaging.EntityManager.updateEntities(EntityManager.java:26) (8)
+@Warning: com.unlogical.colored.levelmanaging.LevelManager.updateLevel(LevelManager.java:717) (8)
+@Warning: com.unlogical.colored.levelmanaging.LevelManager.update(LevelManager.java:579) (8)
+@Warning: com.unlogical.colored.levelmanaging.LevelManager.simulateAll(LevelManager.java:416) (8)
+@Warning: com.unlogical.colored.levelmanaging.LevelManager.initMap(LevelManager.java:294) (8)
+@Warning: com.unlogical.colored.GameLauncher.goToLastVisitedLevel(GameLauncher.java:739) (8)
+@Warning: com.unlogical.colored.GameLauncher.update(GameLauncher.java:355) (8)
+@Warning: com.unlogical.colored.GameLauncher.render(GameLauncher.java:430) (8)
+@Warning: com.badlogic.gdx.backends.lwjgl.LwjglApplication.mainLoop(LwjglApplication.java:218) (8)
+@Warning: com.badlogic.gdx.backends.lwjgl.LwjglApplication$1.run(LwjglApplication.java:123) (8)
+@Log: Pre-simulating particles for 45000.0ms (300 x 150.0ms)... (8)
+@Log: Particle pre-simulation complete. Particles are now ahead of time by 45000.0ms. (8)
+@Log: Active save was saved to disk. (8)
+@Log: Loaded 23-03 (took 93ms). (8)
+
+ -- Last 3 Input Events -- 
+Touch down: 0 (pointer: 0) at x:595 y: 310 (1474ms ago)
+Touch up: 0 (pointer: 0) at x:595 y: 312 (1437ms ago)
+Touch down: 0 (pointer: 0) at x:595 y: 312 (1246ms ago)

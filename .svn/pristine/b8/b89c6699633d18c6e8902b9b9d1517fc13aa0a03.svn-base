@@ -1,0 +1,151 @@
+package com.unlogical.colored.levelrendering.gui;
+
+import java.io.IOException;
+
+import org.newdawn.slick.Color;
+import org.newdawn.slick.GameContainer;
+import org.newdawn.slick.Graphics;
+import org.newdawn.slick.Image;
+
+import com.unlogical.colored.GameLauncher;
+import com.unlogical.colored.entity.player.EntityPlayer;
+import com.unlogical.colored.filesystem.FilePaths;
+import com.unlogical.colored.level.Level;
+import com.unlogical.colored.levelrendering.LevelRenderer;
+import com.unlogical.colored.resources.font.Fonts;
+import com.unlogical.colored.resources.image.Images;
+import com.unlogical.colored.util.ColorHelper;
+import com.unlogical.colored.util.Dimension;
+import com.unlogical.colored.util.Transitions;
+
+public final class GUIRenderer
+{
+	private static final int TEXT_DISPLAY_TIME = 3000;
+	private static final int TEXT_FADE_IN_TIME = 500;
+	
+	private static final String RESUME_KEY_HINT = "resumeKeyHint";
+	private static final String RESUME_HINT = "resumeHint";
+	private static final String PREVIOUS_KEY_HINT = "previousKeyHint";
+	private static final String PREVIOUS_HINT = "previousHint";
+	private static final String NEXT_KEY_HINT = "nextKeyHint";
+	private static final String NEXT_HINT = "nextHint";
+
+	private static Level level;
+	private static int selectionTime;
+	private static int textDisplayTime;
+
+	public static void init() throws IOException
+	{
+		Images.registerAndLoad(RESUME_KEY_HINT, FilePaths.GUI + "/resumeKey.png", 200, 50, true);
+		Images.registerAndLoad(RESUME_HINT, FilePaths.GUI + "/resume.png", 200, 200, true);
+		Images.registerAndLoad(PREVIOUS_KEY_HINT, FilePaths.GUI + "/previousKey.png", 80, 80, true);
+		Images.registerAndLoad(NEXT_KEY_HINT, FilePaths.GUI + "/nextKey.png", 80, 80, true);
+		Images.registerAndLoad(NEXT_HINT, FilePaths.GUI + "/next.png", 80, 80, true);
+		Images.registerAndLoad(PREVIOUS_HINT, FilePaths.GUI + "/previous.png", 80, 80, true);
+	}
+
+	public static void initMap(Level level, boolean showText)
+	{
+		GUIRenderer.level = level;
+
+		if (showText)
+		{
+			textDisplayTime = TEXT_DISPLAY_TIME;
+		}
+	}
+
+	public static void update(GameContainer container, int delta)
+	{
+		if (LevelRenderer.isInCheckpointSelectionMode())
+		{
+			selectionTime += delta;
+
+			if (selectionTime > 5000)
+			{
+				selectionTime = 5000;
+			}
+		}
+		else if (selectionTime > 0)
+		{
+			selectionTime -= delta * 8;
+		}
+
+		if (textDisplayTime > 0)
+		{
+			textDisplayTime -= delta;
+		}
+	}
+
+	public static void render(GameContainer container, Graphics g)
+	{
+		level.getControllingPlayer().drawOverlay(g);
+
+		if (level.getControllingPlayer().hasMirror())
+		{
+			((EntityPlayer) level.getControllingPlayer().getMirroredEntity()).drawOverlay(g);
+		}
+
+		if (selectionTime > 0)
+		{
+			if (selectionTime >= 500)
+			{
+				int curTime = (int) (System.currentTimeMillis() % 10000);
+
+				float alpha = (float) (Math.min(((float) (selectionTime - 500)) / (1000.0f), 1.0f) + Math.sin(curTime / (LevelRenderer.isInCheckpointSelectionMode() ? (Math.max(0.00001f, LevelRenderer.getCheckpointingFactor())) : 100.0f) / 400.0f) * 0.5f - 0.3f) * LevelRenderer.getCheckpointingFactor();
+
+				Image resumeImage = Images.getImage(RESUME_HINT);
+				Image resumeKeyImage = Images.getImage(RESUME_KEY_HINT);
+				Image prevImage = Images.getImage(PREVIOUS_HINT, LevelRenderer.isPreviousCheckpointAvailable() ? Dimension.LIGHT : Dimension.SHADOW);
+				Image prevKeyImage = Images.getImage(PREVIOUS_KEY_HINT, LevelRenderer.isPreviousCheckpointAvailable() ? Dimension.LIGHT : Dimension.SHADOW);
+				Image nextImage = Images.getImage(NEXT_HINT, LevelRenderer.isNextCheckpointAvailable() ? Dimension.LIGHT : Dimension.SHADOW);
+				Image nextKeyImage = Images.getImage(NEXT_KEY_HINT, LevelRenderer.isNextCheckpointAvailable() ? Dimension.LIGHT : Dimension.SHADOW);
+
+				g.drawImage(resumeImage, 30, GameLauncher.getHeight() - resumeImage.getHeight() - resumeKeyImage.getHeight() - 40, ColorHelper.applyAlphaAndCopy(Color.white, alpha));
+				g.drawImage(resumeKeyImage, 30, GameLauncher.getHeight() - resumeKeyImage.getHeight() - 30, ColorHelper.applyAlphaAndCopy(Color.white, alpha));
+
+				if (selectionTime >= 3000)
+				{
+					alpha = (float) (Math.min(((float) (selectionTime - 3000)) / (2000.0f), 1.0f) + Math.sin(curTime / (LevelRenderer.isInCheckpointSelectionMode() ? (Math.max(0.00001f, LevelRenderer.getCheckpointingFactor())) : 100.0f) / 400.0f) * 0.5f - 0.3f) * LevelRenderer.getCheckpointingFactor();
+
+					float prevAlpha = LevelRenderer.isPreviousCheckpointAvailable() ? alpha : 0.15f * alpha;
+
+					g.drawImage(prevImage, 80 + resumeImage.getWidth(), GameLauncher.getHeight() - 40 - prevImage.getHeight() - prevKeyImage.getHeight(), ColorHelper.applyAlphaAndCopy(Color.white, prevAlpha));
+					g.drawImage(prevKeyImage, 80 + resumeImage.getWidth(), GameLauncher.getHeight() - 30 - prevKeyImage.getHeight(), ColorHelper.applyAlphaAndCopy(Color.white, prevAlpha));
+
+					float nextAlpha = LevelRenderer.isNextCheckpointAvailable() ? alpha : 0.15f * alpha;
+
+					g.drawImage(nextImage, 90 + prevImage.getWidth() + resumeImage.getWidth(), GameLauncher.getHeight() - 40 - nextImage.getHeight() - nextKeyImage.getHeight(), ColorHelper.applyAlphaAndCopy(Color.white, nextAlpha));
+					g.drawImage(nextKeyImage, 90 + prevImage.getWidth() + resumeImage.getWidth(), GameLauncher.getHeight() - 30 - nextKeyImage.getHeight(), ColorHelper.applyAlphaAndCopy(Color.white, nextAlpha));
+				}
+			}
+		}
+
+		if (textDisplayTime > 0)
+		{
+			String chapterID = level.getWorldID();
+			String levelName = level.getName();
+			String levelNumber = level.getID().contains("-") ? Integer.parseInt(level.getID().substring(level.getID().indexOf("-") + 1)) + "" : "unknown";
+			String chapterText = "- Chapter " + chapterID + " -";
+			String levelText = levelNumber + ". " + levelName;
+
+			float alpha = ((float) textDisplayTime) / ((float) TEXT_DISPLAY_TIME - TEXT_FADE_IN_TIME);
+			
+			if (textDisplayTime > TEXT_DISPLAY_TIME - TEXT_FADE_IN_TIME)
+			{
+				alpha = ((float) TEXT_DISPLAY_TIME - textDisplayTime) / ((float) TEXT_FADE_IN_TIME);
+			}
+			
+			alpha = Transitions.getFactor(alpha);
+			
+			g.setFont(Fonts.getBigGameFont());
+			g.setColor(ColorHelper.applyAlphaAndCopy(Color.white, alpha));
+
+			g.drawString(chapterText, GameLauncher.getWidth() / 2 - g.getFont().getWidth(chapterText) / 2, GameLauncher.getHeight() / 2 - 20 - g.getFont().getLineHeight());
+
+			g.setFont(Fonts.getVeryBigGameFont());
+
+			g.drawString(levelText, GameLauncher.getWidth() / 2 - g.getFont().getWidth(levelText) / 2, GameLauncher.getHeight() / 2 + 10);
+		}
+
+	}
+}

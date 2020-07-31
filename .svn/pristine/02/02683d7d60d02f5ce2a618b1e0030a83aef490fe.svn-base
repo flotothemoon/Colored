@@ -1,0 +1,34 @@
+package com.unlogical.linked.gui.menu;
+
+import com.unlogical.linked.GameLauncher;
+import com.unlogical.linked.util.GameStatus;
+
+public class MainMenu extends Menu
+{
+	public MainMenu(float yOffset, float offset)
+	{
+		super(MenuOptions.MAIN, 0.0f, yOffset, 0.0f, offset, true);
+	}
+
+	@Override
+	public void onSelect(int selection)
+	{
+		switch (selection)
+		{
+			case 0:
+				GameLauncher.setStatus(GameStatus.PLAY_MENU);
+				break;
+			case 1:
+				GameLauncher.setStatus(GameStatus.MAP_EDITOR_MENU);
+				break;
+			case 2:
+				SettingsMenu.setLastGameStatus(GameStatus.MAIN_MENU);
+				GameLauncher.setStatus(GameStatus.SETTINGS_MENU);
+				break;
+			case 3:
+				GameLauncher.exit();
+				break;
+		}
+	}
+
+}

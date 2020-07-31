@@ -1,0 +1,6 @@
+package com.unlogical.linked.terrain.tile.properties;
+
+public interface ITileSender extends ITileTriggerable
+{
+	public void onPortStateChanged(boolean state);
+}

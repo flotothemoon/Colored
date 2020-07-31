@@ -1,0 +1,134 @@
+package com.unlogical.colored.input;
+
+import org.lwjgl.input.Controller;
+import org.newdawn.slick.GameContainer;
+
+import com.unlogical.colored.debug.Debug;
+
+public class InputHandler
+{
+	private static ControllerHandler usedController;
+	private static boolean connected;
+
+	public static void init()
+	{
+		ControllerFetcher.get().start();
+	}
+
+	public static synchronized void useController(Controller controller) throws Exception
+	{
+		usedController = new ControllerHandler(controller);
+		connected = true;
+	}
+
+	public static synchronized void disconnectController()
+	{
+		usedController.controller = null;
+		usedController = null;
+		connected = false;
+	}
+
+	public static void update(int delta, GameContainer container)
+	{
+		if (connected && usedController != null)
+		{
+			if (!usedController.update(delta))
+			{
+				ControllerFetcher.get().onDisconnect();
+
+				Debug.warn("Cedi was too fat and sat on the controller and now its brokn sry m8 (" + usedController.controller.getName() + " was disconnected due to an error while polling, the device was most likely disconnected).");
+
+				usedController = null;
+			}
+		}
+	}
+
+	public static float getHorizontalAxisFactor()
+	{
+		if (usedController != null)
+		{
+			if (usedController.currentAxisFactors[1] != 0.0f)
+			{
+				return usedController.currentAxisFactors[1];
+			}
+			else
+			{
+				return usedController.currentAxisFactors[3];
+			}
+		}
+
+		return 1.0f;
+	}
+
+	public static float getVerticalAxisFactor()
+	{
+		if (usedController != null)
+		{
+			if (usedController.currentAxisFactors[0] != 0.0f)
+			{
+				return usedController.currentAxisFactors[0];
+			}
+			else
+			{
+				return usedController.currentAxisFactors[2];
+			}
+		}
+
+		return 1.0f;
+	}
+
+	public static boolean isKeyPressed(InputAction action, GameContainer container)
+	{
+		if (usedController != null && usedController.isButtonPressed(action))
+		{
+			return true;
+		}
+
+		return KeyBindings.isKeyPressed(container, action);
+	}
+
+	public static boolean isKeyDown(InputAction action, GameContainer container)
+	{
+		if (usedController != null && usedController.isButtonDown(action))
+		{
+			return true;
+		}
+
+		return KeyBindings.isKeyDown(container, action);
+	}
+
+	// public static void fetchControllers()
+	// {
+	// Debug.print("Fetching available controllers...");
+	//
+	// for (int i = 0; i < Controllers.getControllerCount(); i++)
+	// {
+	// Controller controller = Controllers.getController(i);
+	//
+	// if (controller.getAxisCount() >= ControllerHandler.USED_AXIS_COUNT &&
+	// controller.getButtonCount() >= 7 && (usedController == null ||
+	// usedController.controller != controller))
+	// {
+	// try
+	// {
+	// usedController = new ControllerHandler(controller);
+	//
+	// Debug.print("\"" + controller.getName() +
+	// "\" is a valid controller and is now used.");
+	//
+	// controllers.add(controller);
+	// }
+	// catch (Exception e)
+	// {
+	// Debug.print("Exception occured while adding controller \"" +
+	// controller.getName() + "\" (" + e + ")", e);
+	// }
+	// }
+	// }
+	//
+	// Debug.print("Controllers fetched, " + controllers.size() + " controller"
+	// + (controllers.size() == 1 ? " is" : "s are") + " connected" +
+	// (usedController != null ? ", used controller is \"" +
+	// usedController.controller.getName() + "\"." : "."));
+	// }
+}

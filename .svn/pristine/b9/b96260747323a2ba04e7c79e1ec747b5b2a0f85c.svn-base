@@ -1,0 +1,312 @@
+package com.unlogical.linked.entity.key;
+
+import java.util.Random;
+
+import org.newdawn.slick.Color;
+import org.newdawn.slick.GameContainer;
+import org.newdawn.slick.geom.Vector2f;
+
+import com.unlogical.linked.entity.Entity;
+import com.unlogical.linked.entity.EntityAction;
+import com.unlogical.linked.entity.EntityLiving;
+import com.unlogical.linked.entity.EntityType;
+import com.unlogical.linked.entity.IEntityCollisionNotifier;
+import com.unlogical.linked.entity.IEntityPickupable;
+import com.unlogical.linked.entity.player.EntityPlayer;
+import com.unlogical.linked.entity.property.EntityProperty;
+import com.unlogical.linked.entity.property.SharedEntityProperties;
+import com.unlogical.linked.filesystem.FilePaths;
+import com.unlogical.linked.level.Level;
+import com.unlogical.linked.level.LevelType;
+import com.unlogical.linked.levelrendering.map.MapRenderer;
+import com.unlogical.linked.terrain.tile.Tile;
+import com.unlogical.linked.util.ColorHelper;
+import com.unlogical.linked.util.Dimension;
+import com.unlogical.linked.util.ScheduledEvent;
+
+public class EntityKey extends Entity implements IEntityPickupable, IEntityCollisionNotifier
+{
+	private static final String USED = "used";
+	
+	private boolean used;
+	private KeyPort port;
+
+	public EntityKey(Vector2f position, Level level, Dimension dimension, boolean allowMirrors)
+	{
+		super(EntityType.KEY, position, level, dimension, allowMirrors);
+
+		this.port = KeyPort.YELLOW;
+	}
+	
+	protected EntityKey(EntityType type, Vector2f position, Level level, Dimension dimension, boolean allowMirrors)
+	{
+		super(type, position, level, dimension, allowMirrors);
+		
+		this.port = KeyPort.YELLOW;
+	}
+
+	@Override
+	public void updateEntity(GameContainer container, float delta, Random rng)
+	{
+		if (Math.abs(this.velocity.x) > 0.0f && !this.holded && (this.collidedBelow || this.closeBelow))
+		{
+			this.velocity.x *= 0.85f;
+		}
+		
+		if (this.holded)
+		{
+			this.velocity.x = 0.0f;
+			this.velocity.y = 0.0f;
+		}
+	}
+
+	@Override
+	public void onReSimulation()
+	{
+		super.onReSimulation();
+		
+		if (!this.shared)
+		{
+			this.used = ((EntityKey) this.mirroredEntity).used;
+		}
+	}
+	
+	public void onUsage(EntityLiving carrier, ITileKeyInteractable tile)
+	{
+		this.used = true;
+		this.holdingEntity = null;
+
+		carrier.dropHoldedEntity();
+
+		if (level.getLevelType() == LevelType.TIME_TRAVEL && this.dimension == Dimension.LIGHT)
+		{
+			scheduleMirroredEvent(new ScheduledEvent(USED, carrier));
+		}
+	}
+	
+	@Override
+	protected void onScheduledEvent(ScheduledEvent event)
+	{
+		if (event.type == USED)
+		{
+			this.used = true;
+			this.holdingEntity = null;
+		}
+	}
+	
+	@Override
+	public void onPickup(EntityLiving entity)
+	{
+		if (this.holded)
+		{
+			this.holdingEntity.dropHoldedEntity();
+		}
+		
+		this.holded = true;
+		this.holdingEntity = entity;
+		
+		this.velocity.x = 0.0f;
+		this.velocity.y = 0.0f;
+	}
+
+	@Override
+	public void onDropped()
+	{
+		if (level.getLevelType() == LevelType.TIME_TRAVEL && this.dimension == Dimension.SHADOW && this.holdingEntity instanceof EntityPlayer)
+		{
+			float absPositionX = this.position.x - level.getCameraOffset().x;
+			float absPositionY = this.position.y - level.getCameraOffset().y;
+						
+			for (int i = 0; i < level.getTimeLoopLimit(); i++)
+			{
+				((EntityKey) mirroredEntity).positionRecordX[i] = absPositionX;
+				((EntityKey) mirroredEntity).positionRecordY[i] = absPositionY;
+				((EntityKey) mirroredEntity).rotationRecord[i] = this.rotation;
+			}
+		}
+		
+		this.holded = false;
+		this.holdingEntity = null;
+	}
+
+	public boolean canInteractWith(ITileKeyInteractable tile)
+	{
+		return !this.used && this.holded && tile.getKeyPort() == this.port;
+	}
+
+	@Override
+	public boolean canBePickedUp(EntityLiving entity)
+	{		
+		return entity.canPickUpEntities() && (!this.holded || entity instanceof EntityPlayer && !(holdingEntity instanceof EntityPlayer)) && entity.getMaxY() > this.hitbox.getCenterY() && ((this.hitbox.getMaxX() - entity.getHitbox().getMinX() > 5 && entity.getHitbox().getMinX() > this.hitbox.getMinX()) || (entity.getHitbox().getMaxX() - this.hitbox.getMinX() > 5 && entity.getHitbox().getMaxX() < this.hitbox.getMaxX()) || entity.getHitbox().getMaxX() > this.hitbox.getMaxX() && entity.getHitbox().getMinX() < this.hitbox.getMinX());
+	}
+
+	@Override
+	public boolean onCollisionWithEntity(Entity entity, boolean top, boolean bottom, boolean right, boolean left)
+	{
+		if (entity instanceof EntityLiving)
+		{						
+			if (!this.used && canBePickedUp((EntityLiving) entity) && !((EntityLiving) entity).isHoldingEntity() && ((EntityLiving) entity).isAlive())
+			{
+				((EntityLiving) entity).hold(this);
+				this.onPickup((EntityLiving) entity);
+				
+				if (level.getType() == LevelType.TIME_TRAVEL && entity instanceof EntityPlayer && (this.shared || this.dimension == Dimension.SHADOW))
+				{
+					MapRenderer.reSimulateAll(this);
+				}
+			}
+		}
+
+		return true;
+	}
+
+	@Override
+	public void onCollisionWithTile(Tile tile, boolean top, boolean bottom, boolean right, boolean left, boolean intersect)
+	{
+		if (tile instanceof ITileKeyInteractable && canInteractWith((ITileKeyInteractable) tile))
+		{
+			((ITileKeyInteractable) tile).onInteract(this);
+		}
+	}
+	
+	@Override
+	protected Color customModifiyDrawColor(Color color)
+	{
+		return ColorHelper.inverseMultiplyRGBAndCopy(color, port.getColor(), Level.PORT_INVERSE_COLOR_FACTOR);
+	}
+	
+	@Override
+	protected boolean shouldUseFittingTextures()
+	{
+		return true;
+	}
+
+	@Override
+	public void readMetadata()
+	{
+		try
+		{
+			this.port = KeyPort.getTrigger(Integer.parseInt(this.metadata));
+
+			if (level.shouldCreateMirrors() && this.dimension == Dimension.LIGHT)
+			{
+				((EntityKey) this.getMirroredEntity()).setPort(this.port);
+			}
+		}
+		catch (Exception e)
+		{
+			this.port = KeyPort.RED;
+		}
+	}
+
+	@Override
+	public void writeMetadata()
+	{
+		this.metadata = port.toPort() + "";
+	}
+
+	@Override
+	public boolean collidesWithEntities()
+	{
+		return false;
+	}
+	
+	@Override
+	protected boolean shouldBounceOnGround()
+	{
+		return true;
+	}
+
+	@Override
+	public boolean isAutoPickedUp()
+	{
+		return true;
+	}
+
+	@Override
+	protected EntityAction getCustomAction()
+	{
+		return used ? EntityAction.STANDING_V2 : EntityAction.STANDING;
+	}
+
+	@Override
+	protected boolean useAutomaticAnimations()
+	{
+		return false;
+	}
+
+	@Override
+	protected EntityProperty getEntityProperty()
+	{
+		return SharedEntityProperties.KEY;
+	}
+
+	@Override
+	public boolean checkEntityCollisions()
+	{
+		return true;
+	}
+
+	@Override
+	public boolean collidesWithTerrain()
+	{
+		return true;
+	}
+
+	@Override
+	protected boolean canInteractWith(Entity entity)
+	{
+		return this.type != entity.getType();
+	}
+
+	@Override
+	protected boolean canWalkSlopes()
+	{
+		return true;
+	}
+
+	@Override
+	public boolean supportsAction(EntityAction action)
+	{
+		return action == EntityAction.STANDING || action == EntityAction.STANDING_V2;
+	}
+
+	@Override
+	public String getTextureDirectory()
+	{
+		return FilePaths.ENTITY_OTHER;
+	}
+	
+	@Override
+	public IEntityPickupable getMirroredPickupable()
+	{
+		return (IEntityPickupable) this.mirroredEntity;
+	}
+
+	@Override
+	public boolean isBlocked()
+	{
+		return false;
+	}
+	
+	@Override
+	public boolean checkEntitySuffocation()
+	{
+		return this.holdingEntity instanceof EntityPlayer && this.holdingEntity.checkEntitySuffocation();
+	}
+	
+	public KeyPort getPort()
+	{
+		return port;
+	}
+
+	public void setPort(KeyPort port)
+	{
+		this.port = port;
+	}
+
+	public boolean isUsed()
+	{
+		return used;
+	}
+}

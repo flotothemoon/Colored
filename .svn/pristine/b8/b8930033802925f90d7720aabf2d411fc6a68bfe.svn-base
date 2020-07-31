@@ -1,0 +1,232 @@
+package com.unlogical.linked.terrain.tile;
+
+import org.newdawn.slick.Color;
+import org.newdawn.slick.geom.Vector2f;
+
+import com.unlogical.linked.level.Level;
+import com.unlogical.linked.terrain.TileType;
+import com.unlogical.linked.terrain.property.TileProperty;
+import com.unlogical.linked.util.ColorHelper;
+import com.unlogical.linked.util.Dimension;
+import com.unlogical.linked.util.ILightSource;
+
+public class TileLight extends Tile implements ILightSource
+{	
+	private Color color;
+		
+	private float intensity;
+	private float linearAttenuation;
+	private float quadraticAttenuation;
+
+	private int angle;
+	private int spotExponent;
+	
+	private int minDepth;
+	private int maxDepth;
+	
+	public TileLight(TileType type, String metadata, int innerType, float rotation, Vector2f position, Level level, Dimension dimension, TileProperty properties, boolean allowMirrors)
+	{
+		super(type, metadata, innerType, rotation, position, level, dimension, properties, allowMirrors);
+	}
+	
+	public TileLight initDefault()
+	{
+		this.color.r = color.g = color.b = color.a = 1.0f;
+		this.intensity = 1.0f;
+		this.linearAttenuation = 0.0f;
+		this.quadraticAttenuation = 0.0f;
+		this.angle = 360;
+		this.minDepth = -Level.MAX_DEPTH;
+		this.maxDepth = Level.MAX_DEPTH;
+		this.setInnerType(1);
+		
+		return this;
+	}
+	
+	@Override
+	public void writeMetadata()
+	{
+		this.metadata = color.r + ":" + color.g +":" + color.b + ":";
+		this.metadata += intensity + ":";
+		this.metadata += linearAttenuation + ":";
+		this.metadata += quadraticAttenuation + ":";
+		this.metadata += angle + ":";
+		this.metadata += spotExponent + ":";
+		this.metadata += minDepth + ":";
+		this.metadata += maxDepth;
+	}
+	
+	@Override
+	public void readMetadata()
+	{
+		try
+		{
+			String[] parts = this.metadata.split(":");
+									
+			this.color = new Color(Float.parseFloat(parts[0]), Float.parseFloat(parts[1]), Float.parseFloat(parts[2]));
+			this.intensity = Float.parseFloat(parts[3]);
+			this.linearAttenuation = Float.parseFloat(parts[4]);
+			this.quadraticAttenuation = Float.parseFloat(parts[5]);
+			this.angle = Integer.parseInt(parts[6]);
+			this.spotExponent = Integer.parseInt(parts[7]);
+			this.minDepth = Integer.parseInt(parts[8]);
+			this.maxDepth = Integer.parseInt(parts[9]);
+		}
+		catch (Exception e)
+		{
+			this.color = new Color(1.0f, 1.0f, 1.0f, 1.0f);
+			this.intensity = 1.0f;
+			this.angle = 360;
+			this.minDepth = -Level.MAX_DEPTH;
+			this.maxDepth = Level.MAX_DEPTH;
+		}
+	}
+	
+	@Override
+	protected Color getDrawColor(Dimension dimension, Color colorBuffer)
+	{
+		return ColorHelper.copy(color, colorBuffer);
+	}
+	
+	@Override
+	public boolean isRotationLimited()
+	{
+		return false;
+	}
+	
+	@Override
+	public boolean shouldRenderInGame()
+	{
+		return false;
+	}
+	
+	@Override
+	public boolean isLightAffected()
+	{
+		return false;
+	}
+	
+	@Override
+	public boolean shouldUpdate()
+	{
+		return false;
+	}
+
+	@Override
+	public int getSpotExponent()
+	{
+		return angle == 360 ? 0 : spotExponent;
+	}
+	
+	@Override
+	public boolean isSpotLight()
+	{
+		return this.innerType == 0;
+	}
+	
+	@Override
+	public float getPositionX()
+	{
+		return this.hitbox.getCenterX();
+	}
+
+	@Override
+	public float getPositionY()
+	{
+		return this.hitbox.getCenterY();
+	}
+	
+	@Override
+	public Color getColor()
+	{
+		return color;
+	}
+
+	@Override
+	public Vector2f getPosition()
+	{
+		return position;
+	}
+	
+	@Override
+	public float getLinearAttenuation()
+	{
+		return linearAttenuation;
+	}
+
+	@Override
+	public float getQuadraticAttenuation()
+	{
+		return quadraticAttenuation;
+	}
+
+	@Override
+	public int getSpotDirection()
+	{
+		return (int) (90 - rotation);
+	}
+	
+	@Override
+	public int getAngle()
+	{
+		return angle;
+	}
+	
+	@Override
+	public int getMinDepth()
+	{
+		return minDepth;
+	}
+	
+	@Override
+	public int getMaxDepth()
+	{
+		return maxDepth;
+	}
+
+	@Override
+	public float getIntensity()
+	{
+		return intensity;
+	}
+
+	public void setColor(Color color)
+	{
+		this.color = color;
+	}
+
+	public void setIntensity(float intensity)
+	{
+		this.intensity = intensity;
+	}
+
+	public void setLinearAttenuation(float linearAttenuation)
+	{
+		this.linearAttenuation = linearAttenuation;
+	}
+
+	public void setQuadraticAttenuation(float quadraticAttenuation)
+	{
+		this.quadraticAttenuation = quadraticAttenuation;
+	}
+
+	public void setAngle(int angle)
+	{
+		this.angle = angle;
+	}
+
+	public void setSpotExponent(int spotExponent)
+	{
+		this.spotExponent = spotExponent;
+	}
+
+	public void setMinDepth(int minDepth)
+	{
+		this.minDepth = minDepth;
+	}
+
+	public void setMaxDepth(int maxDepth)
+	{
+		this.maxDepth = maxDepth;
+	}
+}

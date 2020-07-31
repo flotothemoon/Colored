@@ -1,0 +1,82 @@
+package com.unlogical.colored.entity;
+
+public enum EntityAction implements IEntityAction
+{
+	DEFAULT("Default", "idle"){},
+	
+	WALKING("Walking", "walk"),
+	JUMPING("Jumping", "jump"),
+	FALLING("Falling", "fall"),
+	CLIMBING("Climbing", "climb"),
+	ATTACKING("Attacking", "att"),
+	
+	DEFAULT_V2("DefaultV2", "v2"),
+	DEAD("Dead", "die"),
+			
+	CUSTOM_0("Custom", "custom"),
+	CUSTOM_1("Custom", "custom1"),
+	CUSTOM_2("Custom", "custom2"),
+	CUSTOM_3("Custom", "custom3"),
+	CUSTOM_4("Custom", "custom4");
+
+	private String description;
+	private String identifier;
+	
+	@Override
+	public boolean isLoopedAnimation(Entity entity)
+	{
+		return true;
+	}
+
+	@Override
+	public boolean shouldUpdateAnimation(Entity entity)
+	{
+		return true;
+	}
+
+	@Override
+	public boolean shouldContinueAnimation(Entity entity)
+	{
+		return true;
+	}
+
+	@Override
+	public boolean canBeInterruptedBy(EntityAction action, Entity entity)
+	{
+		return true;
+	}
+
+	@Override
+	public float getAnimationDelta(float delta, Entity entity)
+	{
+		return delta;
+	}
+
+	@Override
+	public EntityAction getNextAction(Entity entity)
+	{
+		return EntityAction.DEFAULT;
+	}
+	
+	private EntityAction(String description, String saveName)
+	{
+		this.description = description;
+		this.identifier = saveName;
+	}
+	
+	public String getIdentifier()
+	{
+		return identifier;
+	}
+	
+	public String getDescription()
+	{
+		return description;
+	}
+
+	@Override
+	public String toString()
+	{
+		return this.description;
+	}
+}

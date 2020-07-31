@@ -1,0 +1,48 @@
+package com.unlogical.colored.entity;
+
+public enum EntityAction
+{
+	STANDING("Standing", "idle"),
+	WALKING("Walking", "walk"),
+	JUMPING("Jumping", "jump"),
+	FALLING("Falling", "fall"),
+	CLIMBING("Climbing", "climb"),
+	ATTACKING("Attacking", "att"),
+	
+	STANDING_V2("StandingV2", "v2"),
+	WALKING_V2("WalkingV2", "walkv2"),
+	FALLING_V2("FallingV2", "fallv2"),
+	
+	DEAD("Dead", "die"),
+			
+	CUSTOM_0("Custom", "custom"),
+	CUSTOM_1("Custom", "custom1"),
+	CUSTOM_2("Custom", "custom2"),
+	CUSTOM_3("Custom", "custom3"),
+	CUSTOM_4("Custom", "custom4");
+
+	private String description;
+	private String identifier;
+	
+	private EntityAction(String description, String saveName)
+	{
+		this.description = description;
+		this.identifier = saveName;
+	}
+	
+	public String getIdentifier()
+	{
+		return identifier;
+	}
+	
+	public String getDescription()
+	{
+		return description;
+	}
+
+	@Override
+	public String toString()
+	{
+		return this.description;
+	}
+}

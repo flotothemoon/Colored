@@ -1,0 +1,141 @@
+package com.unlogical.colored.gui;
+
+import com.badlogic.gdx.InputAdapter;
+import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.g2d.Batch;
+import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
+import com.badlogic.gdx.graphics.glutils.ShapeRenderer.ShapeType;
+import com.unlogical.colored.input.InputHandler;
+import com.unlogical.colored.mapeditor.MapEditor;
+import com.unlogical.colored.resources.font.Fonts;
+import com.unlogical.colored.util.Renderer;
+
+public class InputField
+{
+	private static final String allowedChars = "ABCDEFGHIJKLMNOPQRSTUVWQXYZabcdefghijklmnopqrstuvwxyz;,.-_=&:!?*#'^|@/()[]{}<>1234567890 ";
+
+	private long lastRendered;
+
+	private boolean active;
+
+	private int width;
+	private int height;
+	private int xOffset;
+	private int yOffset;
+
+	private Color borderColor = Color.BLACK;
+	private Color fillColor = MapEditor.panelColor;
+
+	private StringBuilder text;
+
+	private InputChangeListener listener;
+
+	public InputField(float x, float y, float width, float height)
+	{
+		this((int) x, (int) y, (int) width, (int) height);
+
+		text = new StringBuilder();
+
+		InputHandler.addInputProcessor(new InputAdapter()
+		{
+			@Override
+			public boolean keyTyped(char character)
+			{
+				if (active && System.currentTimeMillis() - lastRendered < 50)
+				{
+					if (allowedChars.contains(character + ""))
+					{
+						text.append(character);
+
+						if (listener != null)
+						{
+							listener.onInputChanged();
+						}
+					}
+					else if (text.length() > 0 && character == (char) 8)
+					{
+						text.deleteCharAt(text.length() - 1);
+					}
+				}
+
+				return false;
+			}
+		});
+	}
+
+	public InputField(int x, int y, int width, int height)
+	{
+		this.xOffset = x;
+		this.yOffset = y;
+		this.width = width;
+		this.height = height;
+	}
+
+	public void init(String text)
+	{
+		this.text = new StringBuilder(text);
+
+	}
+
+	public void update(int delta)
+	{
+
+	}
+
+	public void render(Batch batch)
+	{
+		if (active)
+		{
+			ShapeRenderer sr = Renderer.useShapeRenderer();
+
+			sr.setColor(fillColor);
+			sr.set(ShapeType.Filled);
+			sr.rect(xOffset, yOffset, width, height);
+
+			sr.setColor(borderColor);
+			sr.set(ShapeType.Line);
+			sr.rect(xOffset, yOffset, width, height);
+
+			Fonts.drawFancy(text.toString() + (System.currentTimeMillis() % 1500 > 750 ? "|" : ""), Fonts.getDefaultFont(), Color.WHITE, xOffset, yOffset, width, height, false, false, batch);
+
+			lastRendered = System.currentTimeMillis();
+		}
+	}
+
+	public void adjust(int xChange, int yChange)
+	{
+		this.xOffset += xChange;
+		this.yOffset += yChange;
+	}
+
+	public boolean isActive()
+	{
+		return active;
+	}
+
+	public void setActive(boolean active)
+	{
+		this.active = active;
+	}
+
+	public void addListener(InputChangeListener listener)
+	{
+		this.listener = listener;
+	}
+
+	public String getText()
+	{
+		return text.toString();
+	}
+
+	public void setBorderColor(Color borderColor)
+	{
+		this.borderColor = borderColor;
+	}
+
+	public Color getBorderColor()
+	{
+		return borderColor;
+	}
+
+}

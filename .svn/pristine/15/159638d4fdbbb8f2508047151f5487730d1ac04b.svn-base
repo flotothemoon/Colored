@@ -1,0 +1,2898 @@
+package com.unlogical.linked.mapeditor;
+
+import java.io.File;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Set;
+
+import org.newdawn.slick.Color;
+import org.newdawn.slick.GameContainer;
+import org.newdawn.slick.Graphics;
+import org.newdawn.slick.Input;
+import org.newdawn.slick.SlickException;
+import org.newdawn.slick.geom.Rectangle;
+import org.newdawn.slick.geom.Vector2f;
+
+import com.unlogical.linked.GameLauncher;
+import com.unlogical.linked.collision.Hitbox;
+import com.unlogical.linked.configuration.Resolutions;
+import com.unlogical.linked.debug.Debug;
+import com.unlogical.linked.entity.Entity;
+import com.unlogical.linked.entity.EntityType;
+import com.unlogical.linked.entity.key.EntityKey;
+import com.unlogical.linked.entity.key.ITileKeyInteractable;
+import com.unlogical.linked.entity.key.KeyPort;
+import com.unlogical.linked.filesystem.files.EntityFileHandler;
+import com.unlogical.linked.filesystem.files.TerrainFileHandler;
+import com.unlogical.linked.filesystem.files.WrapperTextureHandler;
+import com.unlogical.linked.filesystem.files.YAMLConfiguration;
+import com.unlogical.linked.gui.GUIItem;
+import com.unlogical.linked.gui.button.Button;
+import com.unlogical.linked.gui.button.ToggleButton;
+import com.unlogical.linked.gui.menu.MenuDisplay;
+import com.unlogical.linked.gui.panel.CannonPanel;
+import com.unlogical.linked.gui.panel.ConveyorBeltPanel;
+import com.unlogical.linked.gui.panel.DoorPanel;
+import com.unlogical.linked.gui.panel.EditWrapperPanel;
+import com.unlogical.linked.gui.panel.GUIPanel;
+import com.unlogical.linked.gui.panel.ImportWrapperPanel;
+import com.unlogical.linked.gui.panel.LightPanel;
+import com.unlogical.linked.gui.panel.PlatformPanel;
+import com.unlogical.linked.gui.panel.RenamePanel;
+import com.unlogical.linked.gui.panel.TextPanel;
+import com.unlogical.linked.gui.selection.EntitySelection;
+import com.unlogical.linked.gui.selection.TerrainSelection;
+import com.unlogical.linked.input.InputAction;
+import com.unlogical.linked.input.InputHandler;
+import com.unlogical.linked.level.Level;
+import com.unlogical.linked.level.LevelType;
+import com.unlogical.linked.levelrendering.LevelRenderer;
+import com.unlogical.linked.levelrendering.map.MapRenderer;
+import com.unlogical.linked.particle.ParticleEmitterImpl.IntegerRange;
+import com.unlogical.linked.terrain.TerrainObject;
+import com.unlogical.linked.terrain.TileType;
+import com.unlogical.linked.terrain.TriggerPort;
+import com.unlogical.linked.terrain.tile.Tile;
+import com.unlogical.linked.terrain.tile.TileCameraControl;
+import com.unlogical.linked.terrain.tile.TileConveyorBelt;
+import com.unlogical.linked.terrain.tile.TileDoor;
+import com.unlogical.linked.terrain.tile.TileLight;
+import com.unlogical.linked.terrain.tile.TileText;
+import com.unlogical.linked.terrain.tile.cannon.ICannonBall;
+import com.unlogical.linked.terrain.tile.cannon.TileCannon;
+import com.unlogical.linked.terrain.tile.platform.TilePlatform;
+import com.unlogical.linked.terrain.tile.properties.ITileReceiver;
+import com.unlogical.linked.terrain.tile.properties.ITileTriggerable;
+import com.unlogical.linked.util.ColorHelper;
+import com.unlogical.linked.util.CursorType;
+import com.unlogical.linked.util.Dimension;
+import com.unlogical.linked.util.GameStatus;
+import com.unlogical.linked.util.ICopyable;
+import com.unlogical.linked.util.MouseAdapter;
+import com.unlogical.linked.util.Renderer;
+import com.unlogical.linked.util.ShaderHandler;
+import com.unlogical.linked.util.ZHandler;
+import com.unlogical.linked.wrapper.WrapperTexture;
+
+public class MapEditor
+{
+	private static final EntityType[] entityList = new EntityType[] { EntityType.GOOMBA, EntityType.KEY, EntityType.STICKYKEY, EntityType.SHADOWBALL, EntityType.ICE_SPIKE, EntityType.MINI_ICE_SPIKES, EntityType.BOSS };
+
+	public static final Color panelColor = new Color(0.1f, 0.1f, 0.3f, 0.6f);
+	private static final Color portBoxBorderColor = Color.black;
+	private static final Color selectionColor = new Color(Color.orange);
+
+	private static final Vector2f buffer = new Vector2f();
+	private static final Vector2f secondBuffer = new Vector2f();
+	private static final Vector2f selectionStartPoint = new Vector2f();
+
+	private static final float PORT_COLOR_BOX_OFFSET = 0.45f;
+	private static final float PORT_COLOR_BOX_SIZE = 0.35f;
+
+	private static float alphaFactor = 1.0f;
+
+	private static final int MAX_CONCATENATION_RANGE = 4;
+
+	private static int[] lastSelectedBlock = new int[2];
+	private static int leaveCooldown;
+	private static int clickCooldown;
+	private static int entityCooldown;
+	private static int colorChangeCooldown;
+	private static int lastRightClick;
+	private static int movingTime;
+
+	private static boolean useLineHelper;
+	private static boolean init;
+	private static boolean paused;
+	private static boolean movingTiles;
+	private static boolean movingWrappers;
+	private static boolean movingEntities;
+	private static boolean smoothMode;
+	private static boolean lockHorizontal;
+	private static boolean lockVertical;
+	private static boolean selecting;
+	private static boolean displaySelectedArea;
+	private static boolean increasingSelection;
+
+	private static MouseAdapter mouseListener;
+
+	private static Level level;
+
+	private static String mapPath;
+	private static String mapName;
+	private static String mapID;
+	private static String currentEntityType;
+
+	private static Tile currentTile;
+
+	private static ArrayList<Entity> entities = new ArrayList<Entity>();
+	private static ArrayList<Tile> tiles = new ArrayList<Tile>();
+	private static ArrayList<WrapperTexture> wrapperImages = new ArrayList<WrapperTexture>();
+
+	private static Set<ICopyable<?>> hoveredObjects = new HashSet<ICopyable<?>>();
+	private static Set<Entity> selectedEntities = new HashSet<Entity>();
+	private static Set<Tile> selectedTiles = new HashSet<Tile>();
+	private static Set<WrapperTexture> selectedWrappers = new HashSet<WrapperTexture>();
+	private static Set<ICopyable<?>> selectedObjects = new HashSet<ICopyable<?>>();
+	private static Set<ICopyable<?>> clipboard = new HashSet<ICopyable<?>>();
+
+	private static TerrainSelection terrainSelection;
+	private static EntitySelection entitySelection;
+
+	private static TriggerPort lastTriggerPort;
+	private static KeyPort lastKeyPort;
+
+	private static GUIItem[] terrainItems;
+	private static GUIItem[] entityItems;
+
+	private static Visibility currentVisibilty;
+	private static Rectangle selectedArea = new Rectangle(0, 0, 0, 0);
+	private static Hitbox bufferedHitbox = new Hitbox(0, 0, 0, 0);
+
+	private static Button saveButton;
+	private static Button reloadButton;
+	private static Button levelTypeButton;
+	private static Button addParticleWrapperButton;
+	private static Button tileChooserButton;
+	private static Button entityChooserButton;
+	private static Button visibiltyButton;
+	private static Button addWrapperButton;
+	private static ToggleButton toggleLightsButton;
+
+	private static GUIPanel controlPanel;
+	private static EditWrapperPanel editWrapperPanel;
+	private static ImportWrapperPanel importPanel;
+	private static DoorPanel doorPanel;
+	private static TextPanel textPanel;
+	private static ConveyorBeltPanel beltPanel;
+	private static PlatformPanel platformPanel;
+	private static CannonPanel cannonPanel;
+	private static LightPanel lightPanel;
+	private static RenamePanel renamePanel;
+
+	public static void init() throws SlickException
+	{
+		if (!init)
+		{
+			mouseListener = new MouseAdapter()
+			{
+				@Override
+				public void mouseWheelMoved(int change)
+				{
+					float changeFactor = ((float) change) / 60.0f;
+
+					for (WrapperTexture wrapper : selectedWrappers)
+					{
+						if (GameLauncher.getContainer().getInput().isKeyDown(Input.KEY_LCONTROL))
+						{
+							if (!wrapper.isParticleWrapper())
+							{
+								float beforeWidth = wrapper.getHitbox().getWidth();
+								float beforeHeight = wrapper.getHitbox().getHeight();
+
+								float scaleChange = (smoothMode ? 0.01f : 0.02f) * changeFactor;
+
+								if (wrapper.getScale() + scaleChange > 0.1f && wrapper.getScale() + scaleChange < 2.0f)
+								{
+									boolean uniformScale = ((int) wrapper.getHitbox().getRawWidth()) == wrapper.getImage().getWidth() && ((int) wrapper.getHitbox().getRawHeight()) == wrapper.getImage().getHeight();
+
+									wrapper.setScale(wrapper.getScale() + scaleChange);
+
+									if (uniformScale)
+									{
+										wrapper.setWidth(wrapper.getImage().getWidth());
+										wrapper.setHeight(wrapper.getImage().getHeight());
+									}
+								}
+
+								wrapper.adjustX(-(wrapper.getHitbox().getWidth() - beforeWidth) / 2.0f);
+								wrapper.adjustY(-(wrapper.getHitbox().getHeight() - beforeHeight) / 2.0f);
+
+								wrapper.updateBorders();
+							}
+						}
+						else if (GameLauncher.getContainer().getInput().isKeyDown(Input.KEY_LALT))
+						{
+							float parallaxChange = changeFactor * (smoothMode ? 0.01f : 0.02f);
+
+							if (wrapper.getEmitterParallax() + parallaxChange > 0.0f)
+							{
+								wrapper.setParallax(wrapper.getEmitterParallax() + parallaxChange);
+
+								wrapper.setParallax(((float) (Math.round(wrapper.getEmitterParallax() * 100)) / 100.0f));
+							}
+							else
+							{
+								wrapper.setParallax(0.0f);
+							}
+						}
+						else
+						{
+							if (wrapper.isInForeground())
+							{
+								wrapper.setDepth((int) (wrapper.getDepth() - (change) / 120.0f));
+							}
+							else
+							{
+								wrapper.setDepth((int) (wrapper.getDepth() + (change) / 120.0f));
+							}
+
+							if (wrapper.getDepth() < 0)
+							{
+								wrapper.setInBackground(!wrapper.isInBackground());
+								wrapper.setDepth(0);
+							}
+						}
+
+						if (wrapper == editWrapperPanel.getWrapper())
+						{
+							editWrapperPanel.init(wrapper);
+						}
+
+						if (!GameLauncher.getContainer().getInput().isKeyDown(Input.KEY_LCONTROL) && !GameLauncher.getContainer().getInput().isKeyDown(Input.KEY_LALT))
+						{
+							level.sortWrappers();
+						}
+					}
+
+					for (Tile tile : selectedTiles)
+					{
+						if (change > 0)
+						{
+							for (int i = 0; i < tiles.size(); i++)
+							{
+								if (tile == tiles.get(i) && i >= 1)
+								{
+									Tile prevTile = tiles.get(i - 1);
+
+									tiles.remove(i - 1);
+									tiles.add(i, prevTile);
+
+									break;
+								}
+							}
+						}
+						else
+						{
+							for (int i = 0; i < tiles.size(); i++)
+							{
+								if (tile == tiles.get(i) && i < tiles.size() - 1)
+								{
+									Tile nextTile = tiles.get(i + 1);
+
+									tiles.remove(i);
+									tiles.remove(i);
+
+									tiles.add(i, nextTile);
+									tiles.add(i + 1, tile);
+
+									break;
+								}
+							}
+						}
+					}
+				}
+
+				@Override
+				public void mouseDragged(int oldx, int oldy, int newx, int newy)
+				{
+					float xChange = newx - oldx;
+					float yChange = newy - oldy;
+					float scale = smoothMode ? 0.5f : 1.0f;
+
+					if (!anyContains(oldx, oldy))
+					{
+						if (!selecting)
+						{
+							for (WrapperTexture wrapper : selectedWrappers)
+							{
+								if (movingTiles || movingWrappers || movingEntities)
+								{
+									if (!lockVertical)
+									{
+										wrapper.adjustX((xChange) * scale);
+									}
+
+									if (!lockHorizontal)
+									{
+										wrapper.adjustY((yChange) * scale);
+									}
+
+									if (wrapper.isParticleWrapper())
+									{
+										wrapper.getEmitter().moveParticles((xChange) * scale, (yChange) * scale);
+
+										if (wrapper.getEmitter().hasMirror())
+										{
+											wrapper.getEmitter().getMirroredEmitter().moveParticles((xChange) * scale, (yChange) * scale);
+										}
+									}
+								}
+								else if (GameLauncher.getContainer().getInput().isMouseButtonDown(Input.MOUSE_RIGHT_BUTTON))
+								{
+									float a, b, c, oldTheta, newTheta;
+
+									a = buffer.set(wrapper.getCenterOfRotationX(), wrapper.getCenterOfRotationY()).sub(secondBuffer.set(oldx, oldy)).length();
+
+									oldTheta = (float) buffer.getTheta();
+
+									b = buffer.set(wrapper.getCenterOfRotationX(), wrapper.getCenterOfRotationY()).sub(secondBuffer.set(newx, newy)).length();
+
+									newTheta = (float) buffer.getTheta();
+
+									c = buffer.set(oldx, oldy).sub(secondBuffer.set(newx, newy)).length();
+
+									float angleChange = (float) Math.toDegrees(Math.acos((a * a + b * b - c * c) / (2 * a * b))) * (newTheta - oldTheta > 0 ? 1 : -1);
+
+									if (!Float.isNaN(angleChange) && !Float.isInfinite(angleChange))
+									{
+										wrapper.setRotation(wrapper.getRotation() + angleChange);
+
+										if (wrapper.hasBorders())
+										{
+											wrapper.updateBorders();
+										}
+
+										if (wrapper.isParticleWrapper())
+										{
+											wrapper.getEmitter().rotate(angleChange);
+
+											if (wrapper.getEmitter().hasMirror())
+											{
+												wrapper.getEmitter().getMirroredEmitter().rotate(angleChange);
+											}
+										}
+
+										if (wrapper == editWrapperPanel.getWrapper())
+										{
+											editWrapperPanel.init(wrapper);
+										}
+									}
+									else
+									{
+										Debug.warn("Angle change for rotating via mouse-click is " + angleChange + ". That shouldn't happen. Did you click right in the center? (all your fault! ;))");
+									}
+								}
+
+								if (GameLauncher.getContainer().getInput().isMouseButtonDown(Input.MOUSE_LEFT_BUTTON))
+								{
+									if (wrapper.isParticleWrapper() && wrapper.getEmitter().getOriginalWidth() == 0)
+									{
+										wrapper.getEmitter().setOriginalWidth(wrapper.getEmitterWidth());
+										wrapper.getEmitter().setOriginalHeight(wrapper.getEmitterHeight());
+										wrapper.getEmitter().setOriginalMinCount(wrapper.getEmitter().getSpawnCount().minValue());
+										wrapper.getEmitter().setOriginalMaxCount(wrapper.getEmitter().getSpawnCount().maxValue());
+									}
+
+									wrapper.mouseDragged(oldx, oldy, newx, newy, ((xChange) * scale), ((yChange) * scale));
+
+									if (wrapper.isParticleWrapper())
+									{
+										IntegerRange spawnCount = wrapper.getEmitter().getSpawnCount();
+
+										float particleScale;
+
+										if (!wrapper.getEmitter().isScaleWithWidth() && !wrapper.getEmitter().isScaleWithHeight())
+										{
+											particleScale = ((float) (wrapper.getEmitterWidth() * wrapper.getEmitterHeight())) / ((float) (wrapper.getEmitter().getOriginalHeight() * wrapper.getEmitter().getOriginalWidth()));
+										}
+										else if (wrapper.getEmitter().isScaleWithWidth())
+										{
+											particleScale = ((float) wrapper.getEmitterWidth()) / ((float) wrapper.getEmitter().getOriginalWidth());
+										}
+										else
+										{
+											particleScale = ((float) wrapper.getEmitterHeight()) / ((float) wrapper.getEmitter().getOriginalHeight());
+										}
+
+										spawnCount.setMinValue(Math.round(wrapper.getEmitter().getOriginalMinCount() * particleScale));
+										spawnCount.setMaxValue(Math.round(wrapper.getEmitter().getOriginalMaxCount() * particleScale));
+									}
+
+									if (wrapper == editWrapperPanel.getWrapper())
+									{
+										editWrapperPanel.init(wrapper);
+									}
+								}
+							}
+						}
+
+						boolean changedCannon = false;
+
+						for (Tile tile : selectedTiles)
+						{
+							boolean beforeLeftConnected = tile.getHitbox().isConnectedLeft();
+							boolean beforeRightConnected = tile.getHitbox().isConnectedRight();
+
+							if (!selecting)
+							{
+								if ((movingTiles || movingWrappers || movingEntities) && GameLauncher.getContainer().getInput().isMouseButtonDown(Input.MOUSE_LEFT_BUTTON))
+								{
+									if (!lockVertical)
+									{
+										tile.adjustX((xChange) * scale);
+									}
+
+									if (!lockHorizontal)
+									{
+										tile.adjustY((yChange) * scale);
+									}
+
+									tile.updateBorders();
+
+									if (tile.getDimension() == Dimension.LIGHT && tile.hasMirror())
+									{
+										Tile mirror = tile.getMirroredTile();
+
+										if (!lockVertical)
+										{
+											mirror.adjustX((xChange) * scale);
+										}
+
+										if (!lockHorizontal)
+										{
+											mirror.adjustY((yChange) * scale);
+										}
+
+										tile.initMirror(mirror, level.getLevelType());
+
+										mirror.updateBorders();
+									}
+								}
+								else if (GameLauncher.getContainer().getInput().isMouseButtonDown(Input.MOUSE_RIGHT_BUTTON) && tile.getProperties().isRotatable())
+								{
+									float a, b, c, oldTheta, newTheta;
+
+									a = buffer.set(tile.getCenterOfRotationX(), tile.getCenterOfRotationY()).sub(secondBuffer.set(oldx, oldy)).length();
+
+									oldTheta = (float) buffer.getTheta();
+
+									b = buffer.set(tile.getCenterOfRotationX(), tile.getCenterOfRotationY()).sub(secondBuffer.set(newx, newy)).length();
+
+									newTheta = (float) buffer.getTheta();
+
+									c = buffer.set(oldx, oldy).sub(secondBuffer.set(newx, newy)).length();
+
+									float angleChange = (float) Math.toDegrees(Math.acos((a * a + b * b - c * c) / (2 * a * b))) * (newTheta - oldTheta > 0 ? 1 : -1);
+
+									if (!Float.isNaN(angleChange) && !Float.isInfinite(angleChange))
+									{
+										rotateTile(tile, angleChange);
+									}
+									else
+									{
+										Debug.warn("Angle change for rotating via mouse-click is " + angleChange + ". That shouldn't happen. Did you click right in the center? (all your fault! ;))");
+									}
+								}
+
+								if (GameLauncher.getContainer().getInput().isMouseButtonDown(Input.MOUSE_LEFT_BUTTON))
+								{
+									float oldWidth = tile.getHitbox().getRawWidth();
+									float oldHeight = tile.getHitbox().getRawHeight();
+
+									tile.mouseDragged(oldx, oldy, newx, newy, ((xChange) * scale), ((yChange) * scale));
+
+									if (oldWidth != tile.getHitbox().getRawWidth() || oldHeight != tile.getHitbox().getRawHeight())
+									{
+										if (tile.isShared())
+										{
+											tile.setShared(false);
+											tile.setShared(true);
+										}
+
+										if (!tile.isTimeEffected())
+										{
+											tile.setTimeEffected(true);
+											tile.setTimeEffected(false);
+										}
+
+										if (tile.blocksDimensionTravel())
+										{
+											tile.setBlocksDimensionTravel(false);
+											tile.setBlocksDimensionTravel(true);
+										}
+
+										if (tile.getDimension() == Dimension.LIGHT && tile.hasMirror())
+										{
+											Tile mirror = tile.getMirroredTile();
+
+											float rotation = tile.getRotation();
+
+											if (rotation != 0.0f)
+											{
+												tile.setRotation(0.0f);
+												mirror.setRotation(0.0f);
+											}
+
+											mirror.setPosition(tile.getPosition().x, tile.getPosition().y);
+											mirror.setWidth(tile.getHitbox().getWidth());
+											mirror.setHeight(tile.getHitbox().getHeight());
+
+											if (rotation != 0.0f)
+											{
+												tile.setRotation(rotation);
+												mirror.setRotation(rotation);
+											}
+										}
+									}
+								}
+							}
+
+							tile.init();
+
+							if (beforeLeftConnected ^ tile.getHitbox().isConnectedLeft())
+							{
+								tile.getLeftConnectedTile().init();
+
+								if (!tile.getHitbox().isConnectedLeft())
+								{
+									tile.getLeftConnectedTile().disconnectRight(tile);
+
+									tile.getLeftConnectedTile().init();
+								}
+							}
+
+							if (beforeRightConnected ^ tile.getHitbox().isConnectedRight())
+							{
+								tile.getRightConnectedTile().init();
+
+								if (!tile.getHitbox().isConnectedRight())
+								{
+									tile.getRightConnectedTile().disconnectLeft(tile);
+
+									tile.getRightConnectedTile().init();
+								}
+							}
+
+							if (tile instanceof TileCameraControl)
+							{
+								MapRenderer.initMap(null, level);
+							}
+
+							if (tile == cannonPanel.getCannon())
+							{
+								changedCannon = true;
+							}
+						}
+
+						if (changedCannon)
+						{
+							cannonPanel.updateLine();
+						}
+
+						if (!selecting && (movingTiles || movingWrappers || movingEntities))
+						{
+							for (Entity entity : selectedEntities)
+							{
+								if (!lockVertical)
+								{
+									entity.adjustX(xChange * scale);
+								}
+
+								if (!lockHorizontal)
+								{
+									entity.adjustY(yChange * scale);
+								}
+
+								if (entity.hasMirror())
+								{
+									entity.getMirroredEntity().adjustX(lockVertical ? 0.0f : xChange * scale);
+									entity.getMirroredEntity().adjustY(lockHorizontal ? 0.0f : yChange * scale);
+								}
+							}
+						}
+
+						if (selecting)
+						{
+							selectedArea.setBounds(Math.min(selectionStartPoint.x, newx), Math.min(selectionStartPoint.y, newy), Math.max(selectionStartPoint.x, newx) - Math.min(selectionStartPoint.x, newx), Math.max(selectionStartPoint.y, newy) - Math.min(selectionStartPoint.y, newy));
+						}
+					}
+				}
+
+			};
+
+			level = new Level();
+			level.createParticleSystem();
+
+			initGUI();
+
+			init = true;
+		}
+	}
+
+	public static void resetGUI()
+	{
+		controlPanel.setTitle(mapName + " (" + mapID + ")");
+
+		importPanel.setPosition(1920 / 2 - 250, 1080 / 2 - 250);
+
+		levelTypeButton.setText("Type: " + level.getLevelType().name());
+		importPanel.setActive(false);
+		editWrapperPanel.setActive(false);
+		doorPanel.setActive(false);
+		textPanel.setActive(false);
+		beltPanel.setActive(false);
+		platformPanel.setActive(false);
+		lightPanel.setActive(false);
+		renamePanel.setActive(false);
+		cannonPanel.setActive(false);
+	}
+
+	public static void initGUI() throws SlickException
+	{
+		ArrayList<GUIItem> cannonList = new ArrayList<GUIItem>();
+
+		terrainItems = new GUIItem[TileType.values().length];
+
+		for (int i = 0; i < TileType.values().length; i++)
+		{
+			terrainItems[i] = new GUIItem(TileType.values()[i].getTileName(), TerrainObject.getMainImage(TileType.values()[i].getTileName()) == null ? null : TerrainObject.getMainImage(TileType.values()[i].getTileName()).getScaledCopy(50, 50), 1, 0, 0);
+
+			Tile tile = Tile.createTile(TileType.values()[i], "", 0, 0.0f, buffer, level, Dimension.LIGHT, TileType.values()[i].getProperties(), true);
+
+			if (tile instanceof ICannonBall)
+			{
+				terrainItems[i].setMetadata(TileType.values()[i].getTileName());
+				cannonList.add(terrainItems[i].copy());
+			}
+		}
+
+		entityItems = new GUIItem[entityList.length];
+		for (int i = 0; i < entityList.length; i++)
+		{
+			entityItems[i] = new GUIItem(entityList[i].getTypeName(), Entity.getMainImage(entityList[i]).getScaledCopy(50, 50), 1, 0, 0);
+
+			Entity entity = Entity.createEntity(entityList[i], buffer, level, Dimension.LIGHT, false);
+
+			if (entity instanceof ICannonBall)
+			{
+				entityItems[i].setMetadata(entityList[i].getTypeName());
+				cannonList.add(entityItems[i].copy());
+			}
+		}
+
+		terrainSelection = new TerrainSelection(terrainItems, 4, 4, 0, 0);
+		terrainSelection.setXOffset(1920 - terrainSelection.getWidth() - 20);
+		terrainSelection.setYOffset(50);
+
+		entitySelection = new EntitySelection(entityItems, 4, 2, 0, 0);
+		entitySelection.setXOffset(1920 - terrainSelection.getWidth() - 20);
+		entitySelection.setYOffset(terrainSelection.getYOffset() + terrainSelection.getHeight() + 40);
+
+		importPanel = new ImportWrapperPanel("Create Wrappers", 1920 / 2 - 250, 1080 / 2 - 250, 500, 500);
+		editWrapperPanel = new EditWrapperPanel(1920 - 410, 35, 400, 0);
+		doorPanel = new DoorPanel("Configure Door", 1920 - 510, 35, 500, 0);
+		textPanel = new TextPanel(1920 - 600, 1080 - 400, 600, 400);
+		beltPanel = new ConveyorBeltPanel("Configure ConveyorBelt", 1920 - 510, 35, 500, 0);
+		platformPanel = new PlatformPanel("Configure Platform", 1920 - 410, 35, 400, 0);
+		lightPanel = new LightPanel(1920 - 400, 35, 400, 0);
+		renamePanel = new RenamePanel(1920 / 2 - 250, 1080 / 2 - 250, 500, 0);
+
+		GUIItem[] cannonItemArray = new GUIItem[cannonList.size()];
+
+		for (int i = 0; i < cannonList.size(); i++)
+		{
+			cannonItemArray[i] = cannonList.get(i);
+		}
+
+		cannonPanel = new CannonPanel(cannonItemArray, "Edit Cannon", 1920 - 420, 500, 400, 0);
+
+		int boxWidth = 372;
+		int boxHeight = 0;
+
+		int buttonWidth = 366;
+		int buttonHeight = 40;
+
+		int currentOffset = 45;
+
+		controlPanel = new GUIPanel("Map: " + mapName + " (" + mapID + ")", 10, 35, boxWidth, boxHeight)
+		{
+			@Override
+			public void onPositionUpdate(int xChange, int yChange)
+			{
+				saveButton.adjust(xChange, yChange);
+				reloadButton.adjust(xChange, yChange);
+				levelTypeButton.adjust(xChange, yChange);
+				tileChooserButton.adjust(xChange, yChange);
+				entityChooserButton.adjust(xChange, yChange);
+				addParticleWrapperButton.adjust(xChange, yChange);
+				addWrapperButton.adjust(xChange, yChange);
+				visibiltyButton.adjust(xChange, yChange);
+				toggleLightsButton.adjust(xChange, yChange);
+			}
+		};
+		controlPanel.setFillColor(panelColor);
+		controlPanel.setActive(true);
+
+		saveButton = new Button("Save", (int) (controlPanel.getCenterX() - buttonWidth / 2), currentOffset, buttonWidth / 2 - 3, buttonHeight)
+		{
+			@Override
+			public void onClick()
+			{
+				saveItAll();
+			}
+		};
+
+		reloadButton = new Button("Reload", (int) (controlPanel.getCenterX() - buttonWidth / 2) + buttonWidth / 2 + 6, currentOffset, buttonWidth / 2 - 6, buttonHeight)
+		{
+			@Override
+			public void onClick()
+			{
+				float cameraOffsetX = level.getCameraOffset().x;
+				float cameraOffsetY = level.getCameraOffset().y;
+
+				initMap(mapID, mapPath);
+
+				adjustCameraOffset(null, cameraOffsetX, cameraOffsetY);
+			}
+		};
+
+		currentOffset += reloadButton.getHeight() + 10;
+
+		levelTypeButton = new Button("", (int) (controlPanel.getCenterX() - buttonWidth / 2), currentOffset, buttonWidth, buttonHeight)
+		{
+			@Override
+			public void onClick()
+			{
+				level.setLevelType(level.getLevelType().next());
+
+				saveItAll();
+
+				reloadButton.onClick();
+			}
+		};
+
+		currentOffset += reloadButton.getHeight() + 20;
+
+		visibiltyButton = new Button("", (int) (controlPanel.getCenterX() - buttonWidth / 2), currentOffset, buttonWidth, buttonHeight)
+		{
+			@Override
+			public void onClick()
+			{
+				toggleVisibilty();
+			}
+		};
+
+		currentOffset += visibiltyButton.getHeight() + 10;
+
+		toggleLightsButton = new ToggleButton("Lighting: ON", "Lighting: OFF", (int) (controlPanel.getCenterX() - buttonWidth / 2), currentOffset, buttonWidth, buttonHeight)
+		{
+			@Override
+			protected void toggledToToggledState()
+			{
+				ShaderHandler.disable();
+			}
+
+			@Override
+			protected void toggledToInitialState()
+			{
+				ShaderHandler.enable();
+			}
+		};
+
+		currentOffset += toggleLightsButton.getHeight() + 20;
+
+		tileChooserButton = new Button("Add Tile", (int) (controlPanel.getCenterX() - buttonWidth / 2), currentOffset, buttonWidth, buttonHeight)
+		{
+			@Override
+			public void onClick()
+			{
+				currentTile = null;
+				terrainSelection.setActive(!terrainSelection.isActive());
+
+				if (terrainSelection.isActive())
+				{
+					editWrapperPanel.setActive(false);
+				}
+			}
+		};
+
+		currentOffset += tileChooserButton.getHeight() + 10;
+
+		entityChooserButton = new Button("Add Entity", (int) (controlPanel.getCenterX() - buttonWidth / 2), currentOffset, buttonWidth, buttonHeight)
+		{
+			@Override
+			public void onClick()
+			{
+				entitySelection.setActive(!entitySelection.isActive());
+				currentEntityType = null;
+			}
+		};
+
+		currentOffset += entityChooserButton.getHeight() + 10;
+
+		addParticleWrapperButton = new Button("Add Particle Emitter", (int) (controlPanel.getCenterX() - buttonWidth / 2), currentOffset, buttonWidth, buttonHeight)
+		{
+			@Override
+			public void onClick()
+			{
+				importPanel.setTitle("Add Particle Emitter");
+				importPanel.setParticleCreationMode(true);
+
+				try
+				{
+					importPanel.refresh();
+				}
+				catch (IOException e)
+				{
+					Debug.logStackTrace(e);
+				}
+
+				importPanel.setActive(true);
+
+				currentTile = null;
+				currentEntityType = null;
+				terrainSelection.clearSelection();
+				entitySelection.clearSelection();
+			}
+		};
+
+		currentOffset += addParticleWrapperButton.getHeight() + 10;
+
+		addWrapperButton = new Button("Add Wrappers", (int) (controlPanel.getCenterX() - buttonWidth / 2), currentOffset, buttonWidth, buttonHeight)
+		{
+			@Override
+			public void onClick()
+			{
+				importPanel.setTitle("Add Wrapper");
+				importPanel.setParticleCreationMode(false);
+
+				try
+				{
+					importPanel.refresh();
+				}
+				catch (IOException e)
+				{
+					Debug.logStackTrace(e);
+				}
+
+				importPanel.setActive(true);
+
+				currentTile = null;
+				currentEntityType = null;
+				terrainSelection.clearSelection();
+				entitySelection.clearSelection();
+				terrainSelection.setActive(false);
+			}
+		};
+
+		currentOffset += addWrapperButton.getHeight();
+		boxHeight = currentOffset;
+
+		controlPanel.setHeight(boxHeight);
+	}
+
+	public static void initMap(String mapID, String mapPath)
+	{
+		MapEditor.mapID = mapID;
+		MapEditor.mapPath = mapPath;
+
+		long beforeTime = System.currentTimeMillis();
+
+		ZHandler.clearDistortions();
+
+		level = new Level();
+		level.createParticleSystem();
+
+		try
+		{
+			init();
+		}
+		catch (Exception e)
+		{
+			Debug.warnStackTrace(e);
+
+			throw new RuntimeException("Error initialising mapeditor : " + e);
+		}
+
+		readConfig();
+
+		resetGUI();
+
+		selectedTiles.clear();
+		selectedObjects.clear();
+
+		lastTriggerPort = TriggerPort.YELLOW;
+
+		TerrainFileHandler terrainFile = new TerrainFileHandler(new File(mapPath + "/terrain.map"));
+		EntityFileHandler entityFile = new EntityFileHandler(new File(mapPath + "/entities.map"));
+
+		try
+		{
+			entities.clear();
+			entities = entityFile.read(level);
+			tiles = terrainFile.read(level);
+		}
+		catch (IOException e)
+		{
+			Debug.logStackTrace(e);
+		}
+
+		wrapperImages.clear();
+		selectedWrappers.clear();
+		selectedObjects.clear();
+		selectedTiles.clear();
+
+		editWrapperPanel.init(null);
+
+		MapRenderer.initMap(null, level);
+
+		WrapperTextureHandler handler = new WrapperTextureHandler(new File(mapPath + "/wrappers.cfg"));
+
+		try
+		{
+			wrapperImages = handler.read(mapPath, level);
+		}
+		catch (Exception e)
+		{
+			throw new RuntimeException("Error loading wrappers: " + e, e);
+		}
+
+		level.init(mapID, mapName, tiles, wrapperImages, entities, null, new Vector2f(0.0f, 0.0f), null);
+
+		for (Tile tile : tiles)
+		{
+			tile.init();
+		}
+
+		if (currentTile instanceof Tile)
+		{
+			currentTile = Tile.createTile(currentTile.getType(), ((Tile) currentTile).getMetadata(), currentTile.getInnerType(), currentTile.getRotation(), currentTile.getPosition(), level, Dimension.LIGHT, currentTile.getProperties(), true);
+		}
+
+		level.getPRNG(false, Dimension.LIGHT).nextLong(); // seed rng
+		level.initBrightness(1.0f);
+		level.transferBuffers();
+
+		ShaderHandler.initMap(level);
+
+		GameLauncher.setLevelContext(level);
+		GameLauncher.setStatus(GameStatus.MAP_EDITOR);
+
+		initVisibilty();
+
+		Debug.log("Loaded map " + mapName + " (" + mapID + "), took " + (System.currentTimeMillis() - beforeTime) + "ms.");
+
+		resume();
+
+		System.gc();
+
+		leaveCooldown = 500;
+	}
+
+	private static void toggleVisibilty()
+	{
+		setVisibility(Visibility.values()[currentVisibilty.ordinal() + 1 >= Visibility.values().length ? 0 : currentVisibilty.ordinal() + 1]);
+	}
+
+	private static void setVisibility(Visibility visibilty)
+	{
+		currentVisibilty = visibilty;
+
+		visibiltyButton.setText("Visible: " + visibilty.name());
+
+		level.setRenderEntities(false);
+		level.setRenderTiles(false);
+		level.setRenderWrappers(false);
+		level.setRenderParticleEmitters(false);
+		level.setRenderForegroundWrappers(false);
+		level.setRenderBackgroundWrappers(false);
+
+		if (currentVisibilty == Visibility.ALL)
+		{
+			level.setRenderEntities(true);
+			level.setRenderTiles(true);
+			level.setRenderWrappers(true);
+			level.setRenderParticleEmitters(true);
+		}
+		else if (currentVisibilty == Visibility.FOREGROUND)
+		{
+			level.setRenderForegroundWrappers(true);
+		}
+		else if (currentVisibilty == Visibility.BACKGROUND)
+		{
+			level.setRenderBackgroundWrappers(true);
+		}
+		else if (currentVisibilty == Visibility.COLLISION)
+		{
+			level.setRenderTiles(true);
+		}
+		else if (currentVisibilty == Visibility.PARTICLES)
+		{
+			level.setRenderParticleEmitters(true);
+		}
+	}
+
+	private static void initVisibilty()
+	{
+		setVisibility(Visibility.ALL);
+	}
+
+	public static void render(GameContainer container, Graphics g)
+	{
+		level.renderBackgroundWrappers(g);
+
+		MapRenderer.clearDrawnConnections();
+
+		for (Tile tile : tiles)
+		{
+			if (tile.getDimension() == Dimension.SHADOW)
+			{
+				drawTile(tile, container, g);
+			}
+		}
+
+		for (Tile tile : tiles)
+		{
+			if (tile.getDimension() == Dimension.LIGHT)
+			{
+				drawTile(tile, container, g);
+			}
+		}
+
+		if (level.shouldRenderEntities())
+		{
+			for (Entity entity : entities)
+			{
+				entity.draw(g);
+
+				if (entity.getDimension() == Dimension.LIGHT && entity instanceof EntityKey)
+				{
+					float size = Resolutions.TILE_SIZE / 1.5f;
+
+					g.setColor(portBoxBorderColor);
+					g.drawOval(entity.getX() + entity.getImage().getWidth() - size * PORT_COLOR_BOX_OFFSET, entity.getY() + entity.getImage().getHeight() - size * PORT_COLOR_BOX_OFFSET, size * PORT_COLOR_BOX_SIZE, size * PORT_COLOR_BOX_SIZE);
+
+					g.setColor(((EntityKey) entity).getPort().getColor());
+					g.fillOval(entity.getX() + entity.getImage().getWidth() - size * PORT_COLOR_BOX_OFFSET, entity.getY() + entity.getImage().getHeight() - size * PORT_COLOR_BOX_OFFSET, size * PORT_COLOR_BOX_SIZE, size * PORT_COLOR_BOX_SIZE);
+				}
+
+				if (level.shouldShowHitboxes())
+				{
+					ShaderHandler.disableLighting();
+
+					g.setColor(Color.white);
+					g.draw(entity.getHitbox());
+				}
+			}
+		}
+
+		boolean drawLogicalConnections = container.getInput().isKeyDown(Input.KEY_J) && !isLockingInput();
+		
+		if (drawLogicalConnections)
+		{
+			float boxOffset = Resolutions.TILE_SIZE * PORT_COLOR_BOX_OFFSET - Resolutions.TILE_SIZE * PORT_COLOR_BOX_SIZE / 2; 
+			float boxOffsetEntity = Resolutions.TILE_SIZE * PORT_COLOR_BOX_OFFSET - Resolutions.TILE_SIZE * 1.5f * PORT_COLOR_BOX_SIZE / 2;
+			
+			for (Tile tile : tiles)
+			{
+				if (tile.isSender())
+				{
+					for (Tile other : tiles)
+					{
+						if (other.isReceiver() && tile.getSendPort() == other.getReceivePort())
+						{
+							ShaderHandler.disableLighting();
+
+							float beforeLW = g.getLineWidth();
+
+							g.setLineWidth(5.0f);
+							g.setColor(ColorHelper.applyAlphaAndCopy(TriggerPort.getColor(tile.getSendPort()), 0.5f));
+
+							g.setAntiAlias(true);
+							g.drawLine(tile.getHitbox().getMaxX() - boxOffset, tile.getHitbox().getMaxY() - boxOffset, other.getHitbox().getMaxX() - boxOffset, other.getHitbox().getMaxY() - boxOffset);
+							g.setAntiAlias(false);
+
+							g.setLineWidth(beforeLW);
+						}
+					}
+				}
+			}
+			
+			for (Entity entity : entities)
+			{
+				if (entity instanceof EntityKey)
+				{
+					for (Tile other : tiles)
+					{
+						if (other instanceof ITileKeyInteractable && ((ITileKeyInteractable) other).getKeyPort() == ((EntityKey) entity).getPort())
+						{
+							ShaderHandler.disableLighting();
+
+							float beforeLW = g.getLineWidth();
+
+							g.setLineWidth(4.0f);
+							g.setColor(ColorHelper.applyAlphaAndCopy(((EntityKey) entity).getPort().getColor(), 0.3f));
+
+							g.setAntiAlias(true);
+							g.drawLine(entity.getHitbox().getMaxX() - boxOffsetEntity, entity.getHitbox().getMaxY() - boxOffsetEntity, other.getHitbox().getMaxX() - boxOffset, other.getHitbox().getMaxY() - boxOffset);
+							g.setAntiAlias(false);
+
+							g.setLineWidth(beforeLW);
+						}
+					}
+				}
+			}
+		}
+
+		level.renderForegroundWrappers(g);
+
+		if (editWrapperPanel.getWrapper() != null)
+		{
+			ShaderHandler.disableLighting();
+
+			g.setColor(Color.red);
+			g.draw(editWrapperPanel.getWrapper().getHitbox());
+		}
+
+		for (ICopyable<?> object : hoveredObjects)
+		{
+			float originalAlpha = selectionColor.a;
+
+			selectionColor.a /= 2.0f;
+
+			ShaderHandler.disableLighting();
+
+			g.setColor(selectionColor);
+			g.draw(object.getHitbox());
+
+			selectionColor.a = originalAlpha;
+		}
+
+		for (WrapperTexture wrapper : selectedWrappers)
+		{
+			ShaderHandler.disableLighting();
+
+			wrapper.drawBorders(container, g);
+		}
+
+		for (ICopyable<?> object : selectedObjects)
+		{
+			ShaderHandler.disableLighting();
+
+			g.setColor(selectionColor);
+			g.draw(object.getHitbox());
+
+			if (object.isRotateable() && container.getInput().isMouseButtonDown(Input.MOUSE_RIGHT_BUTTON))
+			{
+				float beforeLineWidth = g.getLineWidth();
+
+				g.setAntiAlias(true);
+				g.setColor(ColorHelper.applyAlphaAndCopy(Color.cyan, 0.7f));
+
+				g.fillOval(object.getCenterOfRotationX() - 4, object.getCenterOfRotationY() - 4, 8, 8);
+
+				g.setLineWidth(6);
+				g.drawLine(container.getInput().getMouseX(), container.getInput().getMouseY(), object.getCenterOfRotationX(), object.getCenterOfRotationY());
+
+				g.setLineWidth(beforeLineWidth);
+
+				g.fillOval(container.getInput().getMouseX() - 3, container.getInput().getMouseY() - 3, 6, 6);
+				g.setAntiAlias(false);
+			}
+		}
+
+		ShaderHandler.disableLighting();
+
+		g.setColor(ColorHelper.applyAlphaAndCopy(Color.green, 0.6f));
+		g.drawRect(level.getAbsLeftLimit().getCenterX(), level.getAbsTopLimit().getCenterY(), level.getAbsRightLimit().getCenterX() - level.getAbsLeftLimit().getCenterX(), level.getAbsBottomLimit().getCenterY() - level.getAbsTopLimit().getCenterY());
+
+		alphaFactor = 1.0f;
+
+		if ((movingTime >= 500 && (movingTiles || movingWrappers || movingEntities)) || selecting)
+		{
+			alphaFactor = 0.16f;
+		}
+
+		terrainSelection.render(container, alphaFactor, g);
+		entitySelection.render(container, alphaFactor, g);
+
+		if (displaySelectedArea)
+		{
+			ShaderHandler.disableLighting();
+
+			g.setColor(selectionColor);
+			g.draw(selectedArea);
+		}
+
+		float borderWidth = GameLauncher.getWidth() * Renderer.getHorizontalScale() / 2.0f;
+		float borderHeight = GameLauncher.getHeight() * Renderer.getVerticalScale() / 2.0f;		
+		
+		g.setColor(ColorHelper.applyAlphaAndCopy(Color.gray, 0.05f));		
+		g.fillRect(-borderWidth, 0, borderWidth, GameLauncher.getHeight());
+		g.fillRect(GameLauncher.getWidth(), 0, borderWidth, GameLauncher.getHeight());
+		g.fillRect(0, -borderHeight, GameLauncher.getWidth(), borderHeight);
+		g.fillRect(0, GameLauncher.getHeight(), GameLauncher.getWidth(), borderHeight);
+		
+		ShaderHandler.disableLighting();
+
+		if (GameLauncher.getContainer().getInput().isKeyDown(Input.KEY_G) && !isLockingInput())
+		{
+			ColorHelper.applyAlphaAndCopy(Color.green, 0.3f, g);
+			g.drawLine(GameLauncher.getWidth() / 2.0f, 0, GameLauncher.getWidth() / 2.0f, GameLauncher.getHeight());
+			g.drawLine(0, GameLauncher.getHeight() / 2.0f, GameLauncher.getWidth(), GameLauncher.getHeight() / 2.0f);
+		}
+
+		if (controlPanel.isActive())
+		{
+			controlPanel.render(container, alphaFactor, g);
+
+			saveButton.render(container, alphaFactor, g);
+			reloadButton.render(container, alphaFactor, g);
+			levelTypeButton.render(container, alphaFactor, g);
+
+			tileChooserButton.render(container, alphaFactor, g);
+			entityChooserButton.render(container, alphaFactor, g);
+			visibiltyButton.render(container, alphaFactor, g);
+			addParticleWrapperButton.render(container, alphaFactor, g);
+			addWrapperButton.render(container, alphaFactor, g);
+			toggleLightsButton.render(container, alphaFactor, g);
+		}
+
+		editWrapperPanel.render(container, alphaFactor, g);
+		importPanel.render(container, alphaFactor, g);
+		doorPanel.render(container, alphaFactor, g);
+		textPanel.render(container, borderHeight, g);
+		beltPanel.render(container, alphaFactor, g);
+		platformPanel.render(container, alphaFactor, g);
+		lightPanel.render(container, alphaFactor, g);
+		cannonPanel.render(container, alphaFactor, g);
+		renamePanel.render(container, alphaFactor, g);
+	}
+
+	public static void drawTile(Tile tile, GameContainer container, Graphics g)
+	{
+		if (level.shouldRenderAll() || (tile.shouldUseOriginalTextures() && (level.shouldRenderForegroundWrappers() || level.shouldRenderWrappers())))
+		{
+			tile.initDraw();
+			tile.draw(g);
+
+			if (tile instanceof TileCameraControl)
+			{
+				MapRenderer.drawCameraDebug((TileCameraControl) tile, false, g);
+			}
+
+			if (selectedTiles.contains(tile))
+			{
+				tile.drawBorders(container, g);
+			}
+
+			if (tile.getDimension() == Dimension.LIGHT)
+			{
+				if (tile instanceof ITileKeyInteractable)
+				{
+					g.setColor(((ITileKeyInteractable) tile).getKeyPort().getColor());
+					g.fillOval(tile.getX() + tile.getImage().getWidth() - Resolutions.TILE_SIZE * PORT_COLOR_BOX_OFFSET, tile.getY() + tile.getImage().getHeight() - Resolutions.TILE_SIZE * PORT_COLOR_BOX_OFFSET, Resolutions.TILE_SIZE * PORT_COLOR_BOX_SIZE, Resolutions.TILE_SIZE * PORT_COLOR_BOX_SIZE);
+
+					g.setColor(portBoxBorderColor);
+					g.drawOval(tile.getX() + tile.getImage().getWidth() - Resolutions.TILE_SIZE * PORT_COLOR_BOX_OFFSET, tile.getY() + tile.getImage().getHeight() - Resolutions.TILE_SIZE * PORT_COLOR_BOX_OFFSET, Resolutions.TILE_SIZE * PORT_COLOR_BOX_SIZE, Resolutions.TILE_SIZE * PORT_COLOR_BOX_SIZE);
+				}
+
+				if (tile instanceof ITileTriggerable)
+				{
+					g.setColor(TriggerPort.getColor(tile.getPort()));
+					g.fillRect(tile.getHitbox().getMaxX() - Resolutions.TILE_SIZE * PORT_COLOR_BOX_OFFSET, tile.getHitbox().getMaxY() - Resolutions.TILE_SIZE * PORT_COLOR_BOX_OFFSET, Resolutions.TILE_SIZE * PORT_COLOR_BOX_SIZE, Resolutions.TILE_SIZE * PORT_COLOR_BOX_SIZE);
+
+					g.setColor(portBoxBorderColor);
+					g.drawRect(tile.getHitbox().getMaxX() - Resolutions.TILE_SIZE * PORT_COLOR_BOX_OFFSET, tile.getHitbox().getMaxY() - Resolutions.TILE_SIZE * PORT_COLOR_BOX_OFFSET, Resolutions.TILE_SIZE * PORT_COLOR_BOX_SIZE, Resolutions.TILE_SIZE * PORT_COLOR_BOX_SIZE);
+				}
+
+				if (tile.getHitbox().isConnectedLeft() || tile.getHitbox().isConnectedRight())
+				{
+					MapRenderer.drawConnectedTile(tile, g);
+				}
+			}
+
+			if (level.shouldShowHitboxes() && tile.isActive())
+			{
+				g.setColor(Color.white);
+				g.draw(tile.getHitbox());
+
+				if (tile.getHitbox().isConnectedLeft())
+				{
+					g.setColor(Color.gray);
+					g.fillRect(tile.getHitbox().getPoints()[tile.getHitbox().getTopLeftIndex()] - 5, tile.getHitbox().getPoints()[tile.getHitbox().getTopLeftIndex() + 1] - 5, 10, 10);
+				}
+
+				if (tile.getHitbox().isConnectedRight())
+				{
+					g.setColor(Color.gray);
+					g.fillRect(tile.getHitbox().getPoints()[tile.getHitbox().getTopLeftIndex() + 2] - 5, tile.getHitbox().getPoints()[tile.getHitbox().getTopLeftIndex() + 3] - 5, 10, 10);
+				}
+			}
+		}
+	}
+
+	public static void update(GameContainer container, int delta)
+	{
+		Input input = container.getInput();
+
+		boolean lockInput = renamePanel.isActive() || textPanel.isActive();
+		boolean canGrab = false;
+
+		input.addMouseListener(mouseListener);
+
+		smoothMode = input.isKeyDown(Input.KEY_LSHIFT);
+
+		hoveredObjects.clear();
+
+		if (entityCooldown > 0)
+		{
+			entityCooldown -= delta;
+		}
+
+		if (colorChangeCooldown > 0)
+		{
+			colorChangeCooldown -= delta;
+		}
+
+		if (!paused)
+		{
+			lockHorizontal = input.isKeyDown(Input.KEY_H);
+			lockVertical = input.isKeyDown(Input.KEY_V);
+
+			if (!movingTiles && !movingWrappers && !movingEntities && !selecting)
+			{
+				if (controlPanel.isActive())
+				{
+					controlPanel.update(container, delta);
+					saveButton.update(container, delta);
+					reloadButton.update(container, delta);
+					levelTypeButton.update(container, delta);
+					tileChooserButton.update(container, delta);
+					entityChooserButton.update(container, delta);
+					visibiltyButton.update(container, delta);
+					toggleLightsButton.update(container, delta);
+					addParticleWrapperButton.update(container, delta);
+					addWrapperButton.update(container, delta);
+				}
+
+				lightPanel.update(container, delta);
+				platformPanel.update(container, delta);
+				cannonPanel.update(container, delta);
+				importPanel.update(container, delta);
+				editWrapperPanel.update(container, delta);
+				doorPanel.update(container, delta);
+				textPanel.update(container, delta);
+				beltPanel.update(container, delta);
+				terrainSelection.update(container, delta);
+				entitySelection.update(container, delta);
+				renamePanel.update(container, delta);
+			}
+
+			for (WrapperTexture wrapper : level.getWrappers())
+			{
+				if (wrapper.isAnimated())
+				{
+					wrapper.updateAnimation(delta);
+				}
+			}
+
+			movingWrappers = false;
+
+			if (!anyContains(input.getMouseX(), input.getMouseY()) && (input.isMouseButtonDown(Input.MOUSE_LEFT_BUTTON) || InputHandler.isKeyDown(InputAction.JUMP, container) && !input.isKeyDown(Input.KEY_SPACE)))
+			{
+				for (WrapperTexture wrapper : selectedWrappers)
+				{
+					if (wrapper.getHitbox().contains(input.getMouseX(), input.getMouseY()) && !wrapper.bordersContain(input.getMouseX(), input.getMouseY()))
+					{
+						movingWrappers = true;
+
+						break;
+					}
+				}
+			}
+
+			if (input.isKeyPressed(Input.KEY_F5))
+			{
+				float cameraOffsetX = level.getCameraOffset().x;
+				float cameraOffsetY = level.getCameraOffset().y;
+
+				saveItAll();
+				initMap(mapID, mapPath);
+
+				adjustCameraOffset(container, cameraOffsetX, cameraOffsetY);
+			}
+
+			if (input.isKeyPressed(Input.KEY_P) && !lockInput || input.isKeyPressed(Input.KEY_F11) || input.isKeyPressed(Input.KEY_F1))
+			{
+				saveItAll();
+
+				try
+				{
+					MapRenderer.transitionFrom(GameLauncher.getWidth() / 2, GameLauncher.getHeight() / 2, 1337 / 2, false);
+					
+					LevelRenderer.initMap(mapPath, false);
+					LevelRenderer.resume();
+
+					GameLauncher.setStatus(GameStatus.IN_LEVEL);
+					GameLauncher.clearRecords();
+
+					CursorType.useCursor(CursorType.DEFAULT, container);
+				}
+				catch (Exception e)
+				{
+					Debug.warn("Tried going into play mode for map \"" + mapName + "\", encountered error:");
+					Debug.warnStackTrace(e);
+				}
+			}
+
+			if (selecting && !(input.isMouseButtonDown(Input.MOUSE_LEFT_BUTTON) || InputHandler.isKeyDown(InputAction.JUMP, container)))
+			{
+				selecting = false;
+				displaySelectedArea = false;
+
+				for (Entity entity : entities)
+				{
+					if (entity.getDimension() == Dimension.LIGHT && selectedArea.contains(entity.getHitbox()))
+					{
+						selectedObjects.add(entity);
+						selectedEntities.add(entity);
+					}
+				}
+
+				for (Tile tile : tiles)
+				{
+					if (tile.getDimension() == Dimension.LIGHT && selectedArea.contains(tile.getHitbox()))
+					{
+						selectedObjects.add(tile);
+						selectedTiles.add(tile);
+
+						tile.updateBorders();
+
+						onSelectTile(tile, container);
+					}
+				}
+
+				for (WrapperTexture wrapper : wrapperImages)
+				{
+					if (selectedArea.contains(wrapper.getHitbox()))
+					{
+						selectedObjects.add(wrapper);
+						selectedWrappers.add(wrapper);
+
+						wrapper.updateBorders();
+					}
+				}
+			}
+
+			boolean mousePressed = input.isMousePressed(Input.MOUSE_LEFT_BUTTON) || InputHandler.isKeyPressed(InputAction.JUMP, container) && !lockInput;
+			boolean inSelected = false;
+
+			for (ICopyable<?> object : selectedObjects)
+			{
+				if (object.getHitbox().contains(input.getMouseX(), input.getMouseY()))
+				{
+					inSelected = true;
+				}
+			}
+
+			if (!anyContains(input.getMouseX(), input.getMouseY()))
+			{
+				for (int i = level.getWrappers().size() - 1; i >= 0; i--)
+				{
+					WrapperTexture wrapper = level.getWrappers().get(i);
+
+					if (wrapper.getHitbox().contains(input.getMouseX(), input.getMouseY()) && wrapper.isInForeground() && ((!wrapper.isParticleWrapper() && (level.shouldRenderWrappers() || level.shouldRenderForegroundWrappers())) || level.shouldRenderParticleEmitters() && wrapper.isParticleWrapper()))
+					{
+						if (hoveredObjects.isEmpty() && !inSelected)
+						{
+							hoveredObjects.add(wrapper);
+						}
+
+						canGrab = true;
+
+						if (mousePressed && !inSelected)
+						{
+							if (!input.isKeyDown(Input.KEY_LCONTROL) && !input.isKeyDown(Input.KEY_LSHIFT))
+							{
+								deselectAll();
+							}
+
+							editWrapperPanel.init(wrapper);
+							selectedObjects.add(wrapper);
+							selectedWrappers.add(wrapper);
+							wrapper.updateBorders();
+
+							mousePressed = false;
+						}
+
+						if (input.isMousePressed(Input.MOUSE_MIDDLE_BUTTON))
+						{
+							duplicateWrapper(wrapper);
+						}
+					}
+				}
+			}
+
+			if (clickCooldown <= 0 && !anyContains(input.getMouseX(), input.getMouseY()))
+			{
+				try
+				{
+					if (!selecting)
+					{
+						Tile existingTile = getTileAtXY(input.getMouseX(), input.getMouseY());
+
+						if (input.isMouseButtonDown(Input.MOUSE_LEFT_BUTTON) || InputHandler.isKeyDown(InputAction.JUMP, container))
+						{
+							if (existingTile instanceof ITileTriggerable || existingTile instanceof ITileKeyInteractable)
+							{
+								if (colorChangeCooldown <= 0)
+								{
+									bufferedHitbox.set(existingTile.getHitbox().getMaxX() - Resolutions.TILE_SIZE * PORT_COLOR_BOX_OFFSET, existingTile.getHitbox().getMaxY() - Resolutions.TILE_SIZE * PORT_COLOR_BOX_OFFSET, Resolutions.TILE_SIZE * PORT_COLOR_BOX_SIZE, Resolutions.TILE_SIZE * PORT_COLOR_BOX_SIZE);
+
+									if (bufferedHitbox.contains(input.getMouseX(), input.getMouseY()))
+									{
+										if (existingTile instanceof ITileTriggerable)
+										{
+											existingTile.setPort(TriggerPort.getTrigger(existingTile.getPort()).next().toPort());
+
+											colorChangeCooldown = 350;
+
+											lastTriggerPort = TriggerPort.getTrigger(existingTile.getPort());
+										}
+
+										if (existingTile instanceof ITileKeyInteractable)
+										{
+											((ITileKeyInteractable) existingTile).setKeyPort(((ITileKeyInteractable) existingTile).getKeyPort().next());
+
+											colorChangeCooldown = 350;
+
+											lastKeyPort = ((ITileKeyInteractable) existingTile).getKeyPort();
+										}
+									}
+								}
+							}
+							else if (currentTile != null && selectedTiles.size() == 0)
+							{
+								Tile tile = Tile.createTile(currentTile.getType(), "", 0, 0, new Vector2f(), currentTile.getLevel(), Dimension.LIGHT, TileType.getProperty(currentTile.getType()), false);
+
+								if (tile != null && ((getTileAtXY(input.getMouseX(), input.getMouseY()) == null) || ((getTileAtXY(input.getMouseX(), input.getMouseY()).isHidden() || tile.isHidden() || !tile.isBlocked()) && getTileAtXY(input.getMouseX(), input.getMouseY()).getType() != tile.getType())))
+								{
+									Debug.log("Creating tile " + currentTile.getType() + " ...");
+
+									tile = Tile.createTile(currentTile.getType(), "", currentTile.getInnerType(), currentTile.getRotation(), useLineHelper || !currentTile.hasTextures() ? new Vector2f((input.getMouseX() / Resolutions.TILE_SIZE) * Resolutions.TILE_SIZE, (input.getMouseY() / Resolutions.TILE_SIZE) * Resolutions.TILE_SIZE) : new Vector2f(input.getMouseX() - TerrainObject.getMainImage(currentTile.getType()).getWidth() / 2, input.getMouseY() - TerrainObject.getMainImage(currentTile.getType()).getHeight() / 2), currentTile.getLevel(), Dimension.LIGHT, TileType.getProperty(currentTile.getType()), true);
+									tile.setRotation(currentTile.getRotation());
+									tile.setDimension(currentTile.getDimension());
+									tile.readMetadata();
+									tile.updateInnerType();
+
+									if (tile.hasMirror())
+									{
+										tile.initMirror(tile.getMirroredTile(), level.getType());
+									}
+
+									level.addTile(tile);
+
+									if (tile instanceof ITileTriggerable && lastTriggerPort != null)
+									{
+										tile.setPort(lastTriggerPort.toPort());
+									}
+
+									if (tile instanceof ITileKeyInteractable && lastKeyPort != null)
+									{
+										((ITileKeyInteractable) tile).setKeyPort(lastKeyPort);
+									}
+
+									tile.onCreated();
+									tile.updateHitbox();
+
+									if (tile instanceof TileCameraControl)
+									{
+										MapRenderer.initMap(null, level);
+									}
+								}
+							}
+						}
+						else if (existingTile != null && input.isMousePressed(Input.MOUSE_MIDDLE_BUTTON))
+						{
+							Tile duplicate = existingTile.copy(level);
+
+							if (!input.isKeyDown(Input.KEY_LCONTROL) && !input.isKeyDown(Input.KEY_LSHIFT))
+							{
+								deselectAll();
+							}
+
+							duplicate.onCreated();
+
+							duplicate.adjustX(10);
+							duplicate.adjustY(10);
+
+							duplicate.createBorders();
+
+							selectedObjects.add(duplicate);
+							selectedTiles.add(duplicate);
+
+							level.addTile(duplicate);
+						}
+					}
+
+					boolean inAny = false;
+
+					if (!selecting && !anyContains(input.getMouseX(), input.getMouseY()))
+					{
+						Entity existingEntity = getEntityAtXY(input.getMouseX(), input.getMouseY());
+
+						bufferedHitbox.set(0, 0, 0, 0);
+
+						if (existingEntity != null)
+						{
+							inAny = true;
+							canGrab = true;
+
+							if (hoveredObjects.isEmpty())
+							{
+								hoveredObjects.add(existingEntity);
+							}
+
+							if (existingEntity instanceof EntityKey)
+							{
+								bufferedHitbox.set(existingEntity.getX() + existingEntity.getImage().getWidth() - Resolutions.TILE_SIZE * PORT_COLOR_BOX_OFFSET, existingEntity.getY() + existingEntity.getImage().getHeight() - Resolutions.TILE_SIZE * PORT_COLOR_BOX_OFFSET, Resolutions.TILE_SIZE * PORT_COLOR_BOX_SIZE, Resolutions.TILE_SIZE * PORT_COLOR_BOX_SIZE);
+							}
+						}
+
+						if (bufferedHitbox.contains(input.getMouseX(), input.getMouseY()))
+						{
+							if ((input.isMouseButtonDown(Input.MOUSE_LEFT_BUTTON) || InputHandler.isKeyDown(InputAction.JUMP, container)) && entityCooldown <= 0)
+							{
+								((EntityKey) existingEntity).setPort(((EntityKey) existingEntity).getPort().next());
+
+								entityCooldown = 500;
+							}
+						}
+
+						movingEntities = false;
+						if (existingEntity != null)
+						{
+							if (input.isMouseButtonDown(Input.MOUSE_LEFT_BUTTON) || InputHandler.isKeyDown(InputAction.JUMP, container))
+							{
+								movingEntities = true;
+							}
+						}
+
+						if (mousePressed)
+						{
+							if (existingEntity != null)
+							{
+								if (!input.isKeyDown(Input.KEY_LCONTROL) && !input.isKeyDown(Input.KEY_LSHIFT))
+								{
+									deselectAll();
+								}
+
+								selectedObjects.add(existingEntity);
+								selectedEntities.add(existingEntity);
+
+								mousePressed = false;
+							}
+							else if (currentTile == null && selectedObjects.isEmpty() && currentEntityType != null)
+							{
+								Entity entity = Entity.createEntity(EntityType.getTypeByNameTag(currentEntityType), new Vector2f((int) (input.getMouseX()), (input.getMouseY())), level, Dimension.LIGHT, false);
+								level.addEntity(entity);
+
+								if (entity instanceof EntityKey && lastKeyPort != null)
+								{
+									((EntityKey) entity).setPort(lastKeyPort);
+								}
+
+								mousePressed = false;
+							}
+						}
+					}
+					else
+					{
+						lastSelectedBlock[1] = (int) (input.getMouseX() - level.getCameraOffset().getX()) / Resolutions.TILE_SIZE;
+						lastSelectedBlock[0] = (int) (input.getMouseY() - level.getCameraOffset().getY()) / Resolutions.TILE_SIZE;
+					}
+
+					movingTiles = false;
+					if (!anyContains(input.getMouseX(), input.getMouseY()) && (input.isMouseButtonDown(Input.MOUSE_LEFT_BUTTON) || InputHandler.isKeyDown(InputAction.JUMP, container)))
+					{
+						currentEntityType = null;
+						currentTile = null;
+
+						for (Tile tile : selectedTiles)
+						{
+							if (tile.getHitbox().contains(input.getMouseX(), input.getMouseY()) && !tile.bordersContain(input.getMouseX(), input.getMouseY()))
+							{
+								movingTiles = true;
+							}
+						}
+					}
+
+					terrainSelection.clearSelection();
+					entitySelection.clearSelection();
+
+					if (!anyContains(input.getMouseX(), input.getMouseY()))
+					{
+						for (int i = tiles.size() - 1; i >= 0; i--)
+						{
+							Tile tile = tiles.get(i);
+							if (tile.getDimension() == Dimension.LIGHT && tile.isActive() &&tile.getHitbox().contains(input.getMouseX(), input.getMouseY()) && (level.shouldRenderAll() || (tile.shouldUseOriginalTextures() && (level.shouldRenderForegroundWrappers() || level.shouldRenderWrappers()))))
+							{
+								inAny = true;
+								canGrab = true;
+
+								if (inSelected)
+								{
+									break;
+								}
+
+								boolean hover = false;
+
+								if (hoveredObjects.isEmpty())
+								{
+									hoveredObjects.add(tile);
+
+									hover = true;
+								}
+
+								if ((mousePressed || hover) && input.isKeyDown(Input.KEY_LCONTROL))
+								{
+									Tile leftTile = tile;
+									Tile rightTile = tile;
+
+									while (leftTile != null)
+									{
+										if (mousePressed)
+										{
+											selectedObjects.add(leftTile);
+											selectedTiles.add(leftTile);
+										}
+										else
+										{
+											hoveredObjects.add(leftTile);
+										}
+
+										leftTile.updateBorders();
+
+										if (!leftTile.getHitbox().isConnectedLeft())
+										{
+											break;
+										}
+
+										leftTile = leftTile.getLeftConnectedTile();
+									}
+
+									while (rightTile != null)
+									{
+										if (mousePressed)
+										{
+											selectedObjects.add(rightTile);
+											selectedTiles.add(rightTile);
+										}
+										else
+										{
+											hoveredObjects.add(rightTile);
+										}
+
+										rightTile.updateBorders();
+
+										if (!rightTile.getHitbox().isConnectedRight())
+										{
+											break;
+										}
+
+										rightTile = rightTile.getRightConnectedTile();
+									}
+
+									if (mousePressed)
+									{
+										mousePressed = false;
+									}
+								}
+								else if (mousePressed)
+								{
+									if (!input.isKeyDown(Input.KEY_LCONTROL) && !input.isKeyDown(Input.KEY_LSHIFT))
+									{
+										deselectAll();
+									}
+
+									selectedTiles.add(tile);
+									selectedObjects.add(tile);
+									tile.updateBorders();
+									onSelectTile(tile, container);
+
+									mousePressed = false;
+								}
+
+								break;
+							}
+						}
+
+						for (int i = level.getWrappers().size() - 1; i >= 0; i--)
+						{
+							WrapperTexture wrapper = level.getWrappers().get(i);
+
+							if (wrapper.getHitbox().contains(input.getMouseX(), input.getMouseY()) && wrapper.isInBackground() && ((!wrapper.isParticleWrapper() && (level.shouldRenderWrappers() || level.shouldRenderBackgroundWrappers())) || level.shouldRenderParticleEmitters() && wrapper.isParticleWrapper()))
+							{
+								if (hoveredObjects.isEmpty() && !inSelected)
+								{
+									hoveredObjects.add(wrapper);
+								}
+
+								canGrab = true;
+
+								if (mousePressed && !inSelected)
+								{
+									if (!input.isKeyDown(Input.KEY_LCONTROL) && !input.isKeyDown(Input.KEY_LSHIFT))
+									{
+										deselectAll();
+									}
+
+									editWrapperPanel.init(wrapper);
+									selectedObjects.add(wrapper);
+									selectedWrappers.add(wrapper);
+									level.getWrappers().get(i).updateBorders();
+
+									mousePressed = false;
+								}
+
+								if (input.isMousePressed(Input.MOUSE_MIDDLE_BUTTON))
+								{
+									duplicateWrapper(wrapper);
+								}
+							}
+						}
+					}
+
+					if (!inAny && !inSelected && mousePressed && !input.isKeyDown(Input.KEY_LSHIFT))
+					{
+						deselectAll();
+					}
+				}
+				catch (ArrayIndexOutOfBoundsException e)
+				{
+					Debug.log("ArrayIndexOutOfBaconException: " + e);
+					Debug.logStackTrace(e);
+				}
+			}
+
+			if (input.isKeyDown(Input.KEY_LCONTROL) && !inSelected && mousePressed)
+			{
+				selecting = true;
+				displaySelectedArea = true;
+
+				selectionStartPoint.set(input.getMouseX(), input.getMouseY());
+
+				selectedArea.setX(input.getMouseX());
+				selectedArea.setY(input.getMouseY());
+				selectedArea.setWidth(0.0f);
+				selectedArea.setHeight(0.0f);
+			}
+
+			if (input.isKeyDown(Input.KEY_R))
+			{
+				for (WrapperTexture wrapper : selectedWrappers)
+				{
+					if (input.isKeyDown(Input.KEY_ADD))
+					{
+						wrapper.setRotation(wrapper.getRotation() + (smoothMode ? 0.25f : 0.5f));
+					}
+					else if (input.isKeyDown(Input.KEY_SUBTRACT))
+					{
+						wrapper.setRotation(wrapper.getRotation() - (smoothMode ? 0.25f : 0.5f));
+					}
+
+					if (wrapper == editWrapperPanel.getWrapper())
+					{
+						editWrapperPanel.getRotation().setInput(((int) (wrapper.getRotation())) + "");
+					}
+
+					if (wrapper.isParticleWrapper())
+					{
+						wrapper.updateBorders();
+						wrapper.getEmitter().reset();
+
+						if (wrapper.getEmitter().hasMirror())
+						{
+							wrapper.getEmitter().getMirroredEmitter().reset();
+						}
+					}
+				}
+
+				if (selectedTiles.size() > 0)
+				{
+					boolean addRotation = input.isKeyDown(Input.KEY_ADD);
+					boolean subRotation = input.isKeyDown(Input.KEY_SUBTRACT);
+
+					if (addRotation || subRotation)
+					{
+						for (Tile tile : selectedTiles)
+						{
+							float rotationChange = tile.getProperties().getRotationStep();
+
+							if (!tile.getProperties().isForceRotationStep())
+							{
+								if (tile.getRotation() == 0.0f)
+								{
+									rotationChange = 4.0f;
+								}
+								else
+								{
+									if (smoothMode)
+									{
+										rotationChange *= 0.5f;
+									}
+
+									rotationChange *= delta / 60.0f;
+
+									if (input.isKeyDown(Input.KEY_2))
+									{
+										rotationChange *= 2.0f;
+									}
+									else if (input.isKeyDown(Input.KEY_3))
+									{
+										rotationChange *= 3.0f;
+									}
+								}
+							}
+							else if (addRotation && !input.isKeyPressed(Input.KEY_ADD) || subRotation && !input.isKeyPressed(Input.KEY_SUBTRACT))
+							{
+								rotationChange = 0.0f;
+							}
+
+							if (rotationChange != 0.0f)
+							{
+								rotationChange *= (subRotation ? -1 : 1);
+
+								rotateTile(tile, rotationChange);
+							}
+						}
+					}
+				}
+			}
+
+			float cameraFactor = delta * (input.isKeyDown(Input.KEY_LCONTROL) ? 2.0f : 1.0f);
+
+			if (!lockInput)
+			{
+				if (input.isKeyPressed(Input.KEY_Z) && level.shouldCreateMirrors())
+				{
+					for (Tile tile : selectedTiles)
+					{
+						if (tile.isChangeable())
+						{
+							tile.setShared(!tile.isShared());
+						}
+					}
+
+					for (Entity entity : selectedEntities)
+					{
+						entity.setShared(!entity.isShared());
+					}
+				}
+
+				if (input.isKeyPressed(Input.KEY_R))
+				{
+					for (Tile tile : selectedTiles)
+					{
+						tile.setTimeEffected(!tile.isRawTimeEffected());
+
+						if (tile.hasMirror())
+						{
+							tile.getMirroredTile().setTimeEffected(tile.isRawTimeEffected());
+						}
+					}
+
+					for (Entity entity : selectedEntities)
+					{
+						entity.setTimeEffected(!entity.isRawTimeEffected());
+
+						if (entity.hasMirror())
+						{
+							entity.getMirroredEntity().setTimeEffected(entity.isRawTimeEffected());
+						}
+					}
+
+					if (selectedObjects.isEmpty())
+					{
+						terrainSelection.setActive(true);
+					}
+				}
+
+				if (input.isKeyPressed(Input.KEY_E))
+				{
+					entitySelection.setActive(true);
+				}
+
+				if (input.isKeyPressed(Input.KEY_B))
+				{
+					for (Tile tile : selectedTiles)
+					{
+						tile.setBlocksDimensionTravel(!tile.blocksDimensionTravel());
+
+						if (tile.hasMirror())
+						{
+							tile.getMirroredTile().setBlocksDimensionTravel(tile.blocksDimensionTravel());
+						}
+					}
+				}
+
+				if (input.isKeyDown(Input.KEY_LCONTROL) && input.isKeyPressed(Input.KEY_R))
+				{
+					renamePanel = new RenamePanel(1920 / 2 - 250, 1080 / 2 - 250, 500, 0);
+					renamePanel.init(level);
+					renamePanel.setActive(true);
+				}
+
+				if (InputHandler.isKeyDown(InputAction.MOVE_LEFT, container))
+				{
+					adjustCameraOffset(container, cameraFactor, 0);
+				}
+
+				if (InputHandler.isKeyDown(InputAction.MOVE_RIGHT, container))
+				{
+					adjustCameraOffset(container, -cameraFactor, 0);
+				}
+
+				if (InputHandler.isKeyDown(InputAction.MOVE_UP, container))
+				{
+					adjustCameraOffset(container, 0, cameraFactor);
+				}
+
+				if (InputHandler.isKeyDown(InputAction.MOVE_DOWN, container))
+				{
+					adjustCameraOffset(container, 0, -cameraFactor);
+				}
+			}
+
+			if (input.isKeyPressed(Input.KEY_ESCAPE) && leaveCooldown <= 0)
+			{
+				saveItAll();
+
+				currentEntityType = null;
+				currentTile = null;
+
+				GameLauncher.getGraphics().setBackground(new Color(0, 0, 0));
+				GameLauncher.setStatus(GameStatus.MAP_EDITOR_MENU);
+
+				CursorType.useCursor(CursorType.DEFAULT, container);
+			}
+
+			if (input.isKeyDown(Input.KEY_C) && input.isKeyPressed(Input.KEY_0))
+			{
+				adjustCameraOffset(container, (int) (-level.getCameraOffset().x), (int) (-level.getCameraOffset().y));
+			}
+
+			if (input.isKeyDown(Input.KEY_LCONTROL) && (input.isKeyPressed(Input.KEY_C) || input.isKeyPressed(Input.KEY_X)) && !selectedObjects.isEmpty())
+			{
+				boolean cut = input.isKeyDown(Input.KEY_X);
+
+				clipboard.clear();
+
+				for (ICopyable<?> object : selectedObjects)
+				{
+					ICopyable<?> copy = object.copy(level);
+					copy.setPosition(copy.getPosition().x + (cut ? 0 : 7), copy.getPosition().y + (cut ? 0 : 7));
+					clipboard.add(copy);
+
+					if (cut)
+					{
+						if (object instanceof Tile)
+						{
+							level.removeTile((Tile) object);
+							level.removeTile(((Tile) object).getMirroredTile());
+						}
+						else if (object instanceof Entity)
+						{
+							level.removeEntity((Entity) object);
+							level.removeEntity(((Entity) object).getMirroredEntity());
+						}
+						else if (object instanceof WrapperTexture)
+						{
+							level.removeWrapper((WrapperTexture) object);
+						}
+					}
+				}
+
+				if (cut)
+				{
+					deselectAll();
+				}
+
+				Debug.log("Copied " + selectedObjects.size() + " objects to clipboard.");
+			}
+
+			if (input.isKeyDown(Input.KEY_LCONTROL) && input.isKeyPressed(Input.KEY_V))
+			{
+				selectedObjects.clear();
+				selectedTiles.clear();
+				selectedWrappers.clear();
+
+				for (ICopyable<?> object : clipboard)
+				{
+					object.setLevel(level);
+
+					if (object.shouldCreateMirror(true))
+					{
+						object.createMirror(level.getLevelType());
+					}
+
+					selectedObjects.add(object);
+
+					if (object instanceof Tile)
+					{
+						((Tile) object).createBorders();
+						((Tile) object).init();
+						((Tile) object).onCreated();
+
+						if (((Tile) object).hasMirror())
+						{
+							((Tile) object).getMirroredTile().setLevel(level);
+							((Tile) object).getMirroredTile().init();
+							((Tile) object).getMirroredTile().setRotation(0.0f);
+							((Tile) object).getMirroredTile().updateInnerType();
+							((Tile) object).getMirroredTile().setWidth(object.getHitbox().getRawWidth());
+							((Tile) object).getMirroredTile().setHeight(object.getHitbox().getRawHeight());
+							((Tile) object).getMirroredTile().setRotation(((Tile) object).getRotation());
+						}
+
+						level.addTile((Tile) object);
+						selectedTiles.add((Tile) object);
+					}
+
+					if (object instanceof Entity)
+					{
+						level.addEntity((Entity) object);
+
+						if (((Entity) object).hasMirror())
+						{
+							((Entity) object).getMirroredEntity().setLevel(level);
+						}
+					}
+
+					if (object instanceof WrapperTexture)
+					{
+						level.addWrapper((WrapperTexture) object);
+						selectedWrappers.add((WrapperTexture) object);
+						((WrapperTexture) object).updateBorders();
+
+						if (((WrapperTexture) object).isParticleWrapper())
+						{
+							level.addParticleEmitter(((WrapperTexture) object).getEmitter());
+						}
+					}
+				}
+
+				Set<ICopyable<?>> clipboardCopy = new HashSet<ICopyable<?>>();
+
+				for (ICopyable<?> object : clipboard)
+				{
+					ICopyable<?> copy = object.copy(level);
+					copy.setPosition(copy.getPosition().x + 7, copy.getPosition().y + 7);
+					clipboardCopy.add(copy);
+				}
+
+				clipboard.clear();
+
+				clipboard.addAll(clipboardCopy);
+
+				Debug.log("Pasted " + selectedObjects.size() + " objects.");
+			}
+
+			if (!lockInput)
+			{
+				if (input.isKeyPressed(Input.KEY_SPACE))
+				{
+					visibiltyButton.onClick();
+				}
+	
+				if (input.isKeyPressed(Input.KEY_ENTER))
+				{
+					controlPanel.setActive(true);
+				}
+			}
+				
+			if (selectedObjects.size() == 1 && selectedWrappers.size() == 1)
+			{
+				WrapperTexture wrapper = selectedWrappers.iterator().next();
+				WrapperTexture next = null;
+
+				if (input.isKeyPressed(Input.KEY_G))
+				{
+					next = importPanel.getNextWrapper(wrapper);
+				}
+
+				if (input.isKeyPressed(Input.KEY_F))
+				{
+					next = importPanel.getNextGroupWrapper(wrapper);
+				}
+
+				if (next != null)
+				{
+					float beforeX = wrapper.getHitbox().getCenterX();
+					float beforeY = wrapper.getHitbox().getCenterY();
+
+					wrapper.setImages(next);
+					wrapper.softReset();
+
+					wrapper.adjustX(beforeX - wrapper.getHitbox().getCenterX());
+					wrapper.adjustY(beforeY - wrapper.getHitbox().getCenterY());
+
+					wrapper.updateBorders();
+
+					editWrapperPanel.init(wrapper);
+				}
+			}
+
+			if (input.isKeyPressed(Input.KEY_I))
+			{
+				for (Tile tile : selectedTiles)
+				{
+					tile.nextInnertype();
+					tile.onInnerTypeChanged();
+
+					if (tile.hasMirror())
+					{
+						tile.getMirroredTile().nextInnertype();
+						tile.getMirroredTile().onInnerTypeChanged();
+						tile.initMirror(tile.getMirroredTile(), level.getType());
+
+						tile.getMirroredTile().updateBorders();
+					}
+
+					tile.updateBorders();
+
+					if (tile.isShared())
+					{
+						tile.setShared(false);
+						tile.setShared(true);
+					}
+
+					if (!tile.isTimeEffected())
+					{
+						tile.setTimeEffected(true);
+						tile.setTimeEffected(false);
+					}
+
+					if (tile.blocksDimensionTravel())
+					{
+						tile.setBlocksDimensionTravel(false);
+						tile.setBlocksDimensionTravel(true);
+					}
+				}
+			}
+
+			for (Tile tile : tiles)
+			{
+				if (tile instanceof ITileReceiver)
+				{
+					tile.listen();
+
+					if (tile.isAnimated())
+					{
+						tile.updateAnimation(delta);
+					}
+				}
+			}
+
+			if (movingTiles && input.isKeyDown(Input.KEY_C))
+			{
+				float shortestDistance = MAX_CONCATENATION_RANGE + 1;
+				Vector2f firstPoint = new Vector2f();
+				Vector2f secondPoint = new Vector2f();
+				Vector2f firstPointBuffer = new Vector2f();
+				Vector2f secondPointBuffer = new Vector2f();
+				Tile selectedTile = null;
+
+				for (Tile tile : selectedTiles)
+				{
+					tile.setX(Math.round(tile.getX()));
+					tile.setY(Math.round(tile.getY()));
+
+					for (Tile otherTile : tiles)
+					{
+						if (otherTile != tile && otherTile != tile.getMirror() && !selectedTiles.contains(otherTile))
+						{
+							for (int i = 0; i < tile.getHitbox().getPoints().length; i += 2)
+							{
+								firstPointBuffer.set(tile.getHitbox().getPoints()[i], tile.getHitbox().getPoints()[i + 1]);
+
+								for (int j = 0; j < otherTile.getHitbox().getPoints().length; j += 2)
+								{
+									secondPointBuffer.set(otherTile.getHitbox().getPoints()[j], otherTile.getHitbox().getPoints()[j + 1]);
+
+									buffer.set(secondPointBuffer);
+									buffer.sub(firstPointBuffer);
+
+									if (buffer.length() <= MAX_CONCATENATION_RANGE && buffer.length() < shortestDistance)
+									{
+										selectedTile = tile;
+										firstPoint.set(firstPointBuffer);
+										secondPoint.set(secondPointBuffer);
+
+										shortestDistance = buffer.length();
+									}
+								}
+							}
+						}
+					}
+				}
+
+				if (selectedTile != null)
+				{
+					for (Tile tile : selectedTiles)
+					{
+						boolean leftConnected = tile.getHitbox().isConnectedLeft();
+						boolean rightConnected = tile.getHitbox().isConnectedRight();
+
+						tile.adjustX(secondPoint.x - firstPoint.x);
+						tile.adjustY(secondPoint.y - firstPoint.y);
+
+						if (tile.getDimension() == Dimension.LIGHT && tile.hasMirror())
+						{
+							Tile mirror = tile.getMirroredTile();
+
+							mirror.adjustX(secondPoint.x - firstPoint.x);
+							mirror.adjustY(secondPoint.y - firstPoint.y);
+
+							mirror.updateBorders();
+						}
+
+						tile.updateBorders();
+						tile.init();
+
+						if (leftConnected ^ tile.getHitbox().isConnectedLeft())
+						{
+							tile.getLeftConnectedTile().init();
+						}
+
+						if (rightConnected ^ tile.getHitbox().isConnectedRight())
+						{
+							tile.getRightConnectedTile().init();
+						}
+					}
+
+					for (Entity entity : selectedEntities)
+					{
+						entity.adjustX(secondPoint.x - firstPoint.x);
+						entity.adjustY(secondPoint.y - firstPoint.y);
+					}
+
+					for (WrapperTexture wrapper : selectedWrappers)
+					{
+						wrapper.adjustX(secondPoint.x - firstPoint.x);
+						wrapper.adjustY(secondPoint.y - firstPoint.y);
+					}
+				}
+			}
+
+			if (input.isKeyDown(Input.KEY_R) && input.isKeyPressed(Input.KEY_0) && !cannonPanel.isActive())
+			{
+				for (Tile tile : selectedTiles)
+				{
+					tile.changeRotationTo(0);
+					tile.updateBorders();
+				}
+
+				for (WrapperTexture wrapper : selectedWrappers)
+				{
+					wrapper.setRotation(0);
+					wrapper.updateBorders();
+				}
+			}
+
+			if (input.isKeyPressed(Input.KEY_DELETE) && !lockInput)
+			{
+				if (!selectedTiles.isEmpty())
+				{
+					for (Tile tile : selectedTiles)
+					{
+						if (tile.hasMirror())
+						{
+							level.removeTile(tile.getMirroredTile());
+						}
+
+						level.removeTile(tile);
+						level.transferBuffers();
+
+						if (tile.getHitbox().isConnectedLeft())
+						{
+							tile.getLeftConnectedTile().disconnectRight(tile);
+						}
+
+						if (tile.getHitbox().isConnectedRight())
+						{
+							tile.getRightConnectedTile().disconnectLeft(tile);
+						}
+
+						if (tile instanceof TileCameraControl)
+						{
+							MapRenderer.initMap(null, level);
+						}
+					}
+
+					selectedObjects.removeAll(selectedTiles);
+					selectedTiles.clear();
+				}
+
+				if (!selectedWrappers.isEmpty())
+				{
+					for (WrapperTexture wrapper : selectedWrappers)
+					{
+						level.removeWrapper(wrapper);
+
+						if (wrapper == editWrapperPanel.getWrapper())
+						{
+							editWrapperPanel.init(null);
+						}
+					}
+
+					selectedObjects.removeAll(selectedWrappers);
+					selectedWrappers.clear();
+				}
+
+				if (!selectedObjects.isEmpty())
+				{
+					for (ICopyable<?> copyable : selectedObjects)
+					{
+						if (copyable instanceof Entity)
+						{
+							Entity entity = (Entity) copyable;
+
+							if (entity.hasEvilTwin())
+							{
+								level.removeEntity(entity.getMirroredEntity());
+							}
+
+							level.removeEntity(entity);
+						}
+					}
+
+					selectedObjects.removeAll(entities);
+				}
+			}
+
+			if (clickCooldown >= 0)
+			{
+				clickCooldown -= delta;
+			}
+
+			if (leaveCooldown >= 0)
+			{
+				leaveCooldown -= delta;
+			}
+
+			level.updateTransitions(delta);
+			level.updateParticleEmitter(delta, delta, level.getLevelType() == LevelType.TIME_SCALE ? Level.TIME_SCALE_BACKGROUND_FACTOR * delta : delta);
+		}
+
+		toggleLightsButton.toggle(!ShaderHandler.isEnabled());
+
+		if (anyContains(input.getMouseX(), input.getMouseY()))
+		{
+			CursorType.useCursor(CursorType.DEFAULT, container);
+		}
+		else
+		{
+			if (movingWrappers || movingTiles || movingEntities || canGrab)
+			{
+				CursorType.useCursor(CursorType.GRAB, container);
+			}
+			else if (currentEntityType != null || currentTile != null)
+			{
+				CursorType.useCursor(CursorType.SET, container);
+			}
+			else
+			{
+				CursorType.useCursor(CursorType.DEFAULT, container);
+			}
+		}
+
+		if (movingTiles || movingWrappers || movingEntities)
+		{
+			movingTime += delta;
+		}
+		else
+		{
+			movingTime = 0;
+		}
+
+		selectionColor.a += 0.00072f * delta * (increasingSelection ? 1.0f : -1.0f);
+		selectionColor.g = selectionColor.a;
+
+		Tile.hoverColor.a = selectionColor.a;
+
+		if (selectionColor.a < 0.5f)
+		{
+			increasingSelection = true;
+		}
+		else if (selectionColor.a >= 1.0f)
+		{
+			increasingSelection = false;
+		}
+
+		level.transferBuffers();
+
+		lastRightClick += delta;
+	}
+
+	private static void duplicateWrapper(WrapperTexture wrapper)
+	{
+		WrapperTexture duplicate = wrapper.duplicate(level);
+
+		duplicate.adjustX(10);
+		duplicate.adjustY(10);
+		duplicate.createBorders();
+
+		level.addWrapper(duplicate);
+
+		if (duplicate.isParticleWrapper())
+		{
+			level.addParticleEmitter(duplicate.getEmitter());
+
+			if (duplicate.getEmitter().hasMirror())
+			{
+				level.addParticleEmitter(duplicate.getEmitter().getMirroredEmitter());
+			}
+		}
+
+		if (!GameLauncher.getContainer().getInput().isKeyDown(Input.KEY_LCONTROL) && !GameLauncher.getContainer().getInput().isKeyDown(Input.KEY_LSHIFT))
+		{
+			deselectAll();
+		}
+
+		editWrapperPanel.init(duplicate);
+		selectedObjects.add(duplicate);
+		selectedWrappers.add(duplicate);
+	}
+
+	private static void rotateTile(Tile tile, float rotationChange)
+	{
+		boolean leftConnected = tile.getHitbox().isConnectedLeft();
+		boolean rightConnected = tile.getHitbox().isConnectedRight();
+
+		float newRotation = tile.getRotation() + rotationChange;
+
+		tile.setRotation(0.0f);
+
+		if (tile.hasMirror())
+		{
+			tile.getMirroredTile().setRotation(0.0f);
+		}
+
+		if (Math.abs(newRotation) > 90.0f && tile.isRotationLimited())
+		{
+			newRotation = tile.onRotationOverflow(newRotation);
+
+			if (tile.hasMirror())
+			{
+				tile.getMirroredTile().onRotationOverflow(newRotation);
+			}
+		}
+
+		tile.setRotation(newRotation);
+
+		if (tile.hasMirror())
+		{
+			tile.getMirroredTile().setRotation(newRotation);
+		}
+
+		tile.init();
+
+		if (leftConnected ^ tile.getHitbox().isConnectedLeft())
+		{
+			tile.getLeftConnectedTile().init();
+		}
+
+		if (rightConnected ^ tile.getHitbox().isConnectedRight())
+		{
+			tile.getRightConnectedTile().init();
+		}
+
+		tile.updateBorders();
+	}
+
+	private static boolean anyContains(int mouseX, int mouseY)
+	{
+		return !selecting && !(movingTime >= 500 && (movingTiles || movingWrappers || movingEntities)) && (importPanel.contains(mouseX, mouseY) || terrainSelection.contains(mouseX, mouseY) || controlPanel.contains(mouseX, mouseY) || entitySelection.contains(mouseX, mouseY) || editWrapperPanel.contains(mouseX, mouseY) || doorPanel.contains(mouseX, mouseY) || textPanel.contains(mouseX, mouseY) || platformPanel.contains(mouseX, mouseY) || beltPanel.contains(mouseX, mouseY) || cannonPanel.contains(mouseX, mouseY) || GameLauncher.getPerformancePanel().contains(mouseX, mouseY) || GameLauncher.getCakePanel().contains(mouseX, mouseY) || lightPanel.contains(mouseX, mouseY) || renamePanel.contains(mouseX, mouseY));
+	}
+
+	private static void onSelectTile(Tile tile, GameContainer container)
+	{
+		Input input = container.getInput();
+
+		if (tile.getHitbox().contains(input.getMouseX(), input.getMouseY()))
+		{
+			if (tile instanceof TileDoor)
+			{
+				doorPanel.init((TileDoor) tile);
+				doorPanel.setActive(true);
+			}
+			else if (tile instanceof TilePlatform)
+			{
+				platformPanel.init((TilePlatform) tile);
+				platformPanel.setActive(true);
+			}
+			else if (tile instanceof TileCannon)
+			{
+				cannonPanel.init((TileCannon) tile, container);
+				cannonPanel.setActive(true);
+			}
+			else if (tile instanceof TileLight)
+			{
+				lightPanel.init((TileLight) tile);
+				lightPanel.setActive(true);
+			}
+			else if (tile instanceof TileConveyorBelt)
+			{
+				beltPanel.init((TileConveyorBelt) tile, container);
+				beltPanel.setActive(true);
+			}
+			else if (tile instanceof TileText)
+			{
+				textPanel.init((TileText) tile);
+				textPanel.setActive(true);
+			}
+		}
+	}
+
+	public static void saveItAll()
+	{
+		TerrainFileHandler terrainFile = new TerrainFileHandler(new File(mapPath + "/terrain.map"));
+		EntityFileHandler entityFile = new EntityFileHandler(new File(mapPath + "/entities.map"));
+		terrainFile.write(tiles, level);
+
+		entityFile.write(entities);
+
+		WrapperTextureHandler wrapperFiles = new WrapperTextureHandler(new File(mapPath + "/wrappers.cfg"));
+		try
+		{
+			wrapperFiles.write(wrapperImages);
+		}
+		catch (IOException e)
+		{
+			throw new RuntimeException("Could not save wrapper information. Damnit. " + e);
+		}
+
+		YAMLConfiguration cfg = new YAMLConfiguration(new File(mapPath + "/config.yml"));
+
+		cfg.set("type", level.getType().ordinal() + "");
+
+		MenuDisplay.displaySavedMessage("Saved " + mapID + " ...");
+	}
+
+	private static void readConfig()
+	{
+		YAMLConfiguration cfg = new YAMLConfiguration(new File(mapPath + "/config.yml"));
+
+		mapName = cfg.get("name");
+
+		level.setLevelType(LevelType.values()[Integer.parseInt(cfg.get("type"))]);
+	}
+
+	public static void changeCurrentBlock(TileType tileType, int innerType)
+	{
+		tileType.getTileName();
+	}
+
+	public static void changeCurrentObject(String name)
+	{
+		Tile tile = Tile.createTile(TileType.getTileType(name), "", 0, 0, new Vector2f(), level, Dimension.LIGHT, TileType.getProperty(name), false);
+
+		if (tile != null)
+		{
+			currentTile = tile;
+			currentTile.setDimension(Dimension.LIGHT);
+		}
+		else
+		{
+			changeCurrentBlock(TileType.getTileType(name), 0);
+		}
+	}
+
+	public static void deselectAll()
+	{
+		selectedEntities.clear();
+		selectedWrappers.clear();
+		selectedTiles.clear();
+		selectedObjects.clear();
+		editWrapperPanel.init(null);
+		platformPanel.setActive(false);
+		lightPanel.setActive(false);
+		renamePanel.setActive(false);
+		cannonPanel.setActive(false);
+		doorPanel.setActive(false);
+		textPanel.setActive(false);
+		beltPanel.setActive(false);
+	}
+
+	public static void setEntityName(String entityName)
+	{
+		MapEditor.currentEntityType = entityName;
+	}
+
+	private static Tile getTileAtXY(float x, float y)
+	{
+		for (int i = tiles.size() - 1; i >= 0; i--)
+		{
+			Tile tile = tiles.get(i);
+
+			if (tile.getDimension() == Dimension.LIGHT && tile.getHitbox().contains(x, y))
+			{
+				return tile;
+			}
+		}
+
+		return null;
+	}
+
+	private static Entity getEntityAtXY(float x, float y)
+	{
+		for (Entity entity : entities)
+		{
+			if (entity.getDimension() == Dimension.LIGHT && entity.getHitbox().contains(x, y))
+			{
+				return entity;
+			}
+		}
+
+		return null;
+	}
+
+	public static void adjustCameraOffset(GameContainer container, float x, float y)
+	{
+		boolean lockSelected = false;
+
+		if (container != null)
+		{
+			for (ICopyable<?> object : selectedObjects)
+			{
+				if (object.getHitbox().contains(container.getInput().getMouseX(), container.getInput().getMouseY()) && (movingTiles || movingEntities || movingWrappers))
+				{
+					lockSelected = true;
+
+					break;
+				}
+			}
+		}
+
+		for (Entity entity : entities)
+		{
+			if (!(lockSelected && (selectedEntities.contains(entity) || selectedEntities.contains(entity.getMirroredEntity()))))
+			{
+				entity.setX(entity.getX() + x);
+				entity.setY(entity.getY() + y);
+			}
+		}
+
+		boolean changedCannon = false;
+
+		for (Tile tile : tiles)
+		{
+			if (!(lockSelected && (selectedTiles.contains(tile) || selectedTiles.contains(tile.getMirroredTile()))))
+			{
+				tile.setX(tile.getX() + x);
+				tile.setY(tile.getY() + y);
+			}
+			else
+			{
+				if (tile == cannonPanel.getCannon())
+				{
+					changedCannon = true;
+				}
+			}
+		}
+
+		if (changedCannon)
+		{
+			cannonPanel.updateLine();
+		}
+
+		for (Tile tile : selectedTiles)
+		{
+			tile.updateBorders();
+		}
+
+		level.updateWrapperPositions(x, y);
+
+		for (WrapperTexture wrapper : selectedWrappers)
+		{
+			if (lockSelected)
+			{
+				wrapper.adjustX(-x * wrapper.getEmitterParallax());
+				wrapper.adjustY(-y * wrapper.getEmitterParallax());
+
+				if (wrapper.isParticleWrapper())
+				{
+					wrapper.getEmitter().moveParticles(-x * wrapper.getEmitterParallax(), -y * wrapper.getEmitterParallax());
+
+					if (wrapper.getEmitter().hasMirror())
+					{
+						wrapper.getEmitter().getMirroredEmitter().moveParticles(-x * wrapper.getEmitterParallax(), -y * wrapper.getEmitterParallax());
+					}
+				}
+			}
+
+			if (wrapper.hasBorders())
+			{
+				wrapper.updateBorders();
+			}
+		}
+
+		level.getCameraOffset().x += x;
+		level.getCameraOffset().y += y;
+	}
+
+	public static void clearTerrainSelection()
+	{
+		terrainSelection.clearSelection();
+	}
+
+	public static void clearEntitySelection()
+	{
+		entitySelection.clearSelection();
+	}
+
+	public static void pause()
+	{
+		paused = true;
+	}
+
+	public static void resume()
+	{
+		paused = false;
+		GameLauncher.clearRecords();
+	}
+
+	private enum Visibility
+	{
+		ALL, FOREGROUND, BACKGROUND, COLLISION, PARTICLES;
+	}
+
+	public static boolean isPaused()
+	{
+		return paused;
+	}
+
+	public static void setClickCooldown(int clickCooldown)
+	{
+		MapEditor.clickCooldown = clickCooldown;
+	}
+
+	public static Level getLevel()
+	{
+		return level;
+	}
+
+	public static void clearHoveredObjects()
+	{
+		hoveredObjects.clear();
+	}
+
+	public static Set<WrapperTexture> getSelectedWrappers()
+	{
+		return selectedWrappers;
+	}
+
+	public static Set<ICopyable<?>> getHoveredObjects()
+	{
+		return hoveredObjects;
+	}
+
+	public static boolean isLockingInput()
+	{
+		return renamePanel != null && renamePanel.isActive() || textPanel != null && textPanel.isActive();
+	}
+}

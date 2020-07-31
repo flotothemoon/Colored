@@ -1,0 +1,64 @@
+ -- General -- 
+Generated on: 2016-05-11_21-00-33
+Build: 725 from 09:03 PM - 10/05/16
+GameState: LOADING (previous: null)
+Target FPS: 60
+Actual FPS: 28
+
+ -- Display -- 
+Target Width / Height: 1920 / 1080
+Actual Width / Height: 1920 / 1017 (windowed)
+
+ -- Environment -- 
+GPU: GeForce GTX 980 Ti/PCIe/SSE2 (NVIDIA Corporation)
+OpenGL Version: 4.5.0 NVIDIA 361.43
+Allocated Memory: 15MB
+Used Memory: 7MB
+"os.name": Windows 10
+"os.version": 10.0
+"os.arch": x86
+"java.version": 1.8.0_66
+"java.vendor": Oracle Corporation
+"sun.arch.data.model": 32
+
+ -- Stack Trace -- 
+java.lang.RuntimeException: Error while loading: java.lang.NullPointerException
+com.unlogical.colored.util.LoadingHandler.loadNext(LoadingHandler.java:117)
+com.unlogical.colored.GameLauncher.render(GameLauncher.java:531)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication.mainLoop(LwjglApplication.java:218)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication$1.run(LwjglApplication.java:123)
+Caused by: java.lang.NullPointerException
+com.unlogical.colored.gui.menu.SelectionMenu$SelectionMenuAddItem.init(SelectionMenu.java:1029)
+com.unlogical.colored.gui.menu.SelectionMenu.initItems(SelectionMenu.java:164)
+com.unlogical.colored.gui.menu.SelectionMenu.<init>(SelectionMenu.java:80)
+com.unlogical.colored.gui.menu.MapSelection.<init>(MapSelection.java:16)
+com.unlogical.colored.gui.menu.MapEditorMenu.<init>(MapEditorMenu.java:15)
+com.unlogical.colored.gui.menu.MenuHandler.init(MenuHandler.java:69)
+com.unlogical.colored.util.LoadingHandler.loadNext(LoadingHandler.java:98)
+com.unlogical.colored.GameLauncher.render(GameLauncher.java:531)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication.mainLoop(LwjglApplication.java:218)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication$1.run(LwjglApplication.java:123)
+
+ -- Last 20 Log Entries -- 
+@Log: Requesting available map files... (8)
+@Log: 47 found. (8)
+@Log: Loading resources... (1 / 3) (8)
+@Log: Loading resources... (2 / 3) (8)
+@Log: Loading resources... (3 / 3) (8)
+@Log: Initializing shaders... (8)
+@Log: Loading save states... (8)
+@Log: SaveState 1.dat found and read successfully. (8)
+@Log: SaveState 2.dat found and read successfully. (8)
+@Log: Active save state selected, last accessed on Wed May 11 20:54:12 CEST 2016 (8)
+@Log: Initializing animation handler... (8)
+@Log: Fetching maps... (8)
+@Log: Found world hub for world 20 at 20-05. (8)
+@Log: Found world hub for world 21 at 21-08. (8)
+@Log: Found world hub for world 22 at 22-08. (8)
+@Log: Found world hub for world 23 at 23-09. (8)
+@Log: Found world hub for world 24 at 24-10. (8)
+@Log: Initializing map editor... (8)
+@Log: Initialising levelrenderer... (8)
+@Log: Initializing menus... (8)
+
+ -- Last 0 Input Events -- 

@@ -1,0 +1,62 @@
+package com.unlogical.colored.saving;
+
+import java.util.Date;
+
+import com.unlogical.colored.level.Level;
+
+public class Checkpoint
+{
+	private Level level;
+	private Date timestamp;
+	
+	private Checkpoint(Level level, long timestamp)
+	{
+		this.level = level;
+		this.timestamp = new Date(timestamp);
+	}
+	
+	@Override
+	public boolean equals(Object obj)
+	{
+		if (!(obj instanceof Checkpoint))
+		{
+			return false;
+		}
+		
+		return this.timestamp.getTime() == ((Checkpoint) obj).timestamp.getTime();
+	}
+	
+	public Checkpoint copy()
+	{
+		return new Checkpoint(copyLevel(this.level), timestamp.getTime());
+	}
+	
+	public static Checkpoint storeLevel(Level level)
+	{
+		return new Checkpoint(copyLevel(level), System.currentTimeMillis());		
+	}
+	
+	private static Level copyLevel(Level level)
+	{
+		Level newLevel = new Level();
+		
+		Level.deepCopy(level, newLevel);
+		
+		return newLevel;
+	}
+	
+	public Date getTimestamp()
+	{
+		return timestamp;
+	}
+	
+	public long getTimestampLong()
+	{
+		return timestamp.getTime();
+	}
+	
+	public Level getLevel()
+	{
+		return level;
+	}
+}

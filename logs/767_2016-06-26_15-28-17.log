@@ -1,0 +1,61 @@
+ -- General -- 
+Generated on: 2016-06-26_15-28-17
+Build: 767 from 11:54 AM - 26/06/16
+GameState: LOADING (previous: null)
+Target FPS: 60
+Actual FPS: 0
+
+ -- Display -- 
+Target Width / Height: 1920 / 1080
+Actual Width / Height: 1920 / 1053 (windowed)
+
+ -- Environment -- 
+GPU: GeForce GTX 980 Ti/PCIe/SSE2 (NVIDIA Corporation)
+OpenGL Version: 4.5.0 NVIDIA 361.43
+Allocated Memory: 123MB
+Used Memory: 25MB
+"os.name": Windows 10
+"os.version": 10.0
+"os.arch": x86
+"java.version": 1.8.0_66
+"java.vendor": Oracle Corporation
+"sun.arch.data.model": 32
+
+ -- Stack Trace -- 
+java.lang.RuntimeException: Error while loading: java.lang.RuntimeException: Unable to get main image for type "CAMERABLOCK": java.lang.NullPointerException
+com.unlogical.colored.util.LoadingHandler.loadNext(LoadingHandler.java:113)
+com.unlogical.colored.GameLauncher.render(GameLauncher.java:548)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication.mainLoop(LwjglApplication.java:218)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication$1.run(LwjglApplication.java:123)
+Caused by: java.lang.RuntimeException: Unable to get main image for type "CAMERABLOCK": java.lang.NullPointerException
+com.unlogical.colored.terrain.TerrainObject.getMainImage(TerrainObject.java:162)
+com.unlogical.colored.mapeditor.MapEditor.initGUI(MapEditor.java:767)
+com.unlogical.colored.mapeditor.MapEditor.init(MapEditor.java:733)
+com.unlogical.colored.util.LoadingHandler.loadNext(LoadingHandler.java:86)
+com.unlogical.colored.GameLauncher.render(GameLauncher.java:548)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication.mainLoop(LwjglApplication.java:218)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication$1.run(LwjglApplication.java:123)
+
+ -- Last 20 Log Entries -- 
+@Log    : Loading sounds... (tid: 12)
+@Warning: No sounds found for BALLHITWALL. (tid: 12)
+@Warning: No sounds found for CANNONSHOOTBALL. (tid: 12)
+@Warning: No sounds found for CANNONSHOOTCLOUD. (tid: 12)
+@Warning: No sounds found for CANNONSHOOTCREATURE. (tid: 12)
+@Log    : Loaded 13 sounds, took 354ms. (tid: 12)
+@Log    : Fetching chapters / worlds... (tid: 12)
+@Log    : Requesting available map files... (tid: 12)
+@Log    : 0 found. (tid: 12)
+@Log    : Loading resources, entity textures... (1 / 3) (tid: 12)
+@Log    : Loading resources, terrain textures... (2 / 3) (tid: 12)
+@Log    : Loading resources, misc... (3 / 3) (tid: 12)
+@Log    : Initializing shaders... (tid: 12)
+@Log    : Loading save states... (tid: 12)
+@Log    : SaveState 1.dat found and read successfully. (tid: 12)
+@Log    : SaveState 2.dat found and read successfully. (tid: 12)
+@Log    : Active save state selected, last accessed on Sun Jun 26 15:00:56 CEST 2016 (tid: 12)
+@Log    : Initializing animation handler... (tid: 12)
+@Log    : Fetching maps... (tid: 12)
+@Log    : Initializing map editor... (tid: 12)
+
+ -- Last 0 Input Events -- 

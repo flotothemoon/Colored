@@ -1,0 +1,615 @@
+package com.unlogical.colored.gui.panel;
+
+import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.g2d.Batch;
+import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
+import com.unlogical.colored.gui.GUICheckbox;
+import com.unlogical.colored.gui.InputChangeListener;
+import com.unlogical.colored.gui.Slider;
+import com.unlogical.colored.gui.UserInputLine;
+import com.unlogical.colored.gui.button.Button;
+import com.unlogical.colored.gui.colorpicker.ColorPicker;
+import com.unlogical.colored.gui.colorpicker.ColorPickerListener;
+import com.unlogical.colored.mapeditor.MapEditor;
+import com.unlogical.colored.resources.font.Fonts;
+import com.unlogical.colored.util.Renderer;
+import com.unlogical.colored.util.ShaderHandler;
+import com.unlogical.colored.wrapper.WrapperTexture;
+
+public class EditWrapperPanel extends GUIPanel
+{
+	private WrapperTexture wrapper;
+
+	private UserInputLine simpleName;
+
+	private GUICheckbox drawSubImages;
+	private GUICheckbox shouldClip;
+	private GUICheckbox shouldStretch;
+	private GUICheckbox background;
+
+	private UserInputLine depth;
+	private UserInputLine parallax;
+
+	private UserInputLine rotation;
+
+	private UserInputLine scale;
+
+	private UserInputLine timePerImage;
+
+	private GUICheckbox flippedVertically;
+	private GUICheckbox flippedHorizontally;
+
+	private Button tintColorButton;
+	private Button addTintColorButton;
+	private Button resetButton;
+
+	private ColorPicker colorPicker;
+	private Slider<Float> alphaSlider;
+	private ColorPicker addColorPicker;
+
+	public EditWrapperPanel(float xOffset, float yOffset, float width, float height)
+	{
+		super("", xOffset, yOffset, width, height);
+
+		this.fillColor = new Color(MapEditor.panelColor);
+
+		int lineHeight = 25;
+		int inputWidth = (int) (width / 2) + 15;
+		int currentOffset = 40;
+		int inputX = (int) (xOffset + width / 2) - 20;
+
+		simpleName = new UserInputLine(inputX, currentOffset, inputWidth, lineHeight);
+		simpleName.addInputChangedListener(new InputChangeListener()
+		{
+			@Override
+			public void onInputChanged()
+			{
+				if (!simpleName.getInput().isEmpty())
+				{
+					wrapper.setSimpleName(simpleName.getInput());
+				}
+			}
+		});
+
+		currentOffset += simpleName.getHeight() + 10;
+
+		drawSubImages = new GUICheckbox(true, inputX + inputWidth / 2 - lineHeight / 2, currentOffset, lineHeight, lineHeight)
+		{
+			@Override
+			public void onUnchecked()
+			{
+				wrapper.setDrawSubImages(false);
+			}
+
+			@Override
+			public void onChecked()
+			{
+				wrapper.setDrawSubImages(true);
+			}
+		};
+
+		currentOffset += drawSubImages.getHeight() + 10;
+
+		background = new GUICheckbox(false, inputX + inputWidth / 2 - lineHeight / 2, currentOffset, lineHeight, lineHeight)
+		{
+			@Override
+			public void onUnchecked()
+			{
+				wrapper.setInBackground(false);
+			}
+
+			@Override
+			public void onChecked()
+			{
+				wrapper.setInBackground(true);
+			}
+		};
+
+		currentOffset += background.getHeight() + 10;
+
+		shouldClip = new GUICheckbox(false, inputX + inputWidth / 2 - lineHeight / 2, currentOffset, lineHeight, lineHeight)
+		{
+			@Override
+			public void onUnchecked()
+			{
+				wrapper.setShouldClip(false);
+			}
+
+			@Override
+			public void onChecked()
+			{
+				wrapper.updateBorders();
+				wrapper.setShouldClip(true);
+			}
+		};
+
+		currentOffset += shouldClip.getHeight() + 10;
+
+		shouldStretch = new GUICheckbox(false, inputX + inputWidth / 2 - lineHeight / 2, currentOffset, lineHeight, lineHeight)
+		{
+			@Override
+			public void onUnchecked()
+			{
+				wrapper.setStretchMode(false);
+				wrapper.updateImages();
+			}
+
+			@Override
+			public void onChecked()
+			{
+				wrapper.setStretchMode(true);
+				wrapper.updateImages();
+				
+				float beforeX = wrapper.getHitbox().getCenterX();
+				float beforeY = wrapper.getHitbox().getCenterY();
+				
+				wrapper.setWidth((int) (wrapper.getImage().getRegionWidth() * wrapper.getScale()));
+				wrapper.setHeight((int) (wrapper.getImage().getRegionHeight() * wrapper.getScale()));
+				
+				wrapper.setPosition(beforeX - wrapper.getWidth() / 2.0f, beforeY - wrapper.getHeight() / 2.0f);
+				
+				wrapper.updateBorders();
+			}
+		};
+
+		currentOffset += shouldStretch.getHeight() + 10;
+		
+		depth = new UserInputLine(inputX, currentOffset, inputWidth, lineHeight);
+		depth.setOnlyNumeric(true);
+		depth.setMaxChars(7);
+		depth.addInputChangedListener(new InputChangeListener()
+		{
+			@Override
+			public void onInputChanged()
+			{
+				if (!depth.getInput().isEmpty())
+				{
+					wrapper.setDepth(Integer.parseInt(depth.getInput()));
+					wrapper.getLevel().sortWrappers();
+				}
+			}
+		});
+
+		currentOffset += depth.getHeight() + 10;
+
+		parallax = new UserInputLine(inputX, currentOffset, inputWidth, lineHeight);
+		parallax.setMaxChars(5);
+		parallax.addInputChangedListener(new InputChangeListener()
+		{
+			@Override
+			public void onInputChanged()
+			{
+				try
+				{
+					wrapper.setParallax(Float.parseFloat(parallax.getInput()));
+				}
+				catch (Exception e)
+				{
+				}
+			}
+		});
+
+		currentOffset += depth.getHeight() + 10;
+
+		rotation = new UserInputLine(inputX, currentOffset, inputWidth, lineHeight);
+		rotation.setOnlyNumeric(true);
+		rotation.setMaxChars(3);
+		rotation.addInputChangedListener(new InputChangeListener()
+		{
+			@Override
+			public void onInputChanged()
+			{
+				if (!rotation.getInput().isEmpty())
+				{
+					wrapper.setRotation(Integer.parseInt(rotation.getInput()));
+				}
+			}
+		});
+		rotation.setAllowUserInput(true);
+
+		currentOffset += rotation.getHeight() + 10;
+
+		scale = new UserInputLine(inputX, currentOffset, inputWidth, lineHeight);
+		scale.addInputChangedListener(new InputChangeListener()
+		{
+			@Override
+			public void onInputChanged()
+			{
+				try
+				{
+					wrapper.setScale(Float.parseFloat(scale.getInput()));
+				}
+				catch (Exception e)
+				{
+				}
+			}
+		});
+
+		currentOffset += scale.getHeight() + 10;
+
+		flippedHorizontally = new GUICheckbox(false, inputX + inputWidth / 2 - lineHeight / 2, currentOffset, lineHeight, lineHeight)
+		{
+			@Override
+			public void onUnchecked()
+			{
+				wrapper.setFlippedHorizontally(false);
+			}
+
+			@Override
+			public void onChecked()
+			{
+				wrapper.setFlippedHorizontally(true);
+			}
+		};
+
+		currentOffset += flippedHorizontally.getHeight() + 10;
+
+		flippedVertically = new GUICheckbox(false, inputX + inputWidth / 2 - lineHeight / 2, currentOffset, lineHeight, lineHeight)
+		{
+			@Override
+			public void onUnchecked()
+			{
+				wrapper.setFlippedVertically(false);
+			}
+
+			@Override
+			public void onChecked()
+			{
+				wrapper.setFlippedVertically(true);
+			}
+		};
+
+		currentOffset += flippedVertically.getHeight() + 10;
+
+		timePerImage = new UserInputLine(inputX, currentOffset, inputWidth, lineHeight);
+		timePerImage.setOnlyNumeric(true);
+		timePerImage.setMaxChars(5);
+		timePerImage.addInputChangedListener(new InputChangeListener()
+		{
+			@Override
+			public void onInputChanged()
+			{
+				if (!timePerImage.getInput().isEmpty())
+				{
+					wrapper.setTimePerImage(Integer.parseInt(timePerImage.getInput()));
+				}
+			}
+		});
+
+		currentOffset += timePerImage.getHeight() + 10;
+
+		tintColorButton = new Button("", inputX, currentOffset, inputWidth, lineHeight)
+		{
+			@Override
+			public void onClick()
+			{
+				colorPicker.init(wrapper.getStartEmitterTint());
+				colorPicker.enable();
+			}
+		};
+
+		currentOffset += tintColorButton.getHeight() + 10;
+
+		addTintColorButton = new Button("", inputX, currentOffset, inputWidth, lineHeight)
+		{
+			@Override
+			public void onClick()
+			{
+				addColorPicker.init(wrapper.getAddTint());
+				addColorPicker.enable();
+			}
+		};
+
+		currentOffset += addTintColorButton.getHeight() + 10;
+		
+		alphaSlider = new Slider<Float>(inputX, currentOffset, inputWidth, lineHeight, 0.0f, false, null)
+		{
+			@Override
+			protected void onFactorChanged(float selectedRange, Float reference)
+			{
+				wrapper.getStartEmitterTint().a = selectedRange;
+			}
+		};
+		alphaSlider.setActive(true);
+
+		currentOffset += alphaSlider.getHeight() + 10;
+
+		resetButton = new Button("Reset", (int) (xOffset), currentOffset, (int) (width), lineHeight)
+		{
+			@Override
+			public void onClick()
+			{
+				wrapper.hardReset();
+
+				colorPicker.init(wrapper.getStartEmitterTint());
+				addColorPicker.init(wrapper.getAddTint());
+				drawSubImages.setChecked(wrapper.isDrawSubImages());
+				background.setChecked(wrapper.isInBackground());
+				shouldClip.setChecked(false);
+				shouldStretch.setChecked(false);
+				depth.setInput(wrapper.getDepth() + "");
+				parallax.setInput(wrapper.getEmitterParallax() + "");
+				rotation.setInput((int) (wrapper.getRotation()) + "");
+				scale.setInput(wrapper.getScale() + "");
+
+				if (wrapper.isParticleWrapper())
+				{
+					wrapper.getEmitter().initMirror();
+
+					wrapper.getLevel().getParticleSystem().simulateEmitter(wrapper.getEmitter(), 50000, 100);
+
+					if (wrapper.getEmitter().hasMirror())
+					{
+						wrapper.getLevel().getParticleSystem().simulateEmitter(wrapper.getEmitter().getMirroredEmitter(), 50000, 100);
+					}
+				}
+			}
+		};
+
+		currentOffset += resetButton.getHeight();
+
+		colorPicker = new ColorPicker("Mutilply Tint Color", 1920 / 2 - 200, 1080 / 2 - 200, 0, 0);
+		colorPicker.addColorPickerListener(new ColorPickerListener()
+		{
+			@Override
+			public void colorChanged(Color newColor)
+			{
+				wrapper.setMainTint(newColor);
+			}
+		});
+
+		addColorPicker = new ColorPicker("Add Tint Color", 1920 / 2 - 200, 1080 / 2 - 200, 0, 0);
+		addColorPicker.addColorPickerListener(new ColorPickerListener()
+		{
+			@Override
+			public void colorChanged(Color newColor)
+			{
+				wrapper.setAddTint(newColor);
+			}
+		});
+
+		
+		this.setHeight(currentOffset);
+	}
+
+	public void init(WrapperTexture wrapper)
+	{
+		this.wrapper = wrapper;
+
+		if (wrapper != null)
+		{
+			String title;
+
+			if (wrapper.isParticleWrapper())
+			{
+				title = "Particle Emitter";
+			}
+			else
+			{
+				if (wrapper.isAnimated())
+				{
+					title = "Animated Wrapper";
+				}
+				else
+				{
+					title = "Static Wrapper";
+				}
+			}
+
+			this.title = title;
+
+			simpleName.setInput(wrapper.getSimpleName().substring(wrapper.getSimpleName().lastIndexOf('/') + 1));
+			drawSubImages.setChecked(wrapper.isDrawSubImages());
+			background.setChecked(wrapper.isInBackground());
+			shouldClip.setChecked(wrapper.isShouldClip());
+			shouldStretch.setChecked(wrapper.isStretchMode());
+			flippedHorizontally.setChecked(wrapper.isFlippedHorizontally());
+			flippedVertically.setChecked(wrapper.isFlippedVertically());
+			depth.setInput(wrapper.getDepth() + "");
+			parallax.setInput(wrapper.getEmitterParallax() + "");
+			rotation.setInput((int) (wrapper.getRotation()) + "");
+			scale.setInput(wrapper.getScale() + "");
+			timePerImage.setInput(wrapper.getTimePerImage() + "");
+
+			Color colorValue = new Color(wrapper.getStartEmitterTint());
+			colorValue.a = 1.0f;
+			
+			tintColorButton.setFillColor(colorValue);
+			tintColorButton.setHoverColor(colorValue);
+
+			colorPicker.disable();
+			colorPicker.init(wrapper.getStartEmitterTint());
+			
+			addTintColorButton.setFillColor(wrapper.getAddTint());
+			addTintColorButton.setHoverColor(wrapper.getAddTint());
+
+			addColorPicker.disable();
+			addColorPicker.init(wrapper.getAddTint());
+			
+			alphaSlider.setSelectedRange(wrapper.getStartEmitterTint().a);
+
+			timePerImage.setActive(true);
+			simpleName.setActive(true);
+			drawSubImages.setActive(true);
+			background.setActive(true);
+			shouldClip.setActive(true);
+			shouldStretch.setActive(true);
+			depth.setActive(true);
+			parallax.setActive(true);
+			rotation.setActive(true);
+			scale.setActive(true);
+
+			timePerImage.setAllowUserInput(!wrapper.isParticleWrapper());
+			scale.setAllowUserInput(!wrapper.isParticleWrapper());
+			timePerImage.setAllowUserInput(!wrapper.isParticleWrapper() && wrapper.isAnimated());
+
+			setActive(true);
+		}
+		else
+		{
+			setActive(false);
+		}
+	}
+
+	@Override
+	protected void customUpdate(int delta)
+	{
+		simpleName.update(delta);
+
+		drawSubImages.update(delta);
+		background.update(delta);
+		shouldClip.update(delta);
+		shouldStretch.update(delta);
+
+		rotation.update(delta);
+		scale.update(delta);
+
+		flippedHorizontally.update(delta);
+		flippedVertically.update(delta);
+
+		timePerImage.update(delta);
+
+		tintColorButton.update(delta);
+		addTintColorButton.update(delta);
+		
+		colorPicker.update(delta);
+		addColorPicker.update(delta);
+		alphaSlider.update(delta);
+
+		depth.update(delta);
+		parallax.update(delta);
+
+		resetButton.update(delta);
+
+		Color colorValue = new Color(wrapper.getStartEmitterTint());
+		colorValue.a = 1.0f;
+		
+		tintColorButton.setFillColor(colorValue);
+		tintColorButton.setHoverColor(colorValue);
+		addTintColorButton.setFillColor(wrapper.getAddTint());
+		addTintColorButton.setHoverColor(wrapper.getAddTint());
+	}
+
+	@Override
+	protected void customRender(float alphaFactor, Batch batch)
+	{
+		simpleName.render(alphaFactor, batch);
+
+		drawSubImages.render(alphaFactor, batch);
+		background.render(alphaFactor, batch);
+		shouldClip.render(alphaFactor, batch);
+		shouldStretch.render(alphaFactor, batch);
+
+		rotation.render(alphaFactor, batch);
+		scale.render(alphaFactor, batch);
+
+		flippedHorizontally.render(alphaFactor, batch);
+		flippedVertically.render(alphaFactor, batch);
+
+		timePerImage.render(alphaFactor, batch);
+
+		colorPicker.render(alphaFactor, batch);
+		addColorPicker.render(alphaFactor, batch);
+
+		tintColorButton.render(1.0f, batch);
+		addTintColorButton.render(1.0f, batch);
+		alphaSlider.render(batch);
+
+		resetButton.render(alphaFactor, batch);
+
+		depth.render(alphaFactor, batch);
+		parallax.render(alphaFactor, batch);
+
+		ShaderHandler.disableLighting();
+		
+		Renderer.setFont(Fonts.getSmallFont());
+
+		Renderer.drawString("Name", xOffset + 5, simpleName.getCenterY() - Renderer.getLineHeight() / 2, batch);
+		Renderer.drawString("DrawSubImages", xOffset + 5, drawSubImages.getCenterY() - Renderer.getLineHeight() / 2, batch);
+		Renderer.drawString("ShouldClip", xOffset + 5, shouldClip.getCenterY() - Renderer.getLineHeight() / 2, batch);
+		Renderer.drawString("ShouldStretch", xOffset + 5, shouldStretch.getCenterY() - Renderer.getLineHeight() / 2, batch);
+		Renderer.drawString("Background", xOffset + 5, background.getCenterY() - Renderer.getLineHeight() / 2, batch);
+		Renderer.drawString("Depth", xOffset + 5, depth.getCenterY() - Renderer.getLineHeight() / 2, batch);
+		Renderer.drawString("Image Time", xOffset + 5, timePerImage.getCenterY() - Renderer.getLineHeight() / 2, batch);
+		Renderer.drawString("Parallax", xOffset + 5, parallax.getCenterY() - Renderer.getLineHeight() / 2, batch);
+		Renderer.drawString("Rotation", xOffset + 5, rotation.getCenterY() - Renderer.getLineHeight() / 2, batch);
+		Renderer.drawString("Scale", xOffset + 5, scale.getCenterY() - Renderer.getLineHeight() / 2, batch);
+		Renderer.drawString("Flip Horizontal", xOffset + 5, flippedHorizontally.getCenterY() - Renderer.getLineHeight() / 2, batch);
+		Renderer.drawString("Flip Vertical", xOffset + 5, flippedVertically.getCenterY() - Renderer.getLineHeight() / 2, batch);
+		Renderer.drawString("Mutilply Tint", xOffset + 5, tintColorButton.getCenterY() - Renderer.getLineHeight() / 2, batch);
+		Renderer.drawString("Transparency", xOffset + 5, alphaSlider.getCenterY() - Renderer.getLineHeight() / 2, batch);
+		Renderer.drawString("Add Tint", xOffset + 5, addTintColorButton.getCenterY() - Renderer.getLineHeight() / 2, batch);
+
+		ShapeRenderer sr = Renderer.useShapeRenderer();
+		
+		sr.setColor(Color.BLACK);
+		sr.rect(tintColorButton.getButtonBox().x, tintColorButton.getButtonBox().y, tintColorButton.getButtonBox().width, tintColorButton.getButtonBox().height);
+		
+		sr.setColor(Color.BLACK);
+		sr.rect(addTintColorButton.getButtonBox().x, addTintColorButton.getButtonBox().y, addTintColorButton.getButtonBox().width, addTintColorButton.getButtonBox().height);
+
+		ShaderHandler.enableLighting();
+	}
+
+	@Override
+	public void onPositionUpdate(int xChange, int yChange)
+	{
+		simpleName.adjust(xChange, yChange);
+
+		drawSubImages.adjust(xChange, yChange);
+		background.adjust(xChange, yChange);
+		shouldClip.adjust(xChange, yChange);
+		shouldStretch.adjust(xChange, yChange);
+
+		rotation.adjust(xChange, yChange);
+		scale.adjust(xChange, yChange);
+
+		timePerImage.adjust(xChange, yChange);
+
+		flippedHorizontally.adjust(xChange, yChange);
+		flippedVertically.adjust(xChange, yChange);
+
+		tintColorButton.adjust(xChange, yChange);
+		addTintColorButton.adjust(xChange, yChange);
+		alphaSlider.adjust(xChange, yChange);
+
+		depth.adjust(xChange, yChange);
+		parallax.adjust(xChange, yChange);
+
+		resetButton.adjust(xChange, yChange);
+	}
+
+	@Override
+	protected void onClose()
+	{
+		super.onClose();
+
+		wrapper = null;
+	}
+
+	@Override
+	protected boolean subContains(float mouseX, float mouseY)
+	{
+		return colorPicker.contains(mouseX, mouseY) || addColorPicker.contains(mouseX, mouseY);
+	}
+
+	public UserInputLine getRotation()
+	{
+		return rotation;
+	}
+
+	public UserInputLine getScale()
+	{
+		return scale;
+	}
+
+	public WrapperTexture getWrapper()
+	{
+		return wrapper;
+	}
+
+	public boolean shouldLockInput()
+	{
+		return colorPicker.shouldLockInput() || addColorPicker.shouldLockInput();
+	}
+}

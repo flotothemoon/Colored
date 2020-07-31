@@ -1,0 +1,315 @@
+package com.unlogical.colored.story;
+
+import java.io.File;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Random;
+
+import org.newdawn.slick.GameContainer;
+import org.newdawn.slick.Graphics;
+
+import com.unlogical.colored.entity.EntityLiving;
+import com.unlogical.colored.entity.key.EntityKey;
+import com.unlogical.colored.entity.player.EntityPlayer;
+import com.unlogical.colored.filesystem.files.YAMLConfiguration;
+import com.unlogical.colored.level.Level;
+import com.unlogical.colored.level.LevelType;
+import com.unlogical.colored.saving.SaveHandler;
+import com.unlogical.colored.terrain.tile.TileDoor;
+import com.unlogical.colored.terrain.tile.cage.TileCage;
+import com.unlogical.colored.terrain.tile.logical.TileLever;
+import com.unlogical.colored.util.IDeepCopyable;
+import com.unlogical.colored.util.Transitions;
+
+public class StoryHandler implements IDeepCopyable<StoryHandler>
+{
+	private static int totalCages;
+	private static Map<String, Integer> totalCagesPerWorld = new HashMap<String, Integer>();
+	private static Map<String, Integer> totalCagesPerLevel = new HashMap<String, Integer>();
+
+	private static int timeSinceLastShatter;
+	private static int randomCheckCooldown;
+	private static Random rng = new Random();
+
+	private Level level;
+	private CustomStoryHandler customStoryHandler;
+
+	private boolean shattering;
+	private float shatterIntensity;
+	private int totalShatterLength;
+	private int shatterLength;
+	
+	public static void init()
+	{
+		totalCages = 0;
+		totalCagesPerWorld.clear();
+		totalCagesPerLevel.clear();
+
+		for (String levelID : Level.getLevelMap().keySet())
+		{
+			if (levelID.contains("-"))
+			{
+				String worldID = levelID.substring(0, levelID.indexOf("-"));
+				YAMLConfiguration cfg = new YAMLConfiguration(new File(Level.getMapPathByID(levelID) + "/config.yml"));
+
+				int cages = Integer.parseInt(cfg.get("totalcages"));
+
+				totalCagesPerLevel.put(levelID, cages);
+				totalCagesPerWorld.put(worldID, (totalCagesPerWorld.containsKey(worldID) ? totalCagesPerWorld.get(worldID) : 0) + cages);
+				totalCages += cages;
+			}
+		}
+	}
+
+	public StoryHandler(Level level)
+	{
+		this.level = level;
+		this.customStoryHandler = CustomStoryHandler.getHandlerFor(level);
+	}
+	
+	private StoryHandler()
+	{
+	}
+
+	@Override
+	public StoryHandler deepCopy(Map<Object, Object> copiedReferences)
+	{
+		StoryHandler copy = new StoryHandler();
+
+		copy.shattering = this.shattering;
+		copy.shatterIntensity = this.shatterIntensity;
+		copy.shatterLength = this.shatterLength;
+		copy.level = (Level) Level.getCopy(this.level, copiedReferences);
+		copy.customStoryHandler = (CustomStoryHandler) Level.getCopy(this.customStoryHandler, copiedReferences);
+
+		return copy;
+	}
+
+	@Override
+	public boolean shouldCopy()
+	{
+		return true;
+	}
+
+	public void update(GameContainer container, int delta)
+	{
+		String currentWorld = level.getWorldID();
+		String currentLevel = level.getID();
+
+		if (!currentLevel.contains("-"))
+		{
+			return;
+		}
+		
+		randomCheckCooldown -= delta;
+
+		if (shattering)
+		{
+			shatterLength -= delta;
+
+			if (shatterLength < 0)
+			{
+				shatterLength = 0;
+				shattering = false;
+			}
+
+			float multiplier = Transitions.getFactor(((float) shatterLength) / ((float) totalShatterLength));
+			float xOffset = (float) Math.sin(shatterLength) * rng.nextInt((int) (20 * shatterIntensity + 1)) * multiplier;
+			float yOffset = (float) Math.sin(shatterLength) * rng.nextInt((int) (20 * shatterIntensity + 1)) * multiplier;
+
+			level.setXOffset(level.getBackgroundDimension(), xOffset);
+			level.setYOffset(level.getBackgroundDimension(), yOffset);
+
+			if (shatterIntensity > 10.0f)
+			{
+				level.setXOffset(level.getForegroundDimension(), -xOffset / 3);
+				level.setYOffset(level.getForegroundDimension(), -yOffset / 3);
+			}
+		}
+		else if (randomCheckCooldown < 0 && !level.getControllingPlayer().isJumping())
+		{
+			int totalCagesWorld = totalCagesPerWorld.get(currentWorld);
+			int openCagesWorld = readIntFromWorld(currentWorld, Level.WORLD_OPENED_CAGE_COUNT);
+			int totalCagesLevel = totalCagesPerLevel.get(currentLevel);
+			int openCagesLevel = readIntFromLevel(currentLevel, Level.LEVEL_OPENED_CAGE_COUNT);
+			int totalOpenCages = 0;
+			
+			for (String world : totalCagesPerWorld.keySet())
+			{
+				Object[] data = SaveHandler.getActiveSave().readWorld(world, Level.WORLD_OPENED_CAGE_COUNT);
+
+				totalOpenCages += data != null ? Integer.parseInt((String) data[0]) : 0;
+			}
+			
+			float totalCleared = ((float) totalOpenCages) / ((float) totalCages);
+			float worldCleared = ((float) openCagesWorld) / ((float) totalCagesWorld);
+			float levelCleared = totalCagesLevel == 0 ? 0.0f : ((float) openCagesLevel) / ((float) totalCagesLevel);
+
+			if (shouldShatterWorldLikeMad())
+			{
+				levelCleared = worldCleared = totalCleared = 1.0f;
+			}
+			
+			if (worldCleared == 1.0f && totalCleared < 1.0f)
+			{
+				worldCleared = 0.0f;
+			}
+
+			int shatterLimit = 10000;
+
+			shatterLimit += 100000 - worldCleared * worldCleared * 100000;
+			shatterLimit += 70000 - totalCleared * totalCleared * 70000;
+			shatterLimit += 20000 - levelCleared * 20000;
+			
+			timeSinceLastShatter += delta;
+			
+			if (rng.nextInt(shatterLimit) < timeSinceLastShatter)
+			{
+				float baseStrength = ((float) timeSinceLastShatter) / ((float) shatterLimit) * 50;
+
+				shattering = true;
+				shatterLength = (int) (baseStrength * 500);
+				totalShatterLength = shatterLength;
+				shatterIntensity = baseStrength;
+
+				timeSinceLastShatter = 0;
+			}
+
+			randomCheckCooldown = 200;
+		}
+	}
+
+	public void render(GameContainer container, Graphics g)
+	{
+
+	}
+
+	private static Integer readIntFromWorld(String world, String key)
+	{
+		Object[] data = SaveHandler.getActiveSave().readWorld(world, key);
+
+		return data != null ? Integer.parseInt((String) data[0]) : 0;
+	}
+
+	private static Integer readIntFromLevel(String level, String key)
+	{
+		Object[] data = SaveHandler.getActiveSave().readLevel(level, key);
+
+		return data != null ? Integer.parseInt((String) data[0]) : 0;
+	}
+	
+	public void onPreLevelInit()
+	{
+		if (!level.getID().equals("20-01") && !isPreviousWorldCompleted(level, level.getID()) && isFirstLevel(level, level.getID()))
+		{
+			level.setLevelType(LevelType.NORMAL); 
+		}
+
+		
+		customStoryHandler.onPreLevelInit();
+	}
+	
+	public void onLevelInit()
+	{		
+		if (!level.getWorldID().equals("20") && level.getInternalID().equals("01") && level.getType() == LevelType.NORMAL)
+		{
+			level.setChapter((Integer.parseInt(level.getWorldID()) - 1) + "");
+			level.setName("Out Of Reach");
+			
+			for (String levelID : Level.getLevelMap().keySet())
+			{
+				if (levelID.startsWith(level.getChapter()) && Integer.parseInt(levelID.substring(levelID.indexOf("-") + 1)) >= Integer.parseInt(level.getInternalID()))
+				{
+					level.setInternalID((Integer.parseInt(levelID.substring(levelID.indexOf("-") + 1)) + 1) + "");
+				}
+			}
+		}
+		
+		customStoryHandler.onLevelInit();
+	}
+	
+	public void onLevelEntry(boolean viaDoor)
+	{
+		customStoryHandler.onLevelEntry(viaDoor);
+	}
+	
+	public void onLevelExit(TileDoor door)
+	{
+		customStoryHandler.onLevelExit(door);
+	}
+	
+	public void onPlayerMoved(EntityPlayer player)
+	{
+		customStoryHandler.onPlayerMoved(player);
+	}
+	
+	public void onLeverPulled(TileLever lever, EntityPlayer interactor, boolean realInput)
+	{
+		customStoryHandler.onLeverPulled(lever, interactor, realInput);
+	}
+	
+	public void onKeyPickup(EntityKey key, EntityLiving interactor)
+	{
+		customStoryHandler.onKeyPickup(key, interactor);
+	}
+	
+	public void onKeyUsage(EntityKey key, EntityLiving interactor)
+	{
+		customStoryHandler.onKeyUsage(key, interactor);
+	}
+	
+	public void onKeyDropped(EntityKey key)
+	{
+		customStoryHandler.onKeyDropped(key);
+	}
+	
+	public void onCageOpened(TileCage cage, int levelOpenedCages, int levelTotalCages)
+	{		
+		customStoryHandler.onCageOpened(cage, levelOpenedCages, levelTotalCages);
+	}
+	
+	public boolean canPlayerDoAnything()
+	{
+		return customStoryHandler.canPlayerDoAnything();
+	}
+	
+	public boolean canPlayerTravelDimensions()
+	{
+		return customStoryHandler.canPlayerTravelDimensions();
+	}
+	
+	public boolean shouldShatterWorldLikeMad()
+	{
+		return customStoryHandler.shouldShatterWorldLikeMad();
+	}
+	
+	private static boolean isFirstLevel(Level level, String mapID)
+	{
+		return mapID.contains("-") && Integer.parseInt(mapID.substring(mapID.indexOf("-") + 1)) == 1;
+	}
+
+	private static boolean isPreviousWorldCompleted(Level level, String mapID)
+	{
+		if (mapID == null || !mapID.contains("-"))
+		{
+			return true;
+		}
+
+		String worldID = mapID.substring(0, mapID.indexOf('-'));
+		String prevWorld = (Integer.parseInt(worldID) - 1) + "";
+
+		Object[] data = SaveHandler.getActiveSave().readWorld(prevWorld, Level.WORLD_FINISHED);
+
+		return data != null && data[0] != null && Boolean.parseBoolean((String) data[0]);
+	}
+
+	public boolean isShattering()
+	{
+		return shattering;
+	}
+	
+	public CustomStoryHandler getCustomStoryHandler()
+	{
+		return customStoryHandler;
+	}
+}

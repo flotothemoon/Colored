@@ -1,0 +1,1050 @@
+package com.unlogical.colored.gui.menu;
+
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Input;
+import com.badlogic.gdx.InputAdapter;
+import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.g2d.Batch;
+import com.badlogic.gdx.math.Vector2;
+import com.unlogical.colored.GameLauncher;
+import com.unlogical.colored.configuration.DisplayConstants;
+import com.unlogical.colored.gui.button.Button;
+import com.unlogical.colored.gui.menu.MenuHandler.MenuEmitterHandler;
+import com.unlogical.colored.input.InputAction;
+import com.unlogical.colored.input.InputHandler;
+import com.unlogical.colored.level.Level;
+import com.unlogical.colored.particle.EmitterType;
+import com.unlogical.colored.resources.font.Fonts;
+import com.unlogical.colored.sound.SoundManager.SoundType;
+import com.unlogical.colored.util.CursorType;
+import com.unlogical.colored.util.Renderer;
+import com.unlogical.colored.util.ShaderHandler;
+
+public abstract class SelectionMenu extends InputAdapter implements IMenu
+{
+	public static final float SELECTION_ALPHA = 0.9f;
+	public static final float HOVER_ALPHA = 0.8f;
+	public static final float FILL_ALPHA = 0.6f;
+
+	public static final float BETWEEN_ITEMS_OFFSET = 18;
+
+	protected SelectionMenuItem[] items;
+
+	private int topOption;
+	private int bottomOption;
+
+	private int selectedOption = -1;
+	private int hoveredOption = -1;
+	private int deleteOption = -1;
+
+	private int xOffset;
+	private int yOffset;
+
+	private int height;
+	private int width;
+
+	private int actualOffset;
+	private int barHeight;
+	private int selectedButton = -1;
+	private int timeSinceLastClicked;
+	private int lastClickedOption = -1;
+
+	private float barOffset = 0.0f;
+
+	private boolean anyOptionHovered = false;
+	private boolean active = false;
+	private boolean wasLoaded = false;
+	private boolean movingMode = false;
+	private boolean showBar = false;
+	private boolean addedListener = false;
+
+	private MenuEmitterHandler movableScrollbar;
+
+	private Color backgroundColor = new Color(0.1f, 0.1f, 0.15f, 0.4f);
+	private Color infoColor = Color.LIGHT_GRAY;
+	private Color notActiveColor = Color.GRAY;
+	private Color selectionColor = new Color(0.3f, 0.3f, 0.3f, SELECTION_ALPHA);
+	private Color hoverColor = new Color(0.3f, 0.3f, 0.3f, HOVER_ALPHA);
+	private Color fillColor = new Color(0.2f, 0.2f, 0.2f, FILL_ALPHA);
+	private Color barColor = new Color(0.4f, 0.4f, 0.4f, 0.3f);
+
+	private Button backButton;
+	private Button initiateDeleteButton;
+	private Button confirmDeleteButton;
+
+	public SelectionMenu(SelectionMenuItem[] items, int yOffset, int width, int height)
+	{
+		this.height = height;
+		this.width = width;
+
+		initItems(items);
+
+		this.wasLoaded = true;
+
+		this.xOffset = GameLauncher.TARGET_WIDTH / 2 - width / 2;
+		this.yOffset = yOffset;
+
+		this.initiateDeleteButton = new Button("Delete", 0, 0, 0, 0, true)
+		{
+			@Override
+			public void onClick()
+			{
+				int option = anyOptionHovered ? hoveredOption : selectedOption;
+
+				if (initiateDeleteButton.getButtonLabel().equalsIgnoreCase("delete"))
+				{
+					deleteOption = option;
+
+					initiateDeleteButton.setText("cancel");
+					initiateDeleteButton.setLinkedAction(InputAction.CANCEL);
+				}
+				else
+				{
+					deleteOption = -1;
+
+					initiateDeleteButton.setText("delete");
+					initiateDeleteButton.setLinkedAction(InputAction.DELETE);
+				}
+			}
+		};
+		this.initiateDeleteButton.setShowBox(false);
+		this.initiateDeleteButton.setUseEventColors(true);
+		this.initiateDeleteButton.setLinkedAction(InputAction.DELETE);
+
+		this.confirmDeleteButton = new Button("Confirm Delete", 0, 0, 0, 0, true)
+		{
+			@Override
+			public void onClick()
+			{
+				onDelete(SelectionMenu.this.items[anyOptionHovered ? hoveredOption : selectedOption]);
+
+				deleteOption = -1;
+			}
+		};
+		this.confirmDeleteButton.setShowBox(false);
+		this.confirmDeleteButton.setUseEventColors(true);
+		this.confirmDeleteButton.setLinkedAction(InputAction.CONFIRM);
+
+		this.backButton = new Button("Back", xOffset + (width - DisplayConstants.SELECTION_MENU_SCROLLBAR_WIDTH) / 2, (int) (yOffset + height + DisplayConstants.SELECTION_MENU_BOX_HEIGHT * 1.5f), 0, 0, true)
+		{
+			@Override
+			public void onClick()
+			{
+				onBackButton();
+			}
+		};
+		this.backButton.setShowBox(false);
+		this.backButton.setUseEventColors(true);
+
+		InputHandler.addInputProcessor(this);
+
+		updateGUI(items);
+	}
+
+	private void initItems(SelectionMenuItem[] items)
+	{
+		if (this.items != null)
+		{
+			for (SelectionMenuItem item : this.items)
+			{
+				item.emitter.remove();
+			}
+		}
+
+		this.items = new SelectionMenuItem[items.length + 1];
+		this.items[items.length] = new SelectionMenuAddItem();
+
+		for (int i = 0; i < this.items.length; i++)
+		{
+			if (i < items.length)
+			{
+				this.items[i] = items[i];
+			}
+
+			this.items[i].init(width - 50, DisplayConstants.SELECTION_MENU_BOX_HEIGHT);
+			this.items[i].menu = this;
+		}
+	}
+
+	public void refresh()
+	{
+		Level.fetchChapters();
+		Level.fetchMaps();
+		updateItems();
+	}
+
+	protected abstract void onBackButton();
+
+	public void update(int delta)
+	{
+		if (active)
+		{
+			selectedButton = -1;
+
+			if (!addedListener)
+			{
+				addedListener = true;
+			}
+
+			movableScrollbar.setPosition(xOffset - DisplayConstants.SELECTION_MENU_SCROLLBAR_WIDTH + width, yOffset + barOffset);
+			if (movableScrollbar.contains(InputHandler.getCurrentInputX(), InputHandler.getCurrentInputY()))
+			{
+				if (Gdx.input.isButtonPressed(Input.Buttons.LEFT))
+				{
+					movingMode = true;
+				}
+
+				barColor.a = 0.4f;
+
+				CursorType.useCursor(CursorType.GRAB);
+			}
+			else if (!Gdx.input.isButtonPressed(Input.Buttons.LEFT))
+			{
+				movingMode = false;
+				barColor.a = 0.3f;
+			}
+
+			clampBarOffset();
+
+			actualOffset = -(int) ((barOffset / height) * (getTotalHeight(items)));
+
+			for (int i = 0; i < items.length; i++)
+			{
+				items[i].centerX = xOffset + 5 + (width / 2 - DisplayConstants.SELECTION_MENU_SCROLLBAR_WIDTH / 2);
+
+				if (i == 0)
+				{
+					items[0].centerY = yOffset + actualOffset + DisplayConstants.SELECTION_MENU_BOX_HEIGHT / 2;
+				}
+				else
+				{
+					items[i].centerY = items[i - 1].centerY + BETWEEN_ITEMS_OFFSET + items[i - 1].getHeight() / 2 + items[i].getHeight() / 2;
+				}
+			}
+
+			for (int i = 0; i < items.length; i++)
+			{
+				if (items[i].getY() >= yOffset)
+				{
+					topOption = i;
+
+					break;
+				}
+			}
+
+			bottomOption = items.length - 1;
+
+			for (int i = topOption; i < items.length; i++)
+			{
+				if ((items[i].getY() + items[i].getHeight() > yOffset + height))
+				{
+					bottomOption = i - 1;
+
+					break;
+				}
+			}
+
+			int lastHoveredOption = hoveredOption;
+
+			hoveredOption = -1;
+			anyOptionHovered = false;
+
+			if (items.length <= 0)
+			{
+				bottomOption = -1;
+			}
+
+			for (int i = 0; i < items.length; i++)
+			{
+				items[i].active = i >= topOption && i <= bottomOption;
+			}
+
+			int inputX = InputHandler.getCurrentInputX();
+			int inputY = InputHandler.getCurrentInputY();
+
+			for (int i = topOption; i <= bottomOption; i++)
+			{
+				if (i >= 0 && i < items.length)
+				{
+					if (items[i].contains(inputX, inputY) && isSelectable(items[i]))
+					{
+						if (!confirmDeleteButton.contains(inputX, inputY) && !initiateDeleteButton.contains(inputX, inputY) && Gdx.input.isButtonPressed(Input.Buttons.LEFT) && Gdx.input.justTouched())
+						{
+							MenuHandler.getSoundManager().play(SoundType.MENU_CLICK, false);
+
+							selectedOption = i;
+
+							if (lastHoveredOption != i)
+							{
+								deleteOption = -1;
+							}
+
+							if (lastClickedOption == i && timeSinceLastClicked < 500 && isSelectable(items[i]))
+							{
+								items[i].onSelect();
+								onSelect(items[i]);
+							}
+
+							lastClickedOption = i;
+							timeSinceLastClicked = 0;
+						}
+						else
+						{
+							hoveredOption = i;
+							anyOptionHovered = true;
+						}
+					}
+
+					items[i].update(delta, i == hoveredOption, i == selectedOption);
+				}
+			}
+			
+			if (InputHandler.isKeyJustPressed(InputAction.DELETE))
+			{
+				initiateDeleteButton.onClick();
+			}
+
+			if (InputHandler.isKeyJustPressed(InputAction.CONFIRM))
+			{
+				if (confirmDeleteButton.isActive())
+				{
+					confirmDeleteButton.onClick();
+				}
+				else if (selectedOption >= 0)
+				{
+					if (selectedOption < items.length && isSelectable(items[selectedOption]))
+					{
+						items[selectedOption].onSelect();
+						onSelect(items[selectedOption]);
+					}
+					else
+					{
+						onAddButton();
+					}
+				}
+			}
+
+			if (lastHoveredOption != hoveredOption && hoveredOption != -1)
+			{
+				deleteOption = -1;
+			}
+
+			if (InputHandler.isKeyJustPressed(InputAction.MOVE_UP))
+			{
+				selectedOption--;
+
+				if (selectedOption < 0)
+				{
+					selectedOption = items.length - 1;
+				}
+
+				deleteOption = -1;
+
+				updateSelectionPosition();
+			}
+
+			if (InputHandler.isKeyJustPressed(InputAction.MOVE_DOWN))
+			{
+				selectedOption++;
+
+				if (selectedOption >= items.length)
+				{
+					selectedOption = 0;
+				}
+
+				deleteOption = -1;
+
+				updateSelectionPosition();
+			}
+
+			initiateDeleteButton.setActive(false);
+			confirmDeleteButton.setActive(false);
+
+			if (anyOptionHovered && items[hoveredOption].isDeletable() || !anyOptionHovered && selectedOption >= 0 && items[selectedOption].isDeletable())
+			{
+				int option = anyOptionHovered ? hoveredOption : selectedOption;
+
+				if (items[option].active)
+				{
+					initiateDeleteButton.setPosition((int) (items[option].getX() + items[option].getWidth()) - 40, (int) (items[option].getY() + items[option].getHeight() / 2));
+					initiateDeleteButton.setActive(true);
+
+					if (deleteOption != -1)
+					{
+						confirmDeleteButton.setPosition((int) (items[option].getX() + items[option].getWidth()) - 120, (int) (items[option].getY() + items[option].getHeight() / 2));
+						confirmDeleteButton.setActive(true);
+					}
+				}
+			}
+
+			timeSinceLastClicked += delta;
+
+			backButton.update(delta);
+
+			if (InputHandler.isKeyPressed(InputAction.BACK))
+			{
+				backButton.onClick();
+			}
+
+			if (hoveredOption < items.length)
+			{
+				if (deleteOption == -1)
+				{
+					initiateDeleteButton.setText("delete");
+					initiateDeleteButton.setLinkedAction(InputAction.DELETE);
+				}
+
+				initiateDeleteButton.update(delta);
+				confirmDeleteButton.update(delta);
+			}
+
+			if (movingMode || anyOptionHovered)
+			{
+				CursorType.useCursor(CursorType.GRAB);
+			}
+		}
+
+		customUpdate(delta);
+	}
+
+	public void render(float alphaFactor, Batch batch)
+	{
+		ShaderHandler.disableLighting();
+
+		Renderer.useSpriteBatch();
+
+		Renderer.setFont(Fonts.getDefaultFont());
+
+		for (int i = topOption; i <= bottomOption; i++)
+		{
+			if (i >= 0 && i < items.length)
+			{
+				if (i == hoveredOption || i == selectedOption)
+				{
+					batch.setColor(Menu.SELECTION_COLOR);
+				}
+				else
+				{
+					batch.setColor(Menu.UNSELECTED_COLOR);
+				}
+
+				items[i].render(alphaFactor, items[i].getX(), items[i].getY(), items[i].getWidth(), items[i].getHeight(), i == selectedOption, i == hoveredOption, i == deleteOption, batch);
+			}
+		}
+
+		if (showBar)
+		{
+			movableScrollbar.getEmitter().setAlphaFactor(alphaFactor);
+			movableScrollbar.getWrapper().draw(batch);
+		}
+
+		backButton.render(alphaFactor, batch);
+
+		if (initiateDeleteButton.isActive())
+		{
+			initiateDeleteButton.render(alphaFactor, batch);
+		}
+
+		if (confirmDeleteButton.isActive())
+		{
+			confirmDeleteButton.render(alphaFactor, batch);
+		}
+
+		ShaderHandler.enableLighting();
+
+		batch.setColor(Menu.SELECTION_COLOR);
+
+		customRender(batch);
+	}
+
+	private void updateSelectionPosition()
+	{
+		if (selectedOption < topOption || selectedOption > bottomOption)
+		{
+			float wantedY = selectedOption > bottomOption ? (height - items[selectedOption].getHeight()) : 0;
+
+			actualOffset = (int) (-getTotalHeight(items, selectedOption + (selectedOption > bottomOption ? 1 : 0)) + wantedY);
+		}
+
+		barOffset = ((float) -actualOffset) / getTotalHeight(items) * ((float) height);
+
+		clampBarOffset();
+
+		actualOffset = -(int) ((barOffset / height) * (getTotalHeight(items)));
+	}
+
+	private float getTotalHeight(SelectionMenuItem[] items)
+	{
+		return getTotalHeight(items, items.length);
+	}
+
+	private float getTotalHeight(SelectionMenuItem[] items, int length)
+	{
+		float totalHeight = 0.0f;
+
+		for (int i = 0; i < length && i < items.length; i++)
+		{
+			totalHeight += items[i].getHeight();
+		}
+
+		return totalHeight + (Math.min(items.length, length) - 1) * BETWEEN_ITEMS_OFFSET;
+	}
+
+	private void updateGUI(SelectionMenuItem[] items)
+	{
+		initItems(items);
+
+		for (int i = 0; i < items.length; i++)
+		{
+			this.items[i].centerX = xOffset + 5 + (width - DisplayConstants.SELECTION_MENU_SCROLLBAR_WIDTH) / 2;
+			this.items[i].centerY = yOffset + i * DisplayConstants.SELECTION_MENU_BOX_HEIGHT + actualOffset + 5 + (DisplayConstants.SELECTION_MENU_BOX_HEIGHT) / 2;
+		}
+
+		float displayableOptions = 0.0f;
+		float tempTotalHeight = 0.0f;
+
+		for (int i = 0; i < items.length * 5; i++) // kind of ugly hack but it
+													// works
+		{
+			tempTotalHeight += items[i % items.length].getHeight();
+
+			if (tempTotalHeight > height)
+			{
+				break;
+			}
+
+			displayableOptions++;
+
+			tempTotalHeight += BETWEEN_ITEMS_OFFSET;
+		}
+
+		if (displayableOptions > this.items.length)
+		{
+			displayableOptions = this.items.length;
+		}
+
+		this.barHeight = (int) (height * (displayableOptions / this.items.length));
+
+		if (this.movableScrollbar != null)
+		{
+			this.movableScrollbar.remove();
+		}
+
+		this.movableScrollbar = new MenuEmitterHandler(xOffset + width - DisplayConstants.SELECTION_MENU_SCROLLBAR_WIDTH, yOffset, DisplayConstants.SELECTION_MENU_SCROLLBAR_WIDTH, barHeight, 0, EmitterType.SCROLLBAR)
+		{
+			@Override
+			public boolean isActive()
+			{
+				return SelectionMenu.this.active;
+			}
+		};
+
+		this.showBar = displayableOptions < this.items.length;
+
+		if (this.selectedOption >= this.items.length)
+		{
+			this.selectedOption = -1;
+		}
+	}
+
+	private void clampBarOffset()
+	{
+		if ((barOffset + barHeight) > (height))
+		{
+			barOffset = height - barHeight;
+		}
+		else if ((barOffset) < (0))
+		{
+			barOffset = 0;
+		}
+	}
+
+	@Override
+	public boolean scrolled(int change)
+	{
+		// if (showBar)
+		{
+			barOffset += 10.0f * change;
+
+			clampBarOffset();
+		}
+
+		return false;
+	}
+
+	@Override
+	public boolean touchDragged(int newx, int newy, int pointer)
+	{
+		if (movingMode)
+		{
+			Vector2 pos = Renderer.unproject(newx, newy);
+
+			newx = (int) pos.x;
+			newy = (int) pos.y;
+
+			barOffset += newy - InputHandler.getLastInputY();
+
+			if ((barOffset + barHeight) > (height))
+			{
+				barOffset = height - barHeight;
+			}
+			else if ((barOffset) < (0))
+			{
+				barOffset = 0;
+			}
+		}
+
+		return false;
+	}
+
+	protected abstract SelectionMenuItem[] loadItems();
+
+	public void updateItems()
+	{
+		updateGUI(loadItems());
+	}
+
+	protected boolean isSelectable(SelectionMenuItem item)
+	{
+		return item.isSelectable();
+	}
+
+	protected abstract void onSelect(SelectionMenuItem saveState);
+
+	protected void onDelete(SelectionMenuItem item)
+	{
+
+	}
+
+	protected abstract void onAddButton();
+
+	public void customUpdate(int delta)
+	{
+
+	}
+
+	public void customRender(Batch batch)
+	{
+
+	}
+
+	public void setActive(boolean active)
+	{
+		boolean beforeActive = this.active;
+
+		this.active = active;
+
+		if (this.active && !beforeActive)
+		{
+			show();
+		}
+	}
+
+	protected void show()
+	{
+
+	}
+
+	public boolean isActive()
+	{
+		return active;
+	}
+
+	public int getSelectedOption()
+	{
+		return selectedOption;
+	}
+
+	public void setSelectedOption(int selectedOption)
+	{
+		this.selectedOption = selectedOption;
+	}
+
+	public int getSelectedButton()
+	{
+		return selectedButton;
+	}
+
+	public void setSelectedButton(int selectedButton)
+	{
+		this.selectedButton = selectedButton;
+	}
+
+	public boolean isWasLoaded()
+	{
+		return wasLoaded;
+	}
+
+	public int getTopOption()
+	{
+		return topOption;
+	}
+
+	public void setTopOption(int topOption)
+	{
+		this.topOption = topOption;
+	}
+
+	public int getBottomOption()
+	{
+		return bottomOption;
+	}
+
+	public void setBottomOption(int bottomOption)
+	{
+		this.bottomOption = bottomOption;
+	}
+
+	public int getHoveredOption()
+	{
+		return hoveredOption;
+	}
+
+	public void setHoveredOption(int hoveredOption)
+	{
+		this.hoveredOption = hoveredOption;
+	}
+
+	public int getHeight()
+	{
+		return height;
+	}
+
+	public void setHeight(int height)
+	{
+		this.height = height;
+	}
+
+	public int getWidth()
+	{
+		return width;
+	}
+
+	public void setWidth(int width)
+	{
+		this.width = width;
+	}
+
+	public int getxOffset()
+	{
+		return xOffset;
+	}
+
+	public void setxOffset(int xOffset)
+	{
+		this.xOffset = xOffset;
+	}
+
+	public int getyOffset()
+	{
+		return yOffset;
+	}
+
+	public void setyOffset(int yOffset)
+	{
+		this.yOffset = yOffset;
+	}
+
+	public float getBarOffset()
+	{
+		return barOffset;
+	}
+
+	public void setBarOffset(float barOffset)
+	{
+		this.barOffset = barOffset;
+	}
+
+	public int getActualOffset()
+	{
+		return actualOffset;
+	}
+
+	public void setActualOffset(int actualOffset)
+	{
+		this.actualOffset = actualOffset;
+	}
+
+	public int getBarHeight()
+	{
+		return barHeight;
+	}
+
+	public void setBarHeight(int barHeight)
+	{
+		this.barHeight = barHeight;
+	}
+
+	public boolean isAnyOptionHovered()
+	{
+		return anyOptionHovered;
+	}
+
+	public void setAnyOptionHovered(boolean anyOptionHovered)
+	{
+		this.anyOptionHovered = anyOptionHovered;
+	}
+
+	public boolean isMovingMode()
+	{
+		return movingMode;
+	}
+
+	public void setMovingMode(boolean movingMode)
+	{
+		this.movingMode = movingMode;
+	}
+
+	public Color getBackgroundColor()
+	{
+		return backgroundColor;
+	}
+
+	public void setBackgroundColor(Color backgroundColor)
+	{
+		this.backgroundColor = backgroundColor;
+	}
+
+	public Color getFillColor()
+	{
+		return fillColor;
+	}
+
+	public void setFillColor(Color fillColor)
+	{
+		this.fillColor = fillColor;
+	}
+
+	public Color getInfoColor()
+	{
+		return infoColor;
+	}
+
+	public void setInfoColor(Color infoColor)
+	{
+		this.infoColor = infoColor;
+	}
+
+	public Color getNotActiveColor()
+	{
+		return notActiveColor;
+	}
+
+	public void setNotActiveColor(Color notActiveColor)
+	{
+		this.notActiveColor = notActiveColor;
+	}
+
+	public Color getActiveColor()
+	{
+		return selectionColor;
+	}
+
+	public void setActiveColor(Color activeColor)
+	{
+		this.selectionColor = activeColor;
+	}
+
+	public Color getHoverColor()
+	{
+		return hoverColor;
+	}
+
+	public void setHoverColor(Color hoverColor)
+	{
+		this.hoverColor = hoverColor;
+	}
+
+	public Color getBarColor()
+	{
+		return barColor;
+	}
+
+	public void setBarColor(Color barColor)
+	{
+		this.barColor = barColor;
+	}
+
+	public static class SelectionMenuItem
+	{
+		protected SelectionMenu menu;
+		protected MenuEmitterHandler emitter;
+
+		protected float centerX;
+		protected float centerY;
+		private float defaultWidth;
+		private float defaultHeight;
+
+		protected float scale = 1.0f;
+		protected boolean active;
+
+		void init(float defaultWidth, float defaultHeight)
+		{
+			if (emitter != null)
+			{
+				emitter.remove();
+			}
+
+			this.emitter = new MenuEmitterHandler(0.0f, 0.0f, (int) defaultWidth, (int) defaultHeight, 0, EmitterType.SELECTION_BOX)
+			{
+				@Override
+				public boolean isActive()
+				{
+					return SelectionMenuItem.this.active && menu.active;
+				}
+			};
+			this.defaultWidth = defaultWidth;
+			this.defaultHeight = defaultHeight;
+		}
+
+		public void onSelect()
+		{
+
+		}
+
+		public void update(float delta, boolean hovered, boolean selected)
+		{
+			this.emitter.setPosition(this.centerX - this.emitter.getWidth() / 2, this.centerY - this.emitter.getHeight() / 2);
+		}
+
+		public void render(float alphaFactor, float x, float y, float width, float height, boolean selected, boolean hovered, boolean deleting, Batch batch)
+		{
+			if (selected)
+			{
+				emitter.getWrapper().setAddTint(Color.GRAY);
+			}
+			else if (hovered)
+			{
+				emitter.getWrapper().setAddTint(Color.DARK_GRAY);
+			}
+			else
+			{
+				emitter.getWrapper().setAddTint(Color.BLACK);
+			}
+
+			if (deleting)
+			{
+				emitter.getWrapper().setAddTint(emitter.getWrapper().getAddTint().cpy().mul(1.0f, 0.0f, 0.0f, 1.0f));
+			}
+
+			emitter.getEmitter().setAlphaFactor(alphaFactor);
+			emitter.getWrapper().draw(batch);
+
+			// ShapeRenderer sr = Renderer.useShapeRenderer();
+			//
+			// if (selected)
+			// {
+			// sr.setColor(menu.selectionColor);
+			// }
+			// else if (hovered)
+			// {
+			// sr.setColor(menu.hoverColor);
+			// }
+			// else
+			// {
+			// sr.setColor(menu.fillColor);
+			// }
+			//
+			// sr.set(ShapeType.Filled);
+			// sr.rect(getX(), getY(), getWidth(), getHeight());
+		}
+
+		public boolean contains(float x, float y)
+		{
+			return x > centerX - (defaultWidth * scale) / 2 && x < centerX + (defaultWidth * scale) / 2 && y > centerY - (defaultHeight * scale) / 2 && y < centerY + (defaultHeight * scale) / 2;
+		}
+
+		public boolean isDeletable()
+		{
+			return true;
+		}
+
+		public boolean isSelectable()
+		{
+			return true;
+		}
+
+		public float getX()
+		{
+			return centerX - (defaultWidth * scale) / 2;
+		}
+
+		public float getY()
+		{
+			return centerY - (defaultHeight * scale) / 2;
+		}
+
+		public float getWidth()
+		{
+			return defaultWidth * scale;
+		}
+
+		public float getHeight()
+		{
+			return defaultHeight * scale;
+		}
+	}
+
+	public class SelectionMenuAddItem extends SelectionMenuItem
+	{
+		private Button addNew;
+
+		public SelectionMenuAddItem()
+		{
+			this.addNew = new Button("Add", (int) this.centerX, (int) this.centerY, 0, 0, true)
+			{
+				@Override
+				public void onClick()
+				{
+					onAddButton();
+				}
+			};
+			this.addNew.setAutoHoverControl(false);
+		}
+
+		@Override
+		void init(float defaultWidth, float defaultHeight)
+		{
+			super.init(defaultWidth, defaultHeight);
+
+			this.emitter.getEmitter().getStartAlpha().mul(0.33f);
+		}
+
+		@Override
+		public void update(float delta, boolean hovered, boolean selected)
+		{
+			super.update(delta, hovered, selected);
+
+			this.addNew.setPosition((int) this.centerX, (int) this.centerY);
+			this.addNew.update((int) delta);
+
+			this.addNew.setHovered(hovered);
+		}
+
+		@Override
+		public void render(float alphaFactor, float x, float y, float width, float height, boolean selected, boolean hovered, boolean deleting, Batch batch)
+		{
+			super.render(alphaFactor, x, y, width, height, selected, hovered, deleting, batch);
+
+			this.addNew.render(alphaFactor, batch);
+		}
+
+		@Override
+		public void onSelect()
+		{
+			this.addNew.onClick();
+		}
+
+		@Override
+		public boolean isSelectable()
+		{
+			return true;
+		}
+
+		@Override
+		public boolean isDeletable()
+		{
+			return false;
+		}
+	}
+}

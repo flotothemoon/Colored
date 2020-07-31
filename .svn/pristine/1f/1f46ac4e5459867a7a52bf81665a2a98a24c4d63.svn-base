@@ -1,0 +1,290 @@
+package com.unlogical.colored.util;
+
+import static org.lwjgl.opengl.GL11.*;
+import static org.lwjgl.util.glu.GLU.gluPerspective;
+import static org.lwjgl.util.glu.GLU.gluProject;
+
+import java.nio.FloatBuffer;
+import java.nio.IntBuffer;
+
+import org.lwjgl.BufferUtils;
+import org.lwjgl.opengl.Display;
+import org.lwjgl.opengl.GL11;
+import org.lwjgl.util.glu.GLU;
+import org.newdawn.slick.GameContainer;
+import org.newdawn.slick.opengl.Texture;
+
+import com.unlogical.colored.GameLauncher;
+import com.unlogical.colored.debug.Debug;
+
+public class Renderer
+{
+	public static final float CAMERA_DISTANCE = 0.1f;
+
+	private static final float WIDTH = GameLauncher.TARGET_WIDTH;
+	private static final float HEIGHT = GameLauncher.TARGET_HEIGHT;
+
+	private static FloatBuffer projectionMatrix;
+	private static FloatBuffer modelViewMatrix;
+	private static IntBuffer viewportMatrix;
+
+	private static float lastWidth;
+	private static float lastHeight;
+
+	private static float realWidth;
+	private static float realHeight;
+
+	private static float xOffset;
+	private static float yOffset;
+
+	private static float horizontalScale;
+	private static float verticalScale;
+
+	private static boolean enableScissor;
+
+	private static Texture boundTexture;
+
+	public static void update(GameContainer container, int delta)
+	{
+		if (lastWidth != Display.getWidth() || lastHeight != Display.getHeight())
+		{
+			int error = glGetError();
+
+			if (error != GL_NO_ERROR)
+			{
+				Debug.warn("OpenGL error detected: " + GLU.gluErrorString(error) + " (" + error + ")");
+			}
+
+			reScale(container);
+
+			lastWidth = Display.getWidth();
+			lastHeight = Display.getHeight();
+		}
+	}
+
+	public static void reScale(GameContainer container)
+	{
+		realWidth = Display.getWidth();
+		realHeight = Display.getHeight();
+
+		boolean normalIsWide = GameLauncher.TARGET_WIDTH / GameLauncher.TARGET_HEIGHT > 1.6;
+		boolean containerIsWide = ((float) realWidth) / ((float) realHeight) > 1.6;
+		float wScale = realWidth / GameLauncher.TARGET_WIDTH;
+		float hScale = realHeight / GameLauncher.TARGET_HEIGHT;
+
+		xOffset = 0;
+		yOffset = 0;
+
+		if (normalIsWide & containerIsWide)
+		{
+			float scale = (wScale < hScale ? wScale : hScale);
+			realWidth = (int) (GameLauncher.TARGET_WIDTH * scale);
+			realHeight = (int) (GameLauncher.TARGET_HEIGHT * scale);
+		}
+		else if (normalIsWide & !containerIsWide)
+		{
+			realWidth = (int) (GameLauncher.TARGET_WIDTH * wScale);
+			realHeight = (int) (GameLauncher.TARGET_HEIGHT * wScale);
+		}
+		else if (!normalIsWide & containerIsWide)
+		{
+			realWidth = (int) (GameLauncher.TARGET_WIDTH * hScale);
+			realHeight = (int) (GameLauncher.TARGET_HEIGHT * hScale);
+		}
+		else
+		{
+			float scale = (wScale < hScale ? wScale : hScale);
+			realWidth = (int) (GameLauncher.TARGET_WIDTH * scale);
+			realHeight = (int) (GameLauncher.TARGET_HEIGHT * scale);
+		}
+
+		container.getInput().setScale(horizontalScale = GameLauncher.TARGET_WIDTH / realWidth, verticalScale = GameLauncher.TARGET_HEIGHT / realHeight);
+
+		if (realWidth < Display.getWidth())
+		{
+			xOffset = ((int) (Display.getWidth() - realWidth)) / 2;
+		}
+
+		if (realHeight < Display.getHeight())
+		{
+			yOffset = -((int) (Display.getHeight() - realHeight)) / 2; // why
+		}
+
+		yOffset += HEIGHT - realHeight;
+		
+		if (GameLauncher.isFullscreenMode() && Display.getHeight() < HEIGHT)
+		{
+			yOffset -= (HEIGHT - realHeight) / 2;
+		}
+		
+		if (GameLauncher.isFullscreenMode() && Display.getWidth() < WIDTH)
+		{
+			xOffset += (WIDTH - realWidth) / 2;
+		}
+
+		Debug.log("-----");
+		Debug.log("xOffset / yOffset: " + xOffset + " / " + yOffset);
+		Debug.log("horizontalScale / verticalScale: " + horizontalScale + " / " + verticalScale);
+		Debug.log("realWidth / realHeight: " + realWidth + " / " + realHeight);
+		Debug.log("displayWidth / displayHeight: " + Display.getWidth() + " / " + Display.getHeight());
+		Debug.log("targetWidth / targetHeight: " + GameLauncher.TARGET_WIDTH + " / " + GameLauncher.TARGET_HEIGHT);
+
+		container.getInput().setOffset(-xOffset / (realWidth / GameLauncher.TARGET_WIDTH), -yOffset / (realHeight / GameLauncher.TARGET_HEIGHT));
+	}
+
+	public static void initRender()
+	{
+		float originalWidth = WIDTH;
+		float originalHeight = HEIGHT;
+
+		float renderedWidth;
+		float renderedHeight;
+
+		glMatrixMode(GL_PROJECTION);
+		glLoadIdentity();
+		gluPerspective(60, WIDTH / HEIGHT, 0.001f, 1000.0f);
+
+		glMatrixMode(GL_MODELVIEW);
+		glLoadIdentity();
+
+		glTranslatef(0, 0, -CAMERA_DISTANCE);
+		glScalef(1.0f / (WIDTH / 2.0f), 1.0f / -(HEIGHT / 2.0f), 1f);
+
+		modelViewMatrix = BufferUtils.createFloatBuffer(16);
+		projectionMatrix = BufferUtils.createFloatBuffer(16);
+		viewportMatrix = BufferUtils.createIntBuffer(16);
+
+		glGetFloat(GL_MODELVIEW_MATRIX, modelViewMatrix);
+		glGetFloat(GL_PROJECTION_MATRIX, projectionMatrix);
+		glGetInteger(GL_VIEWPORT, viewportMatrix);
+
+		FloatBuffer upperLeft = BufferUtils.createFloatBuffer(3);
+		FloatBuffer lowerRight = BufferUtils.createFloatBuffer(3);
+
+		gluProject(0, 0, 0, modelViewMatrix, projectionMatrix, viewportMatrix, upperLeft);
+		gluProject(WIDTH, HEIGHT, 0, modelViewMatrix, projectionMatrix, viewportMatrix, lowerRight);
+
+		lowerRight.put(1, HEIGHT - lowerRight.get(1));
+
+		renderedWidth = lowerRight.get(0) - upperLeft.get(0);
+		renderedHeight = lowerRight.get(1) - upperLeft.get(1);
+
+		glScalef(originalWidth / renderedWidth, originalHeight / renderedHeight, 1f);
+		glTranslatef(-WIDTH / 2.0f, -HEIGHT / 2.0f, 0.0f);
+
+		glTranslatef(xOffset, yOffset, 0.0f);
+		glScalef(1.0f / horizontalScale, 1.0f / verticalScale, 1.0f);
+
+		glDrawBuffer(GameLauncher.isFullscreenMode() ? GL11.GL_BACK : GL11.GL_FRONT_AND_BACK); // TODO
+
+		if (GameLauncher.getStatus() != GameStatus.MAP_EDITOR)
+		{
+			enableScissor = true;
+
+			glEnable(GL_SCISSOR_TEST);
+			glScissor((int) xOffset - (int) (GameLauncher.isFullscreenMode() && Display.getWidth() < WIDTH ? (WIDTH - realWidth) / 2 : 0), (int) (-yOffset + (GameLauncher.isFullscreenMode() && Display.getHeight() < HEIGHT ? (HEIGHT - realHeight) / 2 : (HEIGHT - realHeight))), (int) (realWidth), (int) (realHeight));
+		}
+		else
+		{
+			enableScissor = false;
+
+			glDisable(GL_SCISSOR_TEST);
+		}
+
+		boundTexture = null;
+
+		ShaderHandler.initRender();
+	}
+
+	public static void bindTexture(Texture texture)
+	{
+		if (texture == null)
+		{
+			boundTexture = null;
+		}
+		else if (texture != boundTexture)
+		{
+			texture.bind();
+
+			boundTexture = texture;
+		}
+	}
+
+	public static void push2DScissor(int x, int y, int width, int height)
+	{
+		if (enableScissor)
+		{
+			width = Math.min(GameLauncher.getWidth() - x, width);
+			height = Math.min(GameLauncher.getHeight() - y, height);
+
+			if (x < 0)
+			{
+				width += x;
+				x = 0;
+			}
+
+			if (y < 0)
+			{
+				height += y;
+				y = 0;
+			}
+		}
+
+		glEnable(GL_SCISSOR_TEST);
+		glScissor((int) (x / horizontalScale + xOffset), (int) ((GameLauncher.getHeight() - y - height) / verticalScale - yOffset + HEIGHT - realHeight), (int) (width / horizontalScale), (int) (height / horizontalScale));
+	}
+
+	public static void popScissor()
+	{
+		if (enableScissor)
+		{
+			glEnable(GL_SCISSOR_TEST);
+		}
+		else
+		{
+			glDisable(GL_SCISSOR_TEST);
+		}
+
+		glScissor((int) xOffset, (int) (-yOffset + HEIGHT - realHeight), (int) (realWidth), (int) (realHeight));
+	}
+
+	public static float getXOffset()
+	{
+		return xOffset;
+	}
+
+	public static float getYOffset()
+	{
+		return -yOffset + HEIGHT - realHeight;
+	}
+
+	public static float getLastWidth()
+	{
+		return lastWidth;
+	}
+
+	public static float getLastHeight()
+	{
+		return lastHeight;
+	}
+
+	public static float getRealWidth()
+	{
+		return realWidth;
+	}
+
+	public static float getRealHeight()
+	{
+		return realHeight;
+	}
+
+	public static float getHorizontalScale()
+	{
+		return horizontalScale;
+	}
+
+	public static float getVerticalScale()
+	{
+		return verticalScale;
+	}
+}

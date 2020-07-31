@@ -1,0 +1,196 @@
+package com.unlogical.colored.filesystem;
+
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.file.Files;
+
+public class FileHandle
+{
+	private InputStream activeInputStream;
+	private OutputStream activeOutputStream;
+	private final String path;
+	private FilePackage pkg;
+	private boolean imaginary;
+	private boolean available;
+	private byte[] data;
+
+	FileHandle(String path, FilePackage pkg)
+	{
+		this.path = path.replace('\\', '/');
+		this.pkg = pkg;
+		this.imaginary = false;
+		this.available = true;
+	}
+
+	FileHandle(String path, FilePackage pkg, byte[] data)
+	{
+		this.path = path.replace('\\', '/');
+		this.pkg = pkg;
+		this.data = data;
+		this.imaginary = true;
+		this.available = true;
+	}
+
+	public InputStream createInputStream() throws IOException
+	{
+		checkAvailable();
+
+		if (activeInputStream != null)
+		{
+			throw new RuntimeException("Cannot create new input stream while old one is still active.");
+		}
+
+		if (activeOutputStream != null)
+		{
+			throw new RuntimeException("Cannot create input stream while output stream is active.");
+		}
+
+		if (imaginary)
+		{
+			activeInputStream = new ByteArrayInputStream(data);
+		}
+		else
+		{
+			activeInputStream = new FileInputStream(path);
+		}
+
+		return activeInputStream;
+	}
+
+	public void closeInputStream() throws IOException
+	{
+		checkAvailable();
+
+		activeInputStream.close();
+		activeInputStream = null;
+	}
+
+	public OutputStream createOutputStream() throws IOException
+	{
+		checkAvailable();
+
+		if (activeOutputStream != null)
+		{
+			throw new RuntimeException("Cannot create new output stream while old one is still active.");
+		}
+
+		if (activeInputStream != null)
+		{
+			throw new RuntimeException("Cannot create output stream while input stream is active.");
+		}
+
+		if (imaginary)
+		{
+			activeOutputStream = new ByteArrayOutputStream();
+		}
+		else
+		{
+			activeOutputStream = new FileOutputStream(path);
+		}
+
+		return activeOutputStream;
+	}
+
+	public void closeOutputStream() throws IOException
+	{
+		checkAvailable();
+
+		if (imaginary)
+		{
+			data = ((ByteArrayOutputStream) activeOutputStream).toByteArray();
+		}
+
+		activeOutputStream.close();
+		activeOutputStream = null;
+		pkg.onFileWritten(this);
+	}
+
+	boolean canBeDeleted()
+	{
+		return available && activeInputStream == null && activeOutputStream == null;
+	}
+
+	void onDeleted()
+	{
+		this.available = true;
+		this.data = null;
+	}
+
+	void readToBinary() throws IOException
+	{
+		checkAvailable();
+
+		this.data = Files.readAllBytes(new File(path).toPath());
+	}
+
+	private void checkAvailable() throws IOException
+	{
+		if (!available)
+		{
+			throw new FileWasDeletedException("This file (\"" + path + "\") is not available for use, neither read nor write (it might have been deleted).");
+		}
+	}
+
+	byte[] getData()
+	{
+		return data;
+	}
+
+	public boolean isImaginary()
+	{
+		return imaginary;
+	}
+
+	public String getPath()
+	{
+		return path;
+	}
+
+	public String getName()
+	{
+		return FileManager.getFileName(path);
+	}
+
+	public FilePackage getPackage()
+	{
+		return pkg;
+	}
+
+	public int getLength()
+	{
+		return (int) (imaginary ? data.length : new File(path).length()); // max
+																			// 2GB
+	}
+
+	@Override
+	public String toString()
+	{
+		return "[" + this.getClass().getSimpleName() + ": " + path + "]";
+	}
+
+	public static class FileWasDeletedException extends IOException
+	{
+		private static final long serialVersionUID = -4595407546203203924L;
+
+		public FileWasDeletedException()
+		{
+			super();
+		}
+
+		public FileWasDeletedException(String message)
+		{
+			super(message);
+		}
+
+		public FileWasDeletedException(String message, Throwable cause)
+		{
+			super(message, cause);
+		}
+	}
+}

@@ -1,0 +1,268 @@
+package com.unlogical.linked.particle;
+
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.IdentityHashMap;
+import java.util.Map;
+import java.util.Set;
+
+import org.newdawn.slick.Color;
+import org.newdawn.slick.Graphics;
+import org.newdawn.slick.Image;
+
+import com.unlogical.linked.GameLauncher;
+import com.unlogical.linked.debug.Debug;
+import com.unlogical.linked.util.ColorHelper;
+import com.unlogical.linked.util.Dimension;
+import com.unlogical.linked.util.Renderer;
+
+public class ParticleSystem
+{
+	public Map<ParticleEmitter, ParticlePool> particlePoolsByEmitter = new IdentityHashMap<ParticleEmitter, ParticlePool>();
+
+	public Set<ParticleEmitter> emitters = new HashSet<ParticleEmitter>();
+	public Set<ParticleEmitter> emittersToRemove = new HashSet<ParticleEmitter>();
+
+	public int particleCount = 0;
+	public int realParticleCount = 0;
+
+	public boolean visible;
+
+	public ParticleSystem()
+	{
+	}
+
+	public void update(int delta, float lightDelta, float shadowDelta)
+	{
+		emittersToRemove.clear();
+
+		for (ParticleEmitter emitter : emitters)
+		{
+			if (emitter.isEnabled() && !(emitter.getDimension() == GameLauncher.getLevelContext().getBackgroundDimension() && GameLauncher.getLevelContext().isInitialising()))
+			{
+				emitter.update(this, emitter.isTimeEffected() ? (emitter.dimension == Dimension.LIGHT ? lightDelta : shadowDelta) : delta);
+
+				if (emitter.isCompleted())
+				{
+					emittersToRemove.add(emitter);
+					particlePoolsByEmitter.remove(emitter);
+				}
+			}
+		}
+		this.emitters.removeAll(emittersToRemove);
+
+		particleCount = 0;
+		realParticleCount = 0;
+
+		for (ParticleEmitter emitter : emitters)
+		{
+			float emitterDelta = emitter.isTimeEffected() ? (emitter.dimension == Dimension.LIGHT ? lightDelta : shadowDelta) : delta;
+
+			if (emitter.isEnabled() && !(emitter.getDimension() == GameLauncher.getLevelContext().getBackgroundDimension() && GameLauncher.getLevelContext().isInitialising()))
+			{
+				ParticlePool pool = particlePoolsByEmitter.get(emitter);
+
+				if (pool == null)
+				{
+					emittersToRemove.add(emitter);
+
+					Debug.warn("Removed invalid emitter as there was no mapping for it in the particle pool pool (" + emitter + ").");
+				}
+				else
+				{
+					for (int i = 0; i < pool.particles.length; i++)
+					{
+						if (pool.particles[i].isInUse())
+						{
+							pool.particles[i].update(emitterDelta);
+
+							particleCount++;
+						}
+
+						realParticleCount++;
+					}
+				}
+			}
+		}
+
+		if (!emittersToRemove.isEmpty())
+		{
+			emitters.removeAll(emittersToRemove);
+			emittersToRemove.clear();
+		}
+	}
+
+	public void updateEmitter(ParticleEmitter emitter, float delta)
+	{
+		emitter.update(this, delta);
+
+		if (emitter.isCompleted())
+		{
+			emitters.remove(emitter);
+			particlePoolsByEmitter.remove(emitter);
+		}
+		else
+		{
+			ParticlePool pool = particlePoolsByEmitter.get(emitter);
+
+			for (int i = 0; i < pool.particles.length; i++)
+			{
+				if (pool.particles[i].isInUse())
+				{
+					pool.particles[i].update(delta);
+				}
+			}
+		}
+	}
+
+	public void render(Graphics g)
+	{
+		for (ParticleEmitter emitter : emitters)
+		{
+			if (emitter.isEnabled() && emitter.renderViaSystem())
+			{
+				renderEmitter(emitter, g);
+			}
+		}
+	}
+
+	public void renderEmitter(ParticleEmitter emitter, Graphics g)
+	{
+		ParticlePool pool = particlePoolsByEmitter.get(emitter);
+		Color color = ColorHelper.applyAlphaAndCopy(emitter.dimension == Dimension.LIGHT ? emitter.getColor() : Color.white, emitter.isShared() ? GameLauncher.getLevelContext().getControlAlpha() : GameLauncher.getLevelContext().getDimensionColor(emitter.dimension).a);
+
+		color = ColorHelper.multiplyRGBAndCopy(color, GameLauncher.getLevelContext().getDimensionColor(Dimension.LIGHT));
+		
+		if (emitter.getRenderMode() == ParticleEmitter.RENDER_IDENTICAL)
+		{
+			for (int i = emitter.getDimension().code(); i < emitter.getImages().length; i += 2)
+			{
+				Image boundImage = emitter.getImages()[i][0];
+
+				Renderer.bindTexture(boundImage.getTexture());
+
+				for (int j = 0; j < pool.particles.length; j++)
+				{
+					if (pool.particles[j].isInUse() && pool.particles[j].getImage() == boundImage)
+					{
+						pool.particles[j].render(color, g);
+					}
+				}
+			}
+		}
+		else if (emitter.getRenderMode() == ParticleEmitter.RENDER_PARTIAL)
+		{
+			Renderer.bindTexture(emitter.getWrapper().getImage().getTexture());
+
+			for (int j = 0; j < pool.particles.length; j++)
+			{
+				if (pool.particles[j].isInUse())
+				{
+					pool.particles[j].render(color, g);
+				}
+			}
+		}
+	}
+
+	public Particle getParticle(ParticleEmitter emitter, int lifetime)
+	{
+		ParticlePool pool = particlePoolsByEmitter.get(emitter);
+
+		ArrayList<Particle> availableParticles = pool.availableParticles;
+
+		if (availableParticles.size() > 0)
+		{
+			Particle particle = availableParticles.remove(availableParticles.size() - 1);
+			particle.init(emitter, lifetime);
+			emitter.setImageFor(particle);
+
+			return particle;
+		}
+		else
+		{
+			Debug.warn("Particle Emitter (" + emitter.getType() + ") ran out of particles! " + pool.particles.length + " (requested new particle but there are no more available in particle pool");
+			return null;
+		}
+	}
+
+	public boolean hasActiveParticles(ParticleEmitter emitter)
+	{
+		if (particlePoolsByEmitter.get(emitter) == null)
+		{
+//			Debug.warn("Requested particles for emitter " + emitter + ", " + emitter.getType() + ", but that emitter isn't in this particle system.");
+			
+			return false;
+		}
+
+		return particlePoolsByEmitter.get(emitter).availableParticles.size() != particlePoolsByEmitter.get(emitter).particles.length;
+	}
+
+	public void release(Particle particle)
+	{
+		ParticlePool pool = particlePoolsByEmitter.get(particle.getEmitter());
+		particle.setLifetime(0);
+		pool.availableParticles.add(particle);
+	}
+
+	public void releaseAll(ParticleEmitter emitter)
+	{
+		ParticlePool pool = particlePoolsByEmitter.get(emitter);
+		
+		for (Particle particle : pool.particles)
+		{
+			particle.setLifetime(0);
+			pool.availableParticles.add(particle);
+		}
+	}
+
+	public void moveParticles(ParticleEmitter emitter, float xChange, float yChange)
+	{
+		emitter.emitterXOffset += xChange;
+		emitter.emitterYOffset += yChange;
+	}
+
+	public void addEmitter(ParticleEmitter emitter)
+	{
+		this.emitters.add(emitter);
+		this.particlePoolsByEmitter.put(emitter, new ParticlePool(this, emitter.getMaxParticles()));
+
+		emitter.setSystem(this);
+	}
+
+	public void removeEmitter(ParticleEmitter emitter)
+	{		
+		this.emitters.remove(emitter);
+		this.particlePoolsByEmitter.remove(emitter);
+	}
+
+	public void removeAllEmitters()
+	{
+		this.particlePoolsByEmitter.clear();
+		this.emitters.clear();
+	}
+
+	public int getEmitterCount()
+	{
+		return emitters.size();
+	}
+
+	public int getParticleCount()
+	{
+		return particleCount;
+	}
+
+	public int getRealParticleCount()
+	{
+		return realParticleCount;
+	}
+
+	public boolean isVisible()
+	{
+		return visible;
+	}
+
+	public void setVisible(boolean visible)
+	{
+		this.visible = visible;
+	}
+}

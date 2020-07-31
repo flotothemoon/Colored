@@ -1,0 +1,1585 @@
+package com.unlogical.colored.collision;
+
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Map;
+
+import org.newdawn.slick.Color;
+import org.newdawn.slick.Graphics;
+import org.newdawn.slick.geom.Line;
+import org.newdawn.slick.geom.Point;
+import org.newdawn.slick.geom.Polygon;
+import org.newdawn.slick.geom.Transform;
+import org.newdawn.slick.geom.Vector2f;
+
+import com.unlogical.colored.GameLauncher;
+import com.unlogical.colored.configuration.Resolutions;
+import com.unlogical.colored.level.Level;
+import com.unlogical.colored.particle.Particle;
+import com.unlogical.colored.util.ColorHelper;
+import com.unlogical.colored.util.IDeepCopyable;
+
+public strictfp class Hitbox extends Polygon implements IDeepCopyable<Hitbox>
+{
+	private static final long serialVersionUID = -6342631914215819143L;
+
+	public static final float MIN_CHECK_DISTANCE = Resolutions.TILE_SIZE - 1;
+	public static boolean debugMode = false;
+	public static HashSet<Line> cachedLines = new HashSet<Line>();
+
+	private static Vector2f buffer = new Vector2f();
+	private static Vector2f bufferedIntersection = new Vector2f();
+	private static Vector2f intersectionPoint = new Vector2f();
+	private static Line sideLine = new Line(0.0f, 0.0f, 0.0f, 0.0f);
+
+	private static Point point = new Point(0.0f, 0.0f);
+	private static Point otherPoint = new Point(0.0f, 0.0f);
+	private static Point anotherPoint = new Point(0.0f, 0.0f);
+	private static Point andAnotherPoint = new Point(0.0f, 0.0f);
+
+	private static Line ownLineBuffer = new Line(0.0f, 0.0f);
+	private static Line otherLineBuffer = new Line(0.0f, 0.0f);
+
+	private boolean collidedTop;
+	private boolean collidedBottom;
+	private boolean collidedLeft;
+	private boolean collidedRight;
+
+	private boolean foundAbove;
+	private boolean foundBelow;
+	private boolean foundRight;
+	private boolean foundLeft;
+
+	private boolean leftBottom;
+	private boolean rightBottom;
+	private boolean leftTop;
+	private boolean rightTop;
+
+	private boolean onCorner;
+
+	private boolean connectedRight;
+	private boolean connectedLeft;
+
+	private boolean roughRight;
+	private boolean roughLeft;
+
+	private boolean closestBelowRight;
+	private boolean closestBelowLeft;
+
+	private boolean checkedAbove;
+	private boolean checkedBelowRight;
+	private boolean checkedBelowLeft;
+	private boolean checkedRight;
+	private boolean checkedLeft;
+
+	private float width;
+	private float height;
+
+	private float rotation;
+
+	private float foundAboveDistance;
+	private float foundRightDistance;
+	private float foundLeftDistance;
+
+	private float distanceToBlockBelowLeft;
+	private float distanceToBlockBelowRight;
+	private float distanceToBlockLeft;
+	private float distanceToBlockRight;
+	private float distanceToBlockAbove;
+
+	private float cornerDistance;
+
+	private float distanceToRightEnd;
+	private float distanceToLeftEnd;
+
+	private float leftAngle = 0.0f;
+	private float rightAngle = 0.0f;
+
+	private float relCenterX;
+	private float relCenterY;
+
+	private float checkDistance;
+
+	private int topLeftIndex;
+
+	private Hitbox hitboxRight;
+	private Hitbox hitboxLeft;
+	private Hitbox hitboxBelow;
+
+	public Hitbox(float x, float y, float width, float height)
+	{
+		super(new float[] { x, y, x + width, y, x + width, y + height, x, y + height });
+
+		this.width = width;
+		this.height = height;
+	}
+
+	public Hitbox(float[] points)
+	{
+		super(points);
+	}
+
+	private Hitbox()
+	{
+
+	}
+
+	@Override
+	public Hitbox deepCopy(Map<Object, Object> copiedReferences)
+	{
+		Hitbox copy = new Hitbox();
+
+		Level.putCopy(this, copy, copiedReferences);
+
+		copy.points = Arrays.copyOf(this.points, this.points.length);
+		copy.center = Arrays.copyOf(this.center, this.center.length);
+
+		copy.minX = this.minX;
+		copy.maxX = this.maxX;
+		copy.minY = this.minY;
+		copy.maxY = this.maxY;
+
+		copy.boundingCircleRadius = this.boundingCircleRadius;
+		copy.pointsDirty = this.pointsDirty;
+		copy.tris = this.tris;
+
+		copy.trianglesDirty = this.trianglesDirty;
+
+		copy.x = this.x;
+		copy.y = this.y;
+
+		copy.collidedTop = this.collidedTop;
+		copy.collidedBottom = this.collidedBottom;
+		copy.collidedLeft = this.collidedLeft;
+		copy.collidedRight = this.collidedRight;
+
+		copy.foundAbove = this.foundAbove;
+		copy.foundBelow = this.foundBelow;
+		copy.foundLeft = this.foundLeft;
+		copy.foundRight = this.foundRight;
+
+		copy.leftBottom = this.leftBottom;
+		copy.rightBottom = this.rightBottom;
+		copy.leftTop = this.leftTop;
+		copy.rightTop = this.rightTop;
+		copy.onCorner = this.onCorner;
+
+		copy.connectedRight = this.connectedRight;
+		copy.connectedLeft = this.connectedLeft;
+
+		copy.roughLeft = this.roughLeft;
+		copy.roughRight = this.roughRight;
+
+		copy.closestBelowRight = this.closestBelowRight;
+		copy.closestBelowLeft = this.closestBelowLeft;
+
+		copy.checkedAbove = this.checkedAbove;
+		copy.checkedBelowRight = this.checkedBelowRight;
+		copy.checkedBelowLeft = this.checkedBelowLeft;
+		copy.checkedRight = this.checkedRight;
+		copy.checkedLeft = this.checkedLeft;
+
+		copy.width = this.width;
+		copy.height = this.height;
+
+		copy.rotation = this.rotation;
+
+		copy.foundAboveDistance = this.foundAboveDistance;
+		copy.foundLeftDistance = this.foundLeftDistance;
+		copy.foundRightDistance = this.foundRightDistance;
+
+		copy.distanceToBlockAbove = this.distanceToBlockAbove;
+		copy.distanceToBlockBelowLeft = this.distanceToBlockBelowLeft;
+		copy.distanceToBlockBelowRight = this.distanceToBlockBelowRight;
+		copy.distanceToBlockLeft = this.distanceToBlockLeft;
+		copy.distanceToBlockRight = this.distanceToBlockRight;
+
+		copy.cornerDistance = this.cornerDistance;
+
+		copy.distanceToRightEnd = this.distanceToRightEnd;
+		copy.distanceToLeftEnd = this.distanceToLeftEnd;
+
+		copy.leftAngle = this.leftAngle;
+		copy.rightAngle = this.rightAngle;
+
+		copy.relCenterX = this.relCenterX;
+		copy.relCenterY = this.relCenterY;
+
+		copy.checkDistance = this.checkDistance;
+
+		copy.topLeftIndex = this.topLeftIndex;
+
+		copy.hitboxBelow = (Hitbox) Level.getCopy(hitboxBelow, copiedReferences);
+		copy.hitboxRight = (Hitbox) Level.getCopy(hitboxRight, copiedReferences);
+		copy.hitboxLeft = (Hitbox) Level.getCopy(hitboxLeft, copiedReferences);
+
+		return copy;
+	}
+	
+	@Override
+	public boolean shouldCopy()
+	{
+		return true;
+	}
+
+	public void setPoints(float[] points)
+	{
+		this.points = points;
+
+		this.update();
+	}
+
+	public void set(float x, float y, float width, float height)
+	{
+		this.points = new float[] { x, y, x + width, y, x + width, y + height, x, y + height };
+
+		this.x = x;
+		this.y = y;		
+		this.width = width;
+		this.height = height;
+
+		this.update();
+	}
+
+	public void rotate(float degrees, float absCenterX, float absCenterY)
+	{
+		this.rotation = degrees;
+
+		degrees = (float) Math.toRadians(degrees);
+
+		BufferedTransform rotateTransform = BufferedTransform.getRotatedTransform(degrees, absCenterX, absCenterY);
+
+		rotateTransform.transform(points, 0, points, 0, points.length / 2);
+
+		for (int i = 0; i < this.points.length; i++)
+		{
+			this.points[i] = Math.round(this.points[i]);
+		}
+
+		this.update();
+		this.findTopLeftIndex();
+	}
+
+	public void setRotation(float degrees, float relCenterX, float relCenterY)
+	{
+		this.rotation = degrees;
+		
+		this.points[0] = x;
+		this.points[1] = y;
+		this.points[2] = x + width;
+		this.points[3] = y;
+
+		this.points[4] = x + width;
+		this.points[5] = y + height;
+		this.points[6] = x;
+		this.points[7] = y + height;
+
+		this.relCenterX = relCenterX;
+		this.relCenterY = relCenterY;
+		
+		this.rotate(degrees, this.points[0] + relCenterX, this.points[1] + relCenterY);
+	}
+
+	public static void rotate(Hitbox[] borders, float absCenterX, float absCenterY, float degrees)
+	{
+		for (Hitbox rectangle : borders)
+		{
+			rotate(rectangle, absCenterX, absCenterY, degrees);
+		}
+	}
+
+	public static void rotate(Hitbox hitbox, float absCenterX, float absCenterY, float degrees)
+	{
+		float[] result = new float[hitbox.points.length];
+
+		degrees = (float) Math.toRadians(degrees);
+
+		Transform rotateTransform = Transform.createRotateTransform(degrees, absCenterX, absCenterY);
+
+		rotateTransform.transform(hitbox.points, 0, result, 0, hitbox.points.length / 2);
+
+		hitbox.setPoints(result);
+		hitbox.update();
+	}
+
+	public boolean collides(Hitbox hitbox, boolean calculateEndDistances)
+	{
+		boolean collides = false;
+
+		boolean properRight = false;
+		boolean properLeft = false;
+
+		boolean leftBottom = false;
+		boolean rightBottom = false;
+
+		collidedRight = false;
+		collidedLeft = false;
+		collidedTop = false;
+		collidedBottom = false;
+
+		float rotation = hitbox.getRotation() % 90;
+
+		float rightRotation = rotation > 0 ? -90 + rotation : rotation;
+		float leftRotation = rotation < 0 ? rotation + 90 : rotation;
+
+		float leftAngle = this.leftAngle;
+		float rightAngle = this.rightAngle;
+
+		boolean enteredLoop = false;
+
+		for (int i = topLeftIndex; i != topLeftIndex || !enteredLoop; i = (i >= points.length - 1) ? 0 : i + 2)
+		{
+			enteredLoop = true;
+
+			int relIndex = Math.abs((i - topLeftIndex) % points.length);
+
+			if (hitbox.contains(this.points[relIndex], this.points[relIndex + 1]))
+			{
+				checkPoints(hitbox, this.points[relIndex], this.points[relIndex + 1]);
+
+				if (relIndex == 0)
+				{
+					if (foundAbove && foundRight)
+					{
+						collidedTop = true;
+					}
+
+					if (foundBelow && foundLeft)
+					{
+						collidedLeft = true;
+					}
+
+					leftTop = true;
+				}
+				else if (relIndex == 2)
+				{
+					if (foundAbove && foundLeft)
+					{
+						collidedTop = true;
+					}
+
+					if (foundBelow && foundRight)
+					{
+						collidedRight = true;
+					}
+
+					rightTop = true;
+				}
+				else if (relIndex == 4 && (!hitbox.isTiltRight() || -rightRotation >= 45))
+				{
+					if (foundBelow && foundLeft)
+					{
+						collidedBottom = true;
+						hitboxBelow = hitbox;
+
+						if (this.points[getSecondPointIndex()] <= hitbox.points[hitbox.getSecondPointIndex()])
+						{
+							distanceToRightEnd = hitbox.points[hitbox.getSecondPointIndex()] - this.points[getSecondPointIndex()];
+
+							if (!properLeft)
+							{
+								distanceToLeftEnd = this.points[getSecondPointIndex()] - hitbox.points[hitbox.getTopLeftIndex()];
+							}
+
+							properRight = true;
+						}
+					}
+
+					if (foundAbove && foundRight)
+					{
+						if ((-rightRotation >= 45 || ((rightRotation == 0) && !hitbox.connectedLeft)) && foundAboveDistance >= 2.5f)
+						{
+							collidedRight = true;
+						}
+
+						if (-rightRotation < 45 || !hitbox.connectedLeft)
+						{
+							rightAngle = Math.min(rightRotation, rightAngle);
+						}
+					}
+
+					rightBottom = true;
+				}
+				else if (relIndex == 6 && (!hitbox.isTiltLeft() || leftRotation >= 45))
+				{
+					if (foundBelow && foundRight)
+					{
+						collidedBottom = true;
+						hitboxBelow = hitbox;
+
+						if (hitbox.points[hitbox.getTopLeftIndex()] <= this.points[topLeftIndex])
+						{
+							distanceToLeftEnd = this.points[topLeftIndex] - hitbox.points[hitbox.getTopLeftIndex()];
+
+							if (!properRight)
+							{
+								distanceToRightEnd = hitbox.points[hitbox.getSecondPointIndex()] - this.points[topLeftIndex];
+							}
+
+							properLeft = true;
+						}
+					}
+
+					if (foundAbove && foundLeft)
+					{
+						if ((leftRotation >= 45 || ((leftRotation == 0) && !hitbox.connectedRight)) && foundAboveDistance >= 2.5f)
+						{
+							collidedLeft = true;
+						}
+
+						if (leftRotation < 45 || !hitbox.connectedRight)
+						{
+							leftAngle = Math.max(leftRotation, leftAngle);
+						}
+					}
+
+					leftBottom = true;
+				}
+
+				collides = true;
+			}
+
+			relIndex = Math.abs(i - hitbox.getTopLeftIndex()) % hitbox.points.length;
+
+			if (this.contains(hitbox.points[relIndex], hitbox.points[relIndex + 1]))
+			{
+				checkPoints(this, hitbox.points[relIndex], hitbox.points[relIndex + 1]);
+
+				if (relIndex == 0)
+				{
+					if (foundAbove && foundRight && (this.maxY - hitbox.points[relIndex + 1] < 3))
+					{
+						collidedBottom = true;
+						onCorner = true;
+						hitboxBelow = hitbox;
+						cornerDistance = this.maxY - hitbox.points[relIndex + 1];
+					}
+
+					if (foundAbove && foundLeft && foundRightDistance < 3)
+					{
+						if ((-rightRotation >= 45 || ((rightRotation == 0 || (this.points[nextPoint(topLeftIndex, 3) + 1] - (hitbox.points[relIndex + 1]) > 2)))) && !hitbox.connectedLeft)
+						{
+							collidedRight = true;
+						}
+						else if (-rightRotation < 45 || !hitbox.connectedLeft)
+						{
+							rightAngle = Math.min(rightRotation, rightAngle);
+						}
+					}
+				}
+				else if (relIndex == 2)
+				{
+					if (foundAbove && foundLeft && (this.maxY - hitbox.points[relIndex + 1] < 3))
+					{
+						collidedBottom = true;
+						onCorner = true;
+						hitboxBelow = hitbox;
+						cornerDistance = this.maxY - hitbox.points[relIndex + 1];
+					}
+
+					if (foundAbove && foundRight && foundLeftDistance < 3)
+					{
+						if ((leftRotation >= 45 || ((leftRotation == 0 || (this.points[nextPoint(topLeftIndex, 3) + 1] - (hitbox.points[relIndex + 1]) > 2)))) && !hitbox.connectedRight)
+						{
+							collidedLeft = true;
+						}
+						else if (leftRotation < 45 || !hitbox.connectedRight)
+						{
+							leftAngle = Math.max(leftRotation, leftAngle);
+						}
+					}
+				}
+				else if (relIndex == 4)
+				{
+					if (foundBelow && foundLeft && !foundAbove)
+					{
+						collidedTop = true;
+					}
+
+					if (foundBelow && foundLeft && (leftRotation >= 45 || hitbox.minX < this.minX && ((leftRotation == 0 || (this.points[nextPoint(topLeftIndex, 3) + 1] - (hitbox.points[relIndex + 1]) > 1)) && !hitbox.connectedRight)))
+					{
+						collidedLeft = true;
+					}
+				}
+				else if (relIndex == 6)
+				{
+					if (foundBelow && foundRight && !foundAbove)
+					{
+						collidedTop = true;
+					}
+
+					if (foundBelow && foundRight && (-rightRotation >= 45 || ((rightRotation == 0 || (this.points[nextPoint(topLeftIndex, 3) + 1] - (hitbox.points[relIndex + 1]) > 1)) && !hitbox.connectedLeft)))
+					{
+						collidedRight = true;
+					}
+				}
+
+				collides = true;
+			}
+		}
+
+		if (collidedRight && collidedLeft)
+		{
+			if (this.center[0] < hitbox.center[0])
+			{
+				collidedRight = true;
+				collidedLeft = false;
+			}
+			else
+			{
+				collidedRight = false;
+				collidedLeft = true;
+			}
+		}
+
+		// if (rightBottom && leftBottom && (leftAngle != 0.0f || rightAngle !=
+		// 0.0f))
+		// {
+		// if (leftRotation < 45)
+		// {
+		// rightAngle = 0.0f;
+		// }
+		// else
+		// {
+		// leftAngle = 0.0f;
+		// }
+		// }
+
+		this.leftBottom = leftBottom || this.leftBottom;
+		this.rightBottom = rightBottom || this.rightBottom;
+		this.leftAngle = leftAngle;
+		this.rightAngle = rightAngle;
+
+		return collides;
+	}
+
+	public boolean collidesHorizontally(Hitbox other, float checkInterval)
+	{
+		return intersectsHorizontallyWith(other, checkInterval, true) || intersectsHorizontallyWith(other, checkInterval, false);
+	}
+
+	public boolean intersectsHorizontallyWith(Hitbox other, float checkInterval, boolean rightSide)
+	{
+		for (float y = other.minY + checkInterval / 2; y <= other.maxY - checkInterval / 2; y += checkInterval)
+		{
+			if (this.contains(rightSide ? other.minX : other.maxX, y))
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	public boolean collidesVertically(Hitbox other, int checkInterval)
+	{
+		return intersectsVerticallyWith(other, checkInterval, true) || intersectsVerticallyWith(other, checkInterval, false);
+	}
+
+	public boolean intersectsVerticallyWith(Hitbox other, int checkInterval, boolean topSide)
+	{
+		for (float x = other.minX + checkInterval / 2; x < other.maxX - checkInterval / 2; x += checkInterval)
+		{
+			if (this.contains(x, topSide ? other.maxY : other.minY))
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	public boolean reallyIntersects(Hitbox hitbox)
+	{
+		if (this.contains(hitbox) || hitbox.contains(this))
+		{
+			return true;
+		}
+
+		for (int i = 0; i < this.points.length; i += 2)
+		{
+			if (hitbox.reallyContains(this.points[i], this.points[i + 1]))
+			{
+				return true;
+			}
+		}
+
+		for (int i = 0; i < hitbox.points.length; i += 2)
+		{
+			if (this.reallyContains(hitbox.points[i], hitbox.points[i + 1]))
+			{
+				return true;
+			}
+		}
+
+		if (this.intersects(hitbox))
+		{
+			if (hitbox.rotation == 0.0f && (this.maxY - hitbox.minY > 2.0f && hitbox.maxY - this.maxY > 2.0f || (this.maxY >= hitbox.maxY && this.minY < hitbox.minY)) && this.minX - hitbox.minX > 0.0f && hitbox.maxX - this.maxX > 0.0f)
+			{
+				return true;
+			}
+		}
+		
+		return false;
+	}
+
+	private boolean reallyContains(float x, float y)
+	{
+		if (super.contains(x, y))
+		{
+			float xOld = points[points.length - 2];
+			float yOld = points[points.length - 1];
+
+			for (int i = 0; i < points.length; i += 2)
+			{
+				float numerator = Math.abs((yOld - points[i + 1]) * x - (xOld - points[i]) * y + xOld * points[i + 1] - yOld * points[i]);
+				float distance = numerator / ((float) Math.sqrt(Math.round(Math.pow(yOld - points[i + 1], 2) + Math.pow(xOld - points[i], 2))));
+
+				if (distance < 1.0f)
+				{
+					return false;
+				}
+
+				xOld = points[i];
+				yOld = points[i + 1];
+			}
+
+			return true;
+		}
+
+		return false;
+	}
+
+	@Override
+	public boolean contains(float x, float y)
+	{
+		checkPoints();
+
+		boolean result = false;
+		float xNew, yNew;
+		float xOld, yOld;
+		float x1, y1;
+		float x2, y2;
+
+		int pointsCount = points.length;
+
+		xOld = points[pointsCount - 2];
+		yOld = points[pointsCount - 1];
+
+		for (int i = 0; i < pointsCount; i += 2)
+		{
+			xNew = points[i];
+			yNew = points[i + 1];
+
+			if (xNew > xOld)
+			{
+				x1 = xOld;
+				x2 = xNew;
+				y1 = yOld;
+				y2 = yNew;
+			}
+			else
+			{
+				x1 = xNew;
+				x2 = xOld;
+				y1 = yNew;
+				y2 = yOld;
+			}
+
+			if ((xNew < x) == (x <= xOld) && ((double) y - (double) y1) * (x2 - x1) < ((double) y2 - (double) y1) * (x - x1))
+			{
+				result = !result;
+			}
+
+			if (x >= x1 && x <= x2 && x1 == x2 && ((y > y1 && y < y2) || (y > y2 && y < y1)))
+			{
+				return true;
+			}
+
+			if (x > x1 && x < x2 && y1 == maxY && y2 == maxY && y == y1 && y1 == y2)
+			{
+				return true;
+			}
+
+			xOld = xNew;
+			yOld = yNew;
+		}
+
+		return result;
+	}
+
+	@Override
+	protected void findCenter()
+	{
+		if (center == null)
+		{
+			center = new float[] { 0.0f, 0.0f };
+		}
+		else
+		{
+			center[0] = 0.0f;
+			center[1] = 0.0f;
+		}
+
+		int length = points.length;
+
+		for (int i = 0; i < length; i += 2)
+		{
+			center[0] += points[i];
+			center[1] += points[i + 1];
+		}
+
+		center[0] /= (length / 2);
+		center[1] /= (length / 2);
+	}
+
+	public boolean checkCollision(Hitbox other, float additionalCheckDistance, boolean rotateOwnLines)
+	{
+		boolean result = false;
+
+		this.checkDistance = MIN_CHECK_DISTANCE + additionalCheckDistance;
+
+		this.closestBelowLeft = false;
+		this.closestBelowRight = false;
+
+		result = checkLineIntersections(this, other, false, rotateOwnLines) || result;
+		result = checkLineIntersections(other, this, true, false) || result;
+
+		return result;
+	}
+
+	private boolean checkLineIntersections(Hitbox hitbox, Hitbox other, boolean flipSigns, boolean rotateOwnLines)
+	{
+		boolean enteredLoop = false;
+		boolean result = false;
+
+		for (int i = hitbox.getTopLeftIndex(); i != hitbox.getTopLeftIndex() || !enteredLoop; i = (i >= hitbox.points.length - 1) ? 0 : i + 2)
+		{
+			int relIndex = (i - hitbox.getTopLeftIndex()) % hitbox.points.length;
+			enteredLoop = true;
+
+			float xPos;
+			float yPos;
+
+			if (relIndex == 0 || relIndex == 2)
+			{
+				xPos = hitbox.points[relIndex] + (relIndex == 0 ? 1 : -1);
+				ownLineBuffer.set(xPos, hitbox.points[relIndex + 1], xPos, hitbox.points[relIndex + 1] - checkDistance);
+				result = checkLineIntersections(ownLineBuffer, hitbox.getRotation(), other, flipSigns, false, false, rotateOwnLines) || result;
+			}
+
+			if (relIndex == 2 || relIndex == 4)
+			{
+				yPos = hitbox.points[relIndex + 1] + (relIndex == 4 ? 1 : -1);
+				ownLineBuffer.set(hitbox.points[relIndex], yPos, hitbox.points[relIndex] + checkDistance, yPos);
+				result = checkLineIntersections(ownLineBuffer, hitbox.getRotation(), other, flipSigns, false, flipSigns ? relIndex == 2 && hitbox.connectedRight : relIndex == 4 && other.connectedLeft, rotateOwnLines) || result;
+			}
+
+			if (relIndex == 4 || relIndex == 6)
+			{
+				xPos = hitbox.points[relIndex] + (relIndex == 6 ? 1 : -1);
+				ownLineBuffer.set(xPos, hitbox.points[relIndex + 1], xPos, hitbox.points[relIndex + 1] + checkDistance);
+				result = checkLineIntersections(ownLineBuffer, hitbox.getRotation(), other, flipSigns, relIndex == 6 && other.connectedRight, relIndex == 4 && other.connectedLeft, rotateOwnLines) || result;
+			}
+
+			if (relIndex == 6 || relIndex == 0)
+			{
+				yPos = hitbox.points[relIndex + 1] + (relIndex == 0 ? 1 : -1);
+				ownLineBuffer.set(hitbox.points[relIndex], yPos, hitbox.points[relIndex] - checkDistance, yPos);
+				result = checkLineIntersections(ownLineBuffer, hitbox.getRotation(), other, flipSigns, relIndex == 6 && other.connectedRight, false, rotateOwnLines) || result;
+			}
+		}
+
+		return result;
+	}
+
+	private boolean checkLineIntersections(Line line, float rotation, Hitbox other, boolean flipSigns, boolean ignoreLeft, boolean ignoreRight, boolean rotateLines)
+	{
+		boolean result = false;
+
+		if (rotateLines)
+		{
+			anotherPoint.setLocation(line.getX1(), line.getY1());
+			andAnotherPoint.setLocation(line.getX2(), line.getY2());
+
+			rotatePoint(andAnotherPoint, anotherPoint, rotation);
+
+			line.set(anotherPoint.getX(), anotherPoint.getY(), andAnotherPoint.getX(), andAnotherPoint.getY());
+		}
+
+		for (int i = 0; i < other.points.length; i += 2)
+		{
+			int nextPoint = (i + 2) % other.points.length;
+
+			otherLineBuffer.set(other.points[i], other.points[i + 1], other.points[nextPoint], other.points[nextPoint + 1]);
+			result = checkLineIntersection(line, otherLineBuffer, flipSigns, ignoreLeft, ignoreRight) || result;
+		}
+
+		return result;
+	}
+
+	private boolean checkLineIntersection(Line line, Line other, boolean flipSigns, boolean ignoreLeft, boolean ignoreRight)
+	{
+		if (debugMode)
+		{
+			cachedLines.add(new Line(line.getX1(), line.getY1(), line.getX2(), line.getY2()));
+			cachedLines.add(new Line(other.getX1(), other.getY1(), other.getX2(), other.getY2()));
+		}
+
+		if (line.intersect(other, true, intersectionPoint))
+		{
+			float dx = line.getStart().x - intersectionPoint.x;
+			float dy = line.getStart().y - intersectionPoint.y;
+
+			if (flipSigns)
+			{
+				dx *= -1.0f;
+				dy *= -1.0f;
+
+				boolean help = ignoreRight;
+				ignoreRight = ignoreLeft;
+				ignoreLeft = help;
+			}
+
+			if (dx < 0 && !ignoreRight)
+			{
+				checkNearestRight(-dx);
+			}
+			else if (dx > 0 && !ignoreLeft)
+			{
+				checkNearestLeft(dx);
+			}
+
+			if (dy < 0)
+			{
+				if (other.getStart().y != other.getEnd().y && !flipSigns)
+				{
+					dy -= 0.5f;
+				}
+
+				if (dx <= 0.0f)
+				{
+					checkNearestBelowRight(-dy);
+				}
+
+				if (dx >= 0.0f)
+				{
+					checkNearestBelowLeft(-dy);
+				}
+			}
+			else if (dy > 0)
+			{
+				checkNearestAbove(dy);
+			}
+
+			return true;
+		}
+
+		return false;
+	}
+
+	private final void checkNearestRight(float distance)
+	{
+		if (distance < distanceToBlockRight || !checkedRight)
+		{
+			distanceToBlockRight = distance;
+			checkedRight = true;
+		}
+	}
+
+	private final void checkNearestLeft(float distance)
+	{
+		if (distance < distanceToBlockLeft || !checkedLeft)
+		{
+			distanceToBlockLeft = distance;
+			checkedLeft = true;
+		}
+	}
+
+	private final void checkNearestAbove(float distance)
+	{
+		if (distance < distanceToBlockAbove || !checkedAbove)
+		{
+			distanceToBlockAbove = distance;
+			checkedAbove = true;
+		}
+	}
+
+	public final void checkNearestBelowRight(float distance)
+	{
+		if (distance < distanceToBlockBelowRight || !checkedBelowRight)
+		{
+			distanceToBlockBelowRight = distance;
+			checkedBelowRight = true;
+			closestBelowRight = true;
+		}
+	}
+
+	public final void checkNearestBelowLeft(float distance)
+	{
+		if (distance < distanceToBlockBelowLeft || !checkedBelowLeft)
+		{
+			distanceToBlockBelowLeft = distance;
+			checkedBelowLeft = true;
+			closestBelowLeft = true;
+		}
+	}
+
+	public void setHeight(float height)
+	{
+		this.height = height;
+
+		points[5] = y + height;
+		points[7] = y + height;
+
+		this.findCenter();
+	}
+
+	public void setWidth(float width)
+	{
+		this.width = width;
+
+		points[2] = x + width;
+		points[4] = x + width;
+
+		this.findCenter();
+	}
+
+	public void setRawWidth(float width)
+	{
+		this.width = width;
+	}
+
+	public void setRawHeight(float height)
+	{
+		this.height = height;
+	}
+
+	public Vector2f getNearestIntersection(Line line)
+	{
+		float shortestDistance = 100000.0f;
+		float temp;
+
+		bufferedIntersection.set(0.0f, 0.0f);
+
+		sideLine.set(this.minX, this.minY, this.maxX, this.minY);
+
+		buffer = (sideLine.intersect(line, true));
+		if (buffer != null)
+		{
+			bufferedIntersection.set(buffer);
+			buffer.sub(line.getStart());
+
+			shortestDistance = buffer.length();
+		}
+
+		sideLine.set(this.minX, this.maxY, this.maxX, this.maxY);
+
+		buffer = (sideLine.intersect(line, true));
+		if (buffer != null)
+		{
+			buffer.sub(line.getStart());
+
+			if ((temp = buffer.length()) < shortestDistance)
+			{
+				shortestDistance = temp;
+
+				buffer.add(line.getStart());
+				bufferedIntersection.set(buffer);
+			}
+		}
+
+		sideLine.set(this.maxX, this.minY, this.maxX, this.maxY);
+
+		buffer = (sideLine.intersect(line, true));
+		if (buffer != null)
+		{
+			buffer.sub(line.getStart());
+
+			if ((temp = buffer.length()) < shortestDistance)
+			{
+				shortestDistance = temp;
+
+				buffer.add(line.getStart());
+				bufferedIntersection.set(buffer);
+			}
+		}
+
+		sideLine.set(this.minX, this.minY, this.minX, this.maxY);
+
+		buffer = (sideLine.intersect(line, true));
+		if (buffer != null)
+		{
+			buffer.sub(line.getStart());
+
+			if ((temp = buffer.length()) < shortestDistance)
+			{
+				shortestDistance = temp;
+
+				buffer.add(line.getStart());
+				bufferedIntersection.set(buffer);
+			}
+		}
+
+		return bufferedIntersection;
+	}
+
+	public boolean contains(Particle particle)
+	{
+		return this.contains(particle.getXPos() + GameLauncher.getLevelContext().getCameraOffset().x * particle.getEmitter().getWrapper().getEmitterParallax() + particle.getEmitter().getEmitterXOffset(), particle.getYPos() + GameLauncher.getLevelContext().getCameraOffset().y * particle.getEmitter().getWrapper().getEmitterParallax() + particle.getEmitter().getEmitterYOffset());
+	}
+
+	public boolean contains(float[] point)
+	{
+		return this.contains(point[0], point[1]);
+	}
+
+	public void update()
+	{
+		this.pointsDirty = true;
+
+		this.checkPoints();
+	}
+
+	public void setReversedHeight(float height)
+	{
+		points[1] = points[5] - height;
+		points[3] = points[7] - height;
+	}
+
+	public void setReversedWidth(float width)
+	{
+		points[0] = points[2] - width;
+		points[6] = points[4] - width;
+	}
+
+	private void checkPoints(Hitbox hitbox, float hitX, float hitY)
+	{
+		float[] points = hitbox.points;
+
+		foundLeft = false;
+		foundRight = false;
+		foundAbove = false;
+		foundBelow = false;
+
+		foundAboveDistance = 0.0f;
+		foundRightDistance = 0.0f;
+		foundLeftDistance = 0.0f;
+
+		for (int i = 0; i < points.length; i += 2)
+		{
+			if (points[i] < hitX)
+			{
+				foundLeft = true;
+				foundLeftDistance = Math.max(hitX - points[i], foundLeftDistance);
+			}
+			else if (points[i] > hitX)
+			{
+				foundRight = true;
+				foundRightDistance = Math.max(points[i] - hitX, foundRightDistance);
+			}
+
+			if (points[i + 1] < hitY)
+			{
+				foundAbove = true;
+				foundAboveDistance = Math.max(Math.abs(hitY - points[i + 1]), foundAboveDistance);
+			}
+			else if (points[i + 1] > hitY)
+			{
+				foundBelow = true;
+			}
+		}
+	}
+
+	public boolean canMoveRight(float distance)
+	{
+		return distance <= distanceToBlockRight || !checkedRight;
+	}
+
+	public boolean canMoveLeft(float distance)
+	{
+		return distance <= distanceToBlockLeft || !checkedLeft;
+	}
+
+	public boolean canMoveUp(float distance)
+	{
+		return distance <= distanceToBlockAbove || !checkedAbove;
+	}
+
+	public boolean canMoveDown(float distance)
+	{
+		return canMoveDownRight(distance) && canMoveDownLeft(distance);
+	}
+
+	public boolean canMoveDownRight(float distance)
+	{
+		return distance <= distanceToBlockBelowRight || !checkedBelowRight;
+	}
+
+	public boolean canMoveDownLeft(float distance)
+	{
+		return distance <= distanceToBlockBelowLeft || !checkedBelowLeft;
+	}
+
+	public void findTopLeftIndex()
+	{
+		if (!connectedLeft && !connectedRight)
+		{
+			if (rotation == 90)
+			{
+				topLeftIndex = 6;
+			}
+			else
+			{
+				if (rotation > 45)
+				{
+					topLeftIndex = 6;
+				}
+				else if (rotation < -45)
+				{
+					topLeftIndex = 2;
+				}
+				else
+				{
+					topLeftIndex = 0;
+				}
+			}
+		}
+	}
+
+	public int previousPoint(int point)
+	{
+		point -= 2;
+
+		if (point < 0)
+		{
+			point = points.length - 2;
+		}
+
+		return point;
+	}
+
+	public int nextPoint(int point, int skips)
+	{
+		point += skips * 2;
+
+		if (point >= this.points.length)
+		{
+			return 0;
+		}
+
+		return point;
+	}
+
+	public int getSecondPointIndex()
+	{
+		return nextPoint(topLeftIndex);
+	}
+
+	public int nextPoint(int point)
+	{
+		point += 2;
+
+		if (point >= points.length)
+		{
+			return 0;
+		}
+
+		return point;
+	}
+
+	public void resetCache()
+	{
+		checkedAbove = false;
+		checkedBelowLeft = false;
+		checkedBelowRight = false;
+		checkedLeft = false;
+		checkedRight = false;
+
+		distanceToBlockAbove = 0.0f;
+		distanceToBlockBelowLeft = 0.0f;
+		distanceToBlockBelowRight = 0.0f;
+		distanceToBlockLeft = 0.0f;
+		distanceToBlockRight = 0.0f;
+
+		distanceToLeftEnd = 0.0f;
+		distanceToRightEnd = 0.0f;
+
+		cornerDistance = 0.0f;
+
+		leftBottom = false;
+		rightBottom = false;
+		leftTop = false;
+		rightTop = false;
+
+		onCorner = false;
+
+		rightAngle = 0.0f;
+		leftAngle = 0.0f;
+	}
+
+	public float getDistanceToBlockBelow()
+	{
+		if (!checkedBelowRight)
+		{
+			return distanceToBlockBelowLeft;
+		}
+		else if (!checkedBelowLeft)
+		{
+			return distanceToBlockBelowRight;
+		}
+		else
+		{
+			return distanceToBlockBelowLeft < distanceToBlockBelowRight ? distanceToBlockBelowLeft : distanceToBlockBelowRight;
+		}
+	}
+
+	@Override
+	public String toString()
+	{
+		return "[Hitbox " + this.points[0] + " - " + this.points[1] + ", " + this.points[2] + " - " + this.points[3] + ", " + this.points[4] + " - " + this.points[5] + ", " + this.points[6] + " - " + this.points[7] + "]";
+	}
+
+	public static Point rotatePoint(Point point, Point other, float rotation)
+	{
+		float sin = (float) Math.sin(Math.toRadians(rotation));
+		float cos = (float) Math.cos(Math.toRadians(rotation));
+
+		point.setLocation(point.getX() - other.getX(), point.getY() - other.getY());
+
+		point.setLocation(other.getX() + (point.getX() * cos - point.getY() * sin), other.getY() + (point.getX() * sin + point.getY() * cos));
+
+		return point;
+	}
+
+	public static Point rotatePoint(float x, float y, float otherX, float otherY, float rotation)
+	{
+		point.setLocation(x, y);
+		otherPoint.setLocation(otherX, otherY);
+
+		return rotatePoint(point, otherPoint, rotation);
+	}
+
+	public static void renderDebug(Graphics g)
+	{
+		if (debugMode)
+		{
+			g.setColor(ColorHelper.applyAlphaAndCopy(Color.red, 0.1f));
+
+			for (Line line : cachedLines)
+			{
+				g.drawLine(line.getX1(), line.getY1(), line.getX2(), line.getY2());
+			}
+		}
+	}
+
+	public boolean isTiltLeft()
+	{
+		return this.points[topLeftIndex + 1] > this.points[getSecondPointIndex() + 1];
+	}
+
+	public boolean isTiltRight()
+	{
+		return this.points[topLeftIndex + 1] < this.points[getSecondPointIndex() + 1];
+	}
+
+	public boolean isInRangeX(float x, int distance)
+	{
+		return x >= this.minX - distance && x <= this.maxX + distance;
+	}
+
+	public boolean isInRangeY(float y, int distance)
+	{
+		return y >= this.minY - distance && y <= this.maxY + distance;
+	}
+
+	public float getRawWidth()
+	{
+		return this.width;
+	}
+
+	public float getRawHeight()
+	{
+		return this.height;
+	}
+
+	public boolean collidedTop()
+	{
+		return collidedTop;
+	}
+
+	public boolean collidedBottom()
+	{
+		return collidedBottom;
+	}
+
+	public boolean collidedLeft()
+	{
+		return collidedLeft;
+	}
+
+	public boolean collidedRight()
+	{
+		return collidedRight;
+	}
+
+	public float getRotation()
+	{
+		return rotation;
+	}
+
+	public int getTopLeftIndex()
+	{
+		return topLeftIndex;
+	}
+
+	public float getDistanceToBlockBelowLeft()
+	{
+		return distanceToBlockBelowLeft;
+	}
+
+	public float getDistanceToBlockBelowRight()
+	{
+		return distanceToBlockBelowRight;
+	}
+
+	public float getDistanceToBlockLeft()
+	{
+		return distanceToBlockLeft;
+	}
+
+	public void setDistanceToBlockLeft(float distanceToBlockLeft)
+	{
+		this.distanceToBlockLeft = distanceToBlockLeft;
+	}
+
+	public float getDistanceToBlockRight()
+	{
+		return distanceToBlockRight;
+	}
+
+	public void setDistanceToBlockRight(float distanceToBlockRight)
+	{
+		this.distanceToBlockRight = distanceToBlockRight;
+	}
+
+	public float getDistanceToBlockAbove()
+	{
+		return distanceToBlockAbove;
+	}
+
+	public void setDistanceToBlockAbove(float distanceToBlockAbove)
+	{
+		this.distanceToBlockAbove = distanceToBlockAbove;
+	}
+
+	public void setTopLeftIndex(int topLeftIndex)
+	{
+		this.topLeftIndex = topLeftIndex;
+	}
+
+	public void setDistanceToBlockBelowLeft(float distanceToBlockBelowLeft)
+	{
+		this.distanceToBlockBelowLeft = distanceToBlockBelowLeft;
+	}
+
+	public void setDistanceToBlockBelowRight(float distanceToBlockBelowRight)
+	{
+		this.distanceToBlockBelowRight = distanceToBlockBelowRight;
+	}
+
+	public boolean isCheckedLeft()
+	{
+		return checkedLeft;
+	}
+
+	public boolean isCheckedRight()
+	{
+		return checkedRight;
+	}
+
+	public float getLeftAngle()
+	{
+		return leftAngle;
+	}
+
+	public float getRightAngle()
+	{
+		return rightAngle;
+	}
+
+	public boolean isLeftBottom()
+	{
+		return leftBottom;
+	}
+
+	public boolean isRightBottom()
+	{
+		return rightBottom;
+	}
+
+	public boolean isCheckedBelowRight()
+	{
+		return checkedBelowRight;
+	}
+
+	public boolean isCheckedBelowLeft()
+	{
+		return checkedBelowLeft;
+	}
+
+	public boolean isConnectedRight()
+	{
+		return connectedRight;
+	}
+
+	public void setConnectedRight(boolean connectedRight)
+	{
+		this.connectedRight = connectedRight;
+	}
+
+	public boolean isConnectedLeft()
+	{
+		return connectedLeft;
+	}
+
+	public void setConnectedLeft(boolean connectedLeft)
+	{
+		this.connectedLeft = connectedLeft;
+	}
+
+	public boolean hasRight()
+	{
+		return !this.connectedRight;
+	}
+
+	public boolean hasLeft()
+	{
+		return !this.connectedLeft;
+	}
+
+	public float getDistanceToRightEnd()
+	{
+		return distanceToRightEnd;
+	}
+
+	public float getDistanceToLeftEnd()
+	{
+		return distanceToLeftEnd;
+	}
+
+	public Hitbox getHitboxRight()
+	{
+		return hitboxRight;
+	}
+
+	public void setHitboxRight(Hitbox hitboxRight)
+	{
+		this.hitboxRight = hitboxRight;
+	}
+
+	public Hitbox getHitboxLeft()
+	{
+		return hitboxLeft;
+	}
+
+	public void setHitboxLeft(Hitbox hitboxLeft)
+	{
+		this.hitboxLeft = hitboxLeft;
+	}
+
+	public Hitbox getHitboxBelow()
+	{
+		return hitboxBelow;
+	}
+
+	public void setCheckedRight(boolean checkedRight)
+	{
+		this.checkedRight = checkedRight;
+	}
+
+	public void setCheckedLeft(boolean checkedLeft)
+	{
+		this.checkedLeft = checkedLeft;
+	}
+
+	public void setCheckedAbove(boolean checkedAbove)
+	{
+		this.checkedAbove = checkedAbove;
+	}
+	
+	public boolean isClosestBelowRight()
+	{
+		return closestBelowRight;
+	}
+
+	public boolean isClosestBelowLeft()
+	{
+		return closestBelowLeft;
+	}
+
+	public boolean isCheckedAbove()
+	{
+		return checkedAbove;
+	}
+
+	public boolean isOnCorner()
+	{
+		return onCorner;
+	}
+
+	public float getCornerDistance()
+	{
+		return cornerDistance;
+	}
+
+	public boolean isRoughRight()
+	{
+		return roughRight;
+	}
+
+	public void setRoughRight(boolean roughtRight)
+	{
+		this.roughRight = roughtRight;
+	}
+
+	public boolean isRoughLeft()
+	{
+		return roughLeft;
+	}
+
+	public void setRoughLeft(boolean roughLeft)
+	{
+		this.roughLeft = roughLeft;
+	}
+
+	public boolean containsX(float x)
+	{
+		return this.contains(x, this.center[1]);
+	}
+
+	public boolean containsY(float y)
+	{
+		return this.contains(this.center[0], y);
+	}
+
+	public boolean isLeftTop()
+	{
+		return leftTop;
+	}
+
+	public boolean isRightTop()
+	{
+		return rightTop;
+	}
+
+	public float getRelCenterX()
+	{
+		return relCenterX;
+	}
+
+	public float getRelCenterY()
+	{
+		return relCenterY;
+	}
+}

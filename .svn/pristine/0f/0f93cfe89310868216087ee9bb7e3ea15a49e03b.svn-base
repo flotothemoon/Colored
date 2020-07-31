@@ -1,0 +1,593 @@
+package com.unlogical.linked.network;
+
+import java.io.BufferedOutputStream;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.net.Socket;
+import java.net.UnknownHostException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+
+import com.unlogical.linked.GameLauncher;
+import com.unlogical.linked.debug.Debug;
+import com.unlogical.linked.filesystem.FileOrganisation;
+import com.unlogical.linked.filesystem.files.YAMLConfiguration;
+
+
+
+
+public class ClientProcessor extends Thread
+{
+	private boolean readData = true;
+	private boolean startConnection;
+	private boolean endConnection;
+	private boolean connectionCancelled;
+	private boolean expectingFile;
+	private boolean authFailed;
+	private boolean updateFound;
+	private boolean updating;
+	private boolean indexReceived;
+	private boolean requestingFiles;
+	private boolean fullyUpdated;
+
+	private String status = "";
+	private String fromServer = "";
+
+	private ArrayList<String> pending = new ArrayList<String>();
+
+	private String expectedFile = "";
+	private String updateVersion = "";
+
+	private long size;
+
+	private static boolean connected;
+	private static boolean connecting;
+	private static boolean outputPending;
+
+	private static final String DEFAULT_SERVER = "127.0.0.1";
+	private static final String PROTOCOL = "0.1a";
+
+	private static final int DEFAULT_PORT_NUMBER = 7331;
+	private static final int MAX_CONNECTION_TIME = 5000;
+
+	private int connectingTime = 0;
+	private int expectedFilesCount;
+	private int downloadedFilesSize;
+	private int outdatedFilesSize;
+
+	private List<String> receivedData = new ArrayList<String>();
+	private byte[] buffer;
+	private Socket client;
+	private DataInputStream in;
+	private DataOutputStream out;
+	private Timer timer = new Timer(1000);
+
+	public ClientProcessor()
+	{
+		this.start();
+		timer.startTimer();
+	}
+
+	@Override
+	public void run()
+	{
+		while (true)
+		{
+			if (startConnection && !connected)
+			{
+				if (connectingTime < MAX_CONNECTION_TIME)
+				{
+					connecting = true;
+					setStatus("Connecting...");
+					startConnection();
+				}
+				else
+				{
+					connecting = false;
+					startConnection = false;
+					setStatus("Connection failed: Timeout");
+				}
+			}
+			else if (connected)
+			{
+				if (outputPending && pending.size() >= 1)
+				{
+					send(pending.get(0));
+				}
+
+				if (readData)
+				{
+					try
+					{
+						while (in != null && (fromServer = in.readUTF()) != null)
+						{
+							receivedData.add(fromServer);
+							Debug.log("(Client): " + fromServer + " received.");
+
+							if (fromServer.startsWith("AUTH_"))
+							{
+								String message = fromServer.substring(fromServer.indexOf('_') + 1);
+								if (message.equalsIgnoreCase("SUCCESSFULL"))
+								{
+									setStatus("Authentication successfull!");
+									setStatus("Requesting version...");
+									send("GETVERSION");
+									send("GETMOTD");
+								}
+								else if (message.equalsIgnoreCase("FAILED"))
+								{
+									setStatus("Authentication failed.");
+									authFailed = true;
+								}
+							}
+							else if (fromServer.startsWith("DISC_"))
+							{
+								setStatus("Disconnected: " + fromServer.substring(fromServer.indexOf('_') + 1));
+								connected = false;
+								startConnection = false;
+							}
+							else if (fromServer.startsWith("VERSION_"))
+							{
+								if (GameLauncher.getVersion().equalsIgnoreCase(fromServer.substring(fromServer.indexOf('_') + 1)))
+								{
+									setStatus("Your game is up to date!");
+								}
+								else
+								{
+									updateVersion = fromServer.substring(fromServer.indexOf('_') + 1);
+									status = "Update found (" + updateVersion + ")!";
+									updateFound = true;
+								}
+							}
+							else if (fromServer.startsWith("FILE_"))
+							{
+								expectedFile = fromServer.substring(fromServer.indexOf("_\t") + 2);
+								size = Long.parseLong(fromServer.substring(fromServer.indexOf('_') + 1, fromServer.indexOf("_\t")));
+								expectingFile = true;
+								break;
+							}
+							else if (fromServer.startsWith("MOTD_"))
+							{
+								String str = fromServer.substring(fromServer.indexOf('_') + 1);
+								File motd = new File("dev/motd.txt");
+								if (!motd.exists())
+									motd.createNewFile();
+								YAMLConfiguration cfg = new YAMLConfiguration(motd);
+								cfg.set("header", str.substring(0, str.indexOf('\n')));
+								cfg.set("message", str.substring(str.indexOf('\n') + 1, str.indexOf("\n\t")));
+								cfg.set("timestamp", str.substring(str.indexOf('\t') + 1));
+							}
+							else if (fromServer.equals("REPORT_ACK"))
+							{
+								setStatus("Report sent. Thank you!");
+							}
+						}
+
+						if (expectingFile)
+						{
+							setStatus("Waiting for server...");
+
+							File file = new File("temp" + "/" + expectedFile);
+							if (file.getPath().contains("/"))
+							{
+								new File(file.getPath().substring(0, file.getPath().lastIndexOf("/"))).mkdirs();
+							}
+							file.createNewFile();
+
+							BufferedOutputStream fileOut = new BufferedOutputStream(new FileOutputStream(file, false));
+
+							buffer = new byte[1024];
+
+							int receivedBytes = 0;
+
+							while (size > 0 && (receivedBytes = in.read(buffer, 0, (int) Math.min(buffer.length, size))) != -1)
+							{
+								setStatus("Downloading file(s)...");
+
+								fileOut.write(buffer, 0, receivedBytes);
+								fileOut.flush();
+
+								size -= receivedBytes;
+								downloadedFilesSize += receivedBytes;
+							}
+
+							fileOut.close();
+
+							if (file.getName().equalsIgnoreCase("index.yml"))
+							{
+								indexReceived = true;
+							}
+
+							if (indexReceived && updating && !requestingFiles)
+							{
+								requestFiles();
+							}
+
+							if (expectedFilesCount <= 0 && updating)
+							{
+								setStatus("Download complete.");
+
+								setStatus("Applying temporary data...");
+
+								applyTemporaryData();
+
+								setStatus("Clearing temporary data...");
+
+								clearTemporaryData();
+
+								setStatus("Update complete.");
+
+								fullyUpdated = true;
+
+								updating = false;
+							}
+							else
+							{
+								expectedFilesCount--;
+							}
+
+							expectingFile = false;
+						}
+
+					}
+					catch (IOException e)
+					{
+						if (connected)
+						{
+							setStatus("Connection refused.");
+						}
+					}
+				}
+
+				if (endConnection)
+				{
+					endConnection();
+				}
+			}
+			try
+			{
+				sleep(10);
+			}
+			catch (InterruptedException e)
+			{
+			}
+		}
+	}
+
+	private void startConnection()
+	{
+		try
+		{
+			client = new Socket(DEFAULT_SERVER, DEFAULT_PORT_NUMBER);
+			out = new DataOutputStream(client.getOutputStream());
+			in = new DataInputStream(client.getInputStream());
+
+			send("PROTOCOL_" + PROTOCOL);
+
+			connecting = false;
+			connected = true;
+			startConnection = false;
+
+			setStatus("Connected.");
+		}
+		catch (UnknownHostException e)
+		{
+			startConnection = false;
+			connecting = false;
+			connectionCancelled = true;
+			setStatus("Connection failed: Unknown Host.");
+		}
+		catch (IOException e)
+		{
+			startConnection = false;
+			connectionCancelled = true;
+			connecting = false;
+			setStatus("Connection refused.");
+		}
+	}
+
+	public void endConnection()
+	{
+		try
+		{
+			in.close();
+			out.close();
+			client.close();
+
+			endConnection = false;
+			setStatus("Connection ended.");
+		}
+		catch (IOException e)
+		{
+			setStatus("Error while closing connection.");
+		}
+
+		Debug.log("(Client): " + status);
+	}
+
+	public void send(String strToSend)
+	{
+		Debug.log("(Client): Sending " + strToSend);
+		if ((out == null || !connected))
+		{
+			outputPending = true;
+			pending.add(strToSend);
+			Debug.log("(Client): Could not send, output set to pending...");
+		}
+		else
+		{
+			try
+			{
+				out.writeUTF(strToSend);
+				Debug.log("(Client): " + strToSend + " successfully sent.");
+
+				if (outputPending)
+				{
+					if (pending.size() == 1)
+					{
+						outputPending = false;
+					}
+
+					pending.remove(0);
+				}
+			}
+			catch (IOException e)
+			{
+				outputPending = true;
+			}
+		}
+	}
+
+	public void sendReport(String id, String report)
+	{
+		send("REPORT_" + id + "\t_\t" + report.replace("\n", "LINEBREAK"));
+		setStatus("Sending report...");
+	}
+
+	public void startUpdate()
+	{
+		updating = true;
+
+		setStatus("Initializing temporary data...");
+
+//		DataHandler.delete("temp");
+		new File("temp").mkdir();
+
+		setStatus("Creating index...");
+
+		FileOrganisation.createIndex();
+
+		setStatus("Index created.");
+
+		setStatus("Requesting server index...");
+
+		send("GETINDEX");
+	}
+
+	private void clearTemporaryData()
+	{
+//		DataHandler.delete("temp");
+		new File("temp").mkdir();
+	}
+
+	private void applyTemporaryData()
+	{
+		File temp = new File("temp");
+
+		for (File file : temp.listFiles())
+		{
+			move(file, new File(file.getPath().substring("temp".length() + 1)));
+		}
+	}
+
+	private boolean move(File sourceFile, File destFile)
+	{
+		if (sourceFile.isDirectory())
+		{
+			for (File file : sourceFile.listFiles())
+			{
+				move(file, new File(file.getPath().substring("temp".length() + 1)));
+			}
+		}
+		else
+		{
+			try
+			{
+				Files.move(Paths.get(sourceFile.getPath()), Paths.get(destFile.getPath()), StandardCopyOption.REPLACE_EXISTING);
+				return true;
+			}
+			catch (IOException e)
+			{
+				return false;
+			}
+		}
+		return false;
+	}
+
+	private void requestFiles()
+	{
+		setStatus("Analyzing index...");
+
+		YAMLConfiguration cfg = new YAMLConfiguration(new File("temp/index.yml"));
+
+		HashMap<String, String> serverIndex = cfg.getLines();
+
+		HashMap<String, String> outdatedFiles = FileOrganisation.getOutdatedFiles(null, serverIndex);
+
+		expectedFilesCount = outdatedFiles.size();
+
+		outdatedFilesSize = FileOrganisation.getOutdatedFilesSize();
+
+		downloadedFilesSize = 0;
+
+		for (String outdatedFile : outdatedFiles.keySet())
+		{
+			send("REQUESTFILE_" + outdatedFile);
+		}
+
+		requestingFiles = true;
+	}
+
+	private class Timer extends Thread
+	{
+		private long pastTicks = 0;
+		private long tick = 1000;
+
+		private Timer(long tick)
+		{
+			this.tick = tick;
+		}
+
+		private void startTimer()
+		{
+			start();
+		}
+
+		@Override
+		public void run()
+		{
+			while (true)
+			{
+				try
+				{
+					if (connecting)
+					{
+						connectingTime++;
+					}
+					
+					pastTicks++;
+					sleep(tick);
+				}
+				catch (InterruptedException e)
+				{
+				}
+
+			}
+		}
+	}
+
+	public void authenticate(String username, String password)
+	{
+		send("AUTH_" + username + "\t\t\t\t\t" + password);
+	}
+
+	private void setStatus(String status)
+	{
+		this.status = status;
+		Debug.log("(Client): " + status);
+	}
+
+	public boolean isConnectionCancelled()
+	{
+		return connectionCancelled;
+	}
+
+	public boolean isReadData()
+	{
+		return readData;
+	}
+
+	public void setReadData(boolean readData)
+	{
+		this.readData = readData;
+	}
+
+	public boolean isConnectionStarted()
+	{
+		return startConnection;
+	}
+
+	public void setStartConnection(boolean startConnection)
+	{
+		this.startConnection = startConnection;
+		this.connectionCancelled = false;
+		this.connectingTime = 0;
+	}
+
+	public boolean isConnectionEnded()
+	{
+		return endConnection;
+	}
+
+	public static boolean isConnected()
+	{
+		return connected;
+	}
+
+	public static boolean isConnecting()
+	{
+		return connecting;
+	}
+
+	public List<String> getReceivedData()
+	{
+		return receivedData;
+	}
+
+	public int getConnectingTime()
+	{
+		return connectingTime;
+	}
+
+	public int getDownloadedFilesSize()
+	{
+		return downloadedFilesSize;
+	}
+
+	public String getStatus()
+	{
+		return status;
+	}
+
+	public String getFromServer()
+	{
+		return fromServer;
+	}
+
+	public boolean isAuthFailed()
+	{
+		return authFailed;
+	}
+
+	public void setAuthFailed(boolean authFailed)
+	{
+		this.authFailed = authFailed;
+	}
+
+	public static boolean isOutputPending()
+	{
+		return outputPending;
+	}
+
+	public boolean wasUpdateFound()
+	{
+		return updateFound;
+	}
+
+	public boolean isUpdating()
+	{
+		return this.updating;
+	}
+
+	public boolean isRequestingFiles()
+	{
+		return this.requestingFiles;
+	}
+
+	public int getOutdatedFilesSize()
+	{
+		return outdatedFilesSize;
+	}
+
+	public boolean isFullyUpdated()
+	{
+		return fullyUpdated;
+	}
+}

@@ -1,0 +1,490 @@
+package com.unlogical.colored.filesystem;
+
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.util.Collection;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
+
+import com.unlogical.colored.debug.Debug;
+
+public class FileManager
+{
+	public static final FilePackage GLOBAL_FILE_PACKAGE = new FilePackage("", "global", false, true);
+	public static final FileLoadMode PREFERRED_LOAD_MODE = FileLoadMode.PACKAGED;
+	public static final String PACKAGE_META_FOLDER = ".meta";
+	public static final String PACKAGE_META_FILE_EXTENSION = ".meta";
+	public static final String PACKAGE_RAW_FILE_EXTENSION = ".pkg";
+
+	private static Set<FilePackage> filePackages = new LinkedHashSet<FilePackage>();
+
+	static
+	{
+		Debug.log("Initialising file system...");
+
+		long beforeTime = System.currentTimeMillis();
+
+		try
+		{
+			pack(FileManager.globaliseFile("res"), FileManager.globaliseFile("worlds"), FileManager.globaliseFile("dev"));
+		}
+		catch (IOException e)
+		{
+			Debug.warn("Something went wrong while packing files...");
+		}
+
+		fetchPackages();
+
+		Debug.log("File system initialized, took " + (System.currentTimeMillis() - beforeTime) + "ms.");
+	}
+
+	/**
+	 * Fetches all valid packages available in the current directory or its sub-folders.
+	 */
+	public static void fetchPackages()
+	{
+		fetchPackages(".", SearchMode.RECURSIVE, 2);
+	}
+
+	/**
+	 * Fetches all valid packages, starting in {@code rootPath} with search mode {@code searchMode}. The global file
+	 * package is used for all files that were not loaded with a file package.
+	 * 
+	 * @param rootPath
+	 *            The path in which to start searching for packages
+	 * @param searchMode
+	 *            The search mode with which to search with
+	 * @param searchDepth
+	 *            Maximum folder depth in which packages will be searched for
+	 */
+	public static void fetchPackages(String rootPath, SearchMode searchMode, int searchDepth)
+	{
+		filePackages.clear();
+		filePackages.add(GLOBAL_FILE_PACKAGE);
+
+		findPackages(new File(rootPath), searchMode, searchDepth);
+
+		String pkgString = "";
+
+		for (FilePackage pkg : filePackages)
+		{
+			pkgString += pkg.getName() + ", ";
+		}
+
+		if (pkgString.endsWith(", "))
+		{
+			pkgString = pkgString.substring(0, pkgString.length() - 2);
+		}
+
+		Debug.log("Found " + filePackages.size() + " file packages (" + pkgString + ").");
+	}
+
+	/**
+	 * Adds all valid packages found in the root folder according to the search mode.
+	 * 
+	 * @param root
+	 *            The folder in which to start searching for packages
+	 * @param searchMode
+	 *            The search mode with with to search with
+	 * @param searchDepth
+	 *            Maximum folder depth in which packages will be searched for (ignored in linear search mode)
+	 */
+	private static void findPackages(File root, SearchMode searchMode, int searchDepth)
+	{
+		for (File file : root.listFiles())
+		{
+			if (file.isFile())
+			{
+				if (file.getName().endsWith(PACKAGE_RAW_FILE_EXTENSION))
+				{
+					if (new File(getMetaPath(file.getName().substring(0, file.getName().lastIndexOf('.')))).exists())
+					{
+						FilePackage pkg = new FilePackage(file.getPath().replace('\\', '/'), file.getName().substring(0, file.getName().lastIndexOf('.')), true, false);
+						try
+						{
+							pkg.fetchAll();
+						}
+						catch (IOException e)
+						{
+							Debug.warn("Exception while fetching all files for package " + pkg + ": " + e, e);
+						}
+
+						filePackages.add(pkg);
+					}
+				}
+			}
+			else if (file.isDirectory() && searchMode == SearchMode.RECURSIVE && searchDepth > 0)
+			{
+				findPackages(file, searchMode, searchDepth - 1);
+			}
+		}
+	}
+
+	/**
+	 * Returns the expected raw package data path for a given folder
+	 * 
+	 * @param folder
+	 *            The folder
+	 * @return The expected raw data path
+	 */
+	public static String getPackagePath(String folder)
+	{
+		if (folder.endsWith("/"))
+		{
+			folder = folder.substring(0, folder.length() - 1);
+		}
+
+		return folder + PACKAGE_RAW_FILE_EXTENSION;
+	}
+
+	/**
+	 * Returns the expected meta data path for a given folder
+	 * 
+	 * @param folder
+	 *            The folder
+	 * @return The expected meta data path
+	 */
+	public static String getMetaPath(String folder)
+	{
+		int headCount = 0;
+
+		while (folder.startsWith("../"))
+		{
+			folder = folder.substring(3);
+
+			headCount++;
+		}
+
+		if (folder.endsWith("/"))
+		{
+			folder = folder.substring(0, folder.length() - 1);
+		}
+
+		String path = PACKAGE_META_FOLDER + "/" + folder + PACKAGE_META_FILE_EXTENSION;
+
+		while (headCount-- > 0)
+		{
+			path = "../" + path;
+		}
+
+		return path;
+	}
+
+	/**
+	 * Packs all given folders on the file system into file packages.
+	 * 
+	 * @param folders
+	 *            The folders to pack
+	 * @throws IOException
+	 *             In case an IOException occurs
+	 */
+	public static void pack(String... folders) throws IOException
+	{
+		for (String folder : folders)
+		{
+			FilePackage pkg = new FilePackage(folder, new File(folder).getName(), false, false);
+
+			System.out.println(folder);
+
+			Debug.log("Packing " + pkg.getName() + "...");
+
+			pkg.fetchAll();
+			pkg.loadFiles(pkg.getAllFiles(), false);
+			pkg.loadAllBinaries(false);
+			pkg.writeAll();
+
+			Debug.log("Packed " + pkg.getName() + " in " + pkg.getPath() + " (" + pkg.getFileCount() + " files, " + pkg.getTotalLoadedLength() + " bytes).");
+		}
+	}
+
+	/**
+	 * Loads all files in a given file package, reloading already loaded files if reload flag is set.
+	 * 
+	 * @param pkg
+	 *            The file package to load / reload
+	 * @param reload
+	 *            Flag to indicate whether or not to reload already loaded files
+	 * @throws IOException
+	 *             IOException in case there is an exception while loading
+	 */
+	public static void load(FilePackage pkg, boolean reload) throws IOException
+	{
+		if (!existsPackage(pkg))
+		{
+			throw new RuntimeException("Package " + pkg + " doesn't exist and therefore cannot be loaded.");
+		}
+
+		pkg.loadAll(reload);
+	}
+
+	public static void release(FilePackage pkg)
+	{
+		if (!existsPackage(pkg))
+		{
+			throw new RuntimeException("Package " + pkg + " doesn't exist and therefore cannot be released.");
+		}
+
+		pkg.releaseAll();
+	}
+
+	public static boolean existsPackage(FilePackage pkg)
+	{
+		return filePackages.contains(pkg);
+	}
+
+	public static FilePackage getPackage(String path)
+	{
+		FilePackage optimal = null;
+
+		for (FilePackage pkg : filePackages)
+		{
+			if (path.startsWith(pkg.getPath()) && (optimal == null || pkg.getDepth() > optimal.getDepth()))
+			{
+				optimal = pkg;
+			}
+		}
+
+		if (optimal == null)
+		{
+			optimal = GLOBAL_FILE_PACKAGE;
+		}
+
+		return optimal;
+	}
+
+	public static List<String> listFiles(String folder)
+	{
+		return listFiles(folder, false);
+	}
+
+	public static List<String> listFiles(String folder, boolean recursive)
+	{
+		return getPackage(folder).listFiles(folder, recursive);
+	}
+
+	public static boolean existsFile(String path)
+	{
+		for (FilePackage pkg : filePackages)
+		{
+			if (pkg.existsFile(path))
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	private static FilePackage createPackage(String path) throws IOException
+	{
+		if (path.endsWith("/"))
+		{
+			path = path.substring(0, path.length() - 1);
+		}
+
+		String name = path.contains("/") ? path.substring(path.lastIndexOf('/')) : path;
+
+		FilePackage pkg = new FilePackage(path, name, true, false);
+		pkg.writeMetaFile();
+		pkg.writePackageFile();
+		pkg.fetchAll();
+		pkg.writeAll();
+
+		filePackages.add(pkg);
+
+		return pkg;
+	}
+
+	public static void createDirectory(String path) throws IOException
+	{
+		getPackage(path).createDirectory(path);
+	}
+
+	public static FileHandle createFile(String path) throws IOException
+	{
+		return createFile(path, true, 1);
+	}
+
+	public static FileHandle createFile(String path, boolean createMissingPackage, int packageDepth) throws IOException
+	{
+		FilePackage pkg = getPackage(path);
+
+		if (pkg == GLOBAL_FILE_PACKAGE && createMissingPackage)
+		{
+			if (packageDepth <= 0)
+			{
+				throw new IllegalArgumentException("Invalid package depth: " + packageDepth + ". File \"" + path + "\" could not be created within a new package. ");
+			}
+
+			String pkgPath = "";
+
+			int lastIndex = 0;
+
+			for (int i = 0; i < packageDepth; i++)
+			{
+				if (path.indexOf('/', lastIndex) >= 0)
+				{
+					pkgPath += path.substring(lastIndex, path.indexOf('/', lastIndex) + 1);
+
+					lastIndex = path.indexOf('/', lastIndex) + 1;
+				}
+				else
+				{
+					break;
+				}
+			}
+
+			pkg = createPackage(pkgPath);
+		}
+
+		return pkg.createFile(path);
+	}
+
+	public static void deleteFile(String path) throws IOException
+	{
+		getPackage(path).deleteFile(path);
+	}
+
+	public static void deleteFile(FileHandle handle) throws IOException
+	{
+		deleteFile(handle.getPath());
+	}
+
+	public static FileHandle getFileQuietly(String path)
+	{
+		try
+		{
+			return getFile(path);
+		}
+		catch (IOException e)
+		{
+			throw new RuntimeException("Exception while silently getting file " + path + ": " + e, e);
+		}
+	}
+
+	public static FileHandle getFile(String path) throws IOException
+	{
+		return getFile(path, true, false);
+	}
+
+	public static FileHandle getOrCreateFile(String path) throws IOException
+	{
+		return getOrCreateFile(path, true, false, false, 1);
+	}
+
+	public static FileHandle getOrCreateFile(String path, boolean allowLoading, boolean forceReload, boolean createMissingPackages, int packageDepth) throws IOException
+	{
+		if (existsFile(path))
+		{
+			return getFile(path, allowLoading, forceReload);
+		}
+		else
+		{
+			return createFile(path, createMissingPackages, packageDepth);
+		}
+	}
+
+	public static FileHandle getFile(String path, boolean allowLoading, boolean forceReload) throws IOException
+	{
+		FilePackage pkg = getPackage(path);
+
+		if (!existsFile(path))
+		{
+			throw new FileNotFoundException("File \"" + path + "\" is not contained in any of the currently used file packages.");
+		}
+
+		if (!pkg.isFileLoaded(path))
+		{
+			if (!allowLoading)
+			{
+				throw new FileNotLoadedException("File \"" + path + "\" is included in file package \"" + pkg.getName() + "\" but is not loaded and couldn't be reloaded because allowLoading is disabled.");
+			}
+
+			pkg.loadFile(path, false);
+		}
+
+		return pkg.getFile(path);
+	}
+
+	public static long fetchFiles(File rootFolder, SearchMode searchMode, Collection<File> files)
+	{
+		long totalLength = 0L;
+
+		if (!rootFolder.isDirectory())
+		{
+			throw new RuntimeException("Cannot fetch files from a non-directory: " + rootFolder);
+		}
+
+		for (File file : rootFolder.listFiles())
+		{
+			if (file.isFile())
+			{
+				files.add(file);
+
+				totalLength += file.length();
+			}
+			else if (file.isDirectory() && searchMode == SearchMode.RECURSIVE)
+			{
+				totalLength += fetchFiles(file, searchMode, files);
+			}
+		}
+
+		return totalLength;
+	}
+
+	public static String globaliseFile(String path)
+	{
+		if (new File(path).exists())
+		{
+			return path;
+		}
+
+		return "../" + path;
+	}
+
+	public static String deglobaliseFile(String path)
+	{
+		path = path.replace('\\', '/');
+
+		if (path.startsWith("../"))
+		{
+			path = path.substring(path.indexOf('/') + 1);
+		}
+
+		return path;
+	}
+
+	public static String getFileName(String path)
+	{
+		path = path.replace('\\', '/');
+
+		if (path.contains("/"))
+		{
+			path = path.substring(path.lastIndexOf('/') + 1);
+		}
+
+		return path;
+	}
+
+	public static class FileNotLoadedException extends IOException
+	{
+		private static final long serialVersionUID = -4595407546203203924L;
+
+		public FileNotLoadedException()
+		{
+			super();
+		}
+
+		public FileNotLoadedException(String message)
+		{
+			super(message);
+		}
+
+		public FileNotLoadedException(String message, Throwable cause)
+		{
+			super(message, cause);
+		}
+	}
+}

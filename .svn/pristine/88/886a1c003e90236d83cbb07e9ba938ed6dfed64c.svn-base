@@ -1,0 +1,44 @@
+package com.unlogical.colored.saving;
+
+import java.util.HashMap;
+import java.util.Map;
+
+public class InformationPool
+{
+	private Map<Object, Object[]> storedInformation;
+	
+	public InformationPool()
+	{
+		storedInformation = new HashMap<Object, Object[]>();
+	}
+	
+	public Object read(String str)
+	{		
+		return str;
+	}
+	
+	public String write(Object object)
+	{
+		return object.toString();
+	}
+	
+	public void put(Object key, Object... values)
+	{
+		storedInformation.put(key, values);
+	}
+	
+	public Object[] get(Object key)
+	{
+		return storedInformation.get(key);
+	}
+	
+	public void remove(Object key)
+	{
+		this.storedInformation.remove(key);
+	}
+	
+	public Map<Object, Object[]> getStoredInformation()
+	{
+		return storedInformation;
+	}
+}

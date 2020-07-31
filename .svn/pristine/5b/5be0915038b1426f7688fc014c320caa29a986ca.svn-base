@@ -1,0 +1,30 @@
+package com.unlogical.colored.mapeditor;
+
+import com.unlogical.colored.util.Range;
+
+public class BlockStack
+{
+	private Range range;
+	private String type;
+
+	public BlockStack(String type, int from, int to)
+	{
+		this.type = type;
+		this.range = new Range(from, to);
+	}
+
+	public boolean isInRange(int number)
+	{
+		return range.isInRange(number);
+	}
+
+	public String getType()
+	{
+		return this.type;
+	}
+
+	public Range getRange()
+	{
+		return this.range;
+	}
+}

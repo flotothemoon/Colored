@@ -1,0 +1,11 @@
+package com.unlogical.colored.filesystem;
+
+public class MusicNames
+{
+	public static final String[] MAPEDITOR = { "Dream-Culture", "Porch-Swing-Days", "Somewhere-Sunny", "Summer-Day", "Super-Friendly", "Easy-Lemon" };
+	public static final String[] WORLD_1 = { "Dark-Fog", "Dub-Feral", "Call-to-Adventure", "All-This", "Hall-of-the-Mountain-King", "Black-Vortex", "Nerves", "Night-of-Chaos" };
+	public static final String[] WORLD_2 = {};
+	public static final String[] WORLD_3 = {};
+	public static final String[] WORLD_4 = {};
+	public static final String[] WORLD_5 = {};
+}

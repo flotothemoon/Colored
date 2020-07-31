@@ -1,0 +1,144 @@
+package com.unlogical.colored.gui.loading;
+
+import java.util.Random;
+
+import org.newdawn.slick.Color;
+import org.newdawn.slick.GameContainer;
+import org.newdawn.slick.Graphics;
+import org.newdawn.slick.geom.Rectangle;
+
+public class LoadingBar extends Thread
+{
+	protected int totalWidth;
+	protected int width;
+	protected int height;
+	protected int xOffset;
+	protected int yOffset;
+	protected int totalSteps;
+	protected int currentStep = 0;
+	protected Color oldColor;
+	protected Color fillColor = Color.green;
+	private Color[] colors = new Color[] { Color.gray, Color.green, Color.blue, Color.cyan, Color.darkGray, Color.orange, Color.red, Color.white, Color.yellow, Color.orange, Color.green, Color.green };
+	protected Rectangle loadingBar;
+
+	public LoadingBar(int totalSteps, int totalWidth, int totalHeight, int xOffset, int yOffset)
+	{
+		Random generator = new Random();
+		fillColor = colors[generator.nextInt(colors.length)];
+		this.xOffset = xOffset;
+		this.yOffset = yOffset;
+		this.totalSteps = totalSteps;
+		this.currentStep = 0;
+		this.height = totalHeight;
+		this.totalWidth = totalWidth;
+		this.loadingBar = new Rectangle(xOffset, yOffset, 0, 0);
+		new Rectangle(xOffset, yOffset, totalWidth, totalHeight);
+	}
+
+	public void update(int currentStep)
+	{
+		if (currentStep <= totalSteps)
+		{
+			this.currentStep = currentStep;
+			this.width = ((totalWidth * currentStep) / totalSteps);
+			this.loadingBar = new Rectangle(xOffset, yOffset, width, height);
+		}
+	}
+
+	public void render(GameContainer container, Graphics g)
+	{
+		if (loadingBar != null)
+		{
+			oldColor = g.getColor();
+			g.setColor(fillColor);
+			g.fill(loadingBar);
+			g.setColor(oldColor);
+		}
+	}
+
+	public int getProgress()
+	{
+		return (int) ((currentStep * 100.0f) / (totalSteps));
+	}
+
+	public int getWidth()
+	{
+		return width;
+	}
+
+	public void setWidth(int width)
+	{
+		this.width = width;
+	}
+
+	public int getHeight()
+	{
+		return height;
+	}
+
+	public void setHeight(int height)
+	{
+		this.height = height;
+	}
+
+	public int getxOffset()
+	{
+		return xOffset;
+	}
+
+	public void setxOffset(int xOffset)
+	{
+		this.xOffset = xOffset;
+	}
+
+	public int getyOffset()
+	{
+		return yOffset;
+	}
+
+	public void setyOffset(int yOffset)
+	{
+		this.yOffset = yOffset;
+	}
+
+	public int getTotalSteps()
+	{
+		return totalSteps;
+	}
+
+	public void setTotalSteps(int totalSteps)
+	{
+		this.totalSteps = totalSteps;
+	}
+
+	public int getStep()
+	{
+		return currentStep;
+	}
+
+	public void setCurrentStep(int currentStep)
+	{
+		this.currentStep = currentStep;
+	}
+
+	public Color getFillColor()
+	{
+		return fillColor;
+	}
+
+	public void setFillColor(Color fillColor)
+	{
+		this.fillColor = fillColor;
+	}
+
+	public int getTotalWidth()
+	{
+		return totalWidth;
+	}
+
+	public void setTotalWidth(int totalWidth)
+	{
+		this.totalWidth = totalWidth;
+	}
+
+}

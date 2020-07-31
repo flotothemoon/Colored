@@ -1,0 +1,65 @@
+ -- General -- 
+Generated on: 2016-06-19_20-58-14
+Build: 761 from 08:14 PM - 19/06/16
+GameState: LOADING (previous: null)
+Target FPS: 60
+Actual FPS: 27
+
+ -- Display -- 
+Target Width / Height: 1920 / 1080
+Actual Width / Height: 1920 / 1053 (windowed)
+
+ -- Environment -- 
+GPU: GeForce GTX 980 Ti/PCIe/SSE2 (NVIDIA Corporation)
+OpenGL Version: 4.5.0 NVIDIA 361.43
+Allocated Memory: 123MB
+Used Memory: 10MB
+"os.name": Windows 10
+"os.version": 10.0
+"os.arch": x86
+"java.version": 1.8.0_66
+"java.vendor": Oracle Corporation
+"sun.arch.data.model": 32
+
+ -- Stack Trace -- 
+java.lang.RuntimeException: Error while loading: java.lang.NullPointerException
+com.unlogical.colored.util.LoadingHandler.loadNext(LoadingHandler.java:113)
+com.unlogical.colored.GameLauncher.render(GameLauncher.java:548)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication.mainLoop(LwjglApplication.java:218)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication$1.run(LwjglApplication.java:123)
+Caused by: java.lang.NullPointerException
+com.unlogical.colored.terrain.TerrainObject.getMainImage(TerrainObject.java:156)
+com.unlogical.colored.mapeditor.MapEditor.initGUI(MapEditor.java:767)
+com.unlogical.colored.mapeditor.MapEditor.init(MapEditor.java:733)
+com.unlogical.colored.util.LoadingHandler.loadNext(LoadingHandler.java:86)
+com.unlogical.colored.GameLauncher.render(GameLauncher.java:548)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication.mainLoop(LwjglApplication.java:218)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication$1.run(LwjglApplication.java:123)
+
+ -- Last 20 Log Entries -- 
+@Warning: com.unlogical.colored.GameLauncher.render(GameLauncher.java:548) (tid: 12)
+@Warning: com.badlogic.gdx.backends.lwjgl.LwjglApplication.mainLoop(LwjglApplication.java:218) (tid: 12)
+@Warning: com.badlogic.gdx.backends.lwjgl.LwjglApplication$1.run(LwjglApplication.java:123) (tid: 12)
+@Warning: Error while reading map data: java.lang.RuntimeException: No available textures found for SOUND_SOURCE, error while loading. Sorry. Probably not my fault though. No available textures found for SOUND_SOURCE, error while loading. Sorry. Probably not my fault though. (tid: 12)
+@Warning: java.lang.RuntimeException: No available textures found for SOUND_SOURCE, error while loading. Sorry. Probably not my fault though. (tid: 12)
+@Warning: com.unlogical.colored.terrain.TerrainObject.<init>(TerrainObject.java:92) (tid: 12)
+@Warning: com.unlogical.colored.terrain.tile.Tile.<init>(Tile.java:91) (tid: 12)
+@Warning: com.unlogical.colored.terrain.tile.TileSoundSource.<init>(TileSoundSource.java:36) (tid: 12)
+@Warning: com.unlogical.colored.terrain.tile.Tile.createTile(Tile.java:1145) (tid: 12)
+@Warning: com.unlogical.colored.filesystem.files.TerrainFileHandler.read(TerrainFileHandler.java:101) (tid: 12)
+@Warning: com.unlogical.colored.level.Level.fetchMaps(Level.java:460) (tid: 12)
+@Warning: com.unlogical.colored.util.LoadingHandler.loadNext(LoadingHandler.java:81) (tid: 12)
+@Warning: com.unlogical.colored.GameLauncher.render(GameLauncher.java:548) (tid: 12)
+@Warning: com.badlogic.gdx.backends.lwjgl.LwjglApplication.mainLoop(LwjglApplication.java:218) (tid: 12)
+@Warning: com.badlogic.gdx.backends.lwjgl.LwjglApplication$1.run(LwjglApplication.java:123) (tid: 12)
+@Log    : Found world hub for world 21 at 21-08. (tid: 12)
+@Log    : Found world hub for world 22 at 22-08. (tid: 12)
+@Log    : Found world hub for world 23 at 23-09. (tid: 12)
+@Log    : Found world hub for world 24 at 24-10. (tid: 12)
+@Log    : Initializing map editor... (tid: 12)
+
+ -- Last 4 Input Events -- 
+Touch down: 0 (pointer: 0) at x:397 y: 0 (889ms ago)
+Touch up: 0 (pointer: 0) at x:397 y: 0 (839ms ago)
+Touch down: 0 (pointer: 0) at x:397 y: 0 (772ms ago)
+Touch up: 0 (pointer: 0) at x:397 y: 0 (706ms ago)

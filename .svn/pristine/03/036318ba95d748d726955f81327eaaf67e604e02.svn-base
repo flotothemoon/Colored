@@ -1,0 +1,26 @@
+package com.unlogical.colored.terrain.tile.cannon;
+
+import org.newdawn.slick.GameContainer;
+import org.newdawn.slick.geom.Vector2f;
+
+import com.unlogical.colored.util.Dimension;
+import com.unlogical.colored.util.IShootable;
+import com.unlogical.colored.util.LevelObject;
+
+public interface ICannonBall extends IShootable
+{
+	public boolean isDead();
+	public boolean isOutOfMap();
+	public boolean isRemoved();
+	public boolean hasCollided();
+	public boolean hasMirror();
+	
+	public Vector2f getStartPosition(LevelObject source, float rotation);
+	
+	public Dimension getDimension();
+		
+	public ICannonBall getMirroredBall();
+	
+	public void update(GameContainer container, float delta);
+	public void removeMirror();
+}

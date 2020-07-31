@@ -1,0 +1,243 @@
+package com.unlogical.linked.entity.boss;
+
+import java.util.Random;
+
+import org.newdawn.slick.GameContainer;
+import org.newdawn.slick.geom.Vector2f;
+
+import com.unlogical.linked.debug.Debug;
+import com.unlogical.linked.entity.Entity;
+import com.unlogical.linked.entity.EntityAction;
+import com.unlogical.linked.entity.EntityLiving;
+import com.unlogical.linked.entity.EntityType;
+import com.unlogical.linked.entity.key.EntityKey;
+import com.unlogical.linked.entity.key.KeyPort;
+import com.unlogical.linked.entity.player.EntityPlayer;
+import com.unlogical.linked.entity.projectile.EntityProjectile;
+import com.unlogical.linked.entity.property.EntityProperty;
+import com.unlogical.linked.entity.property.SharedEntityProperties;
+import com.unlogical.linked.filesystem.FilePaths;
+import com.unlogical.linked.level.Level;
+import com.unlogical.linked.level.LevelType;
+import com.unlogical.linked.util.Dimension;
+import com.unlogical.linked.util.LevelObject;
+
+public class EntityBoss extends EntityLiving
+{
+	protected Vector2f distanceToPlayer = new Vector2f(0.0f, 0.0f);
+	protected boolean movingRight;
+	protected boolean active;
+
+	public EntityBoss(EntityType type, Vector2f position, Level level, Dimension dimension, boolean allowMirrors)
+	{
+		super(type, position, level, dimension, allowMirrors);
+	}
+
+	public static final EntityBoss createBoss(Vector2f position, Level level, Dimension dimension, boolean allowMirrors)
+	{
+		if (level == null)
+		{
+			return new EntityBoss(EntityType.BOSS, position, level, dimension, allowMirrors);
+		}
+
+		if (level.getType() == LevelType.REVERSAL)
+		{
+			return new EntityReversalBoss(EntityType.BOSS, position, level, dimension, allowMirrors);
+		}
+		else if (level.getType() == LevelType.TIME_SCALE)
+		{
+			return new EntityTimeScaleBoss(EntityType.BOSS, position, level, dimension, allowMirrors);
+		}
+
+		Debug.warn("Could not create boss for leveltype: " + level.getType() + ".");
+
+		return null;
+	}
+
+	@Override
+	public void onUpdate(GameContainer container, float delta, Random rng)
+	{
+		EntityPlayer player = level.getControllingPlayer();
+
+		distanceToPlayer.set(player.getCenterX(), player.getCenterY());
+		distanceToPlayer.x -= this.getCenterX();
+		distanceToPlayer.y -= this.getCenterY();
+	}
+
+	@Override
+	public void onDeathUpdate(GameContainer container, float delta, Random rng)
+	{
+		if (this.collidedBelow)
+		{
+			this.resetVelocities();
+			this.enabled = false;
+		}
+	}
+
+	@Override
+	protected void customOnDeath(LevelObject damageSource)
+	{
+		if (damageSource instanceof EntityProjectile)
+		{
+			if (this.hasMirror)
+			{
+				((EntityBoss) this.mirroredEntity).onDeath(this);
+			}
+				
+			EntityKey key = (EntityKey) Entity.createEntity(EntityType.KEY, new Vector2f(this.getCenterX(), this.getCenterY()), level, dimension, false);
+
+			key.setPort(KeyPort.GREEN);
+			key.setShared(true);
+
+			level.addEntity(key);
+		}
+
+		this.hitbox.set(this.hitbox.getX(), this.hitbox.getY(), this.hitbox.getRawWidth(), this.hitbox.getRawHeight() - 55);
+		this.setRotation(this.velocity.x > 0 ? 15 : -15);
+
+		this.velocity.x *= 0.5f;
+
+		this.currentAction = EntityAction.DEAD;
+		this.changedAction = true;
+
+		this.enabled = true;
+		this.setSkipMainUpdate(false);
+
+		this.collidedBelow = false;
+		this.hitbox.resetCache();
+	}
+
+	@Override
+	public void damagedByEntity(int damage, Entity damageSource)
+	{
+		if (damage > 0 && damageSource instanceof EntityProjectile)
+		{
+			((EntityProjectile) damageSource).onDeath(this);
+
+			if (this.hasMirror)
+			{
+				((EntityBoss) this.mirroredEntity).health = this.health;
+			}
+		}
+	}
+
+	protected EntityProjectile shootProjectile(EntityType projectileType)
+	{
+		EntityProjectile projectile = (EntityProjectile) Entity.createEntity(EntityType.SHADOWBALL, new Vector2f(this.getCenterX(), this.getCenterY()), level, Dimension.LIGHT, false);
+
+		float rotation = (float) distanceToPlayer.getTheta() + 90;
+		float shootSpeed = 1.0f;
+
+		projectile.setShared(true);
+		projectile.onShoot(this, rotation, shootSpeed);
+		projectile.setVelocity(projectile.getStartVelocity(this, rotation, shootSpeed).copy());
+
+		level.addEntity(projectile);
+
+		return projectile;
+	}
+
+	@Override
+	protected boolean canBeHarmedBy(Entity entity)
+	{
+		return entity instanceof EntityProjectile;
+	}
+
+	@Override
+	protected boolean useAutomaticAnimations()
+	{
+		return false;
+	}
+
+	@Override
+	protected EntityAction getCustomAction()
+	{
+		if (alive)
+		{
+			if (active)
+			{
+				return EntityAction.WALKING;
+			}
+			else
+			{
+				return EntityAction.STANDING;
+			}
+		}
+		else
+		{
+			return EntityAction.DEAD;
+		}
+	}
+
+	@Override
+	protected Vector2f getHandOffset(boolean focused, EntityAction currentAction, int currentImage)
+	{
+		return null;
+	}
+
+	@Override
+	public boolean isBlocked()
+	{
+		return true;
+	}
+
+	@Override
+	protected boolean canInteractWith(Entity entity)
+	{
+		return true;
+	}
+
+	@Override
+	protected EntityProperty getEntityProperty()
+	{
+		return SharedEntityProperties.BOSS;
+	}
+
+	@Override
+	public boolean checkEntityCollisions()
+	{
+		return true;
+	}
+
+	@Override
+	public boolean collidesWithEntities()
+	{
+		return true;
+	}
+
+	@Override
+	public boolean collidesWithTerrain()
+	{
+		return true;
+	}
+
+	@Override
+	protected boolean canWalkSlopes()
+	{
+		return true;
+	}
+
+	@Override
+	protected boolean shouldBounceOnGround()
+	{
+		return true;
+	}
+
+	@Override
+	public boolean supportsAction(EntityAction action)
+	{
+		return action == EntityAction.STANDING || action == EntityAction.WALKING || action == EntityAction.DEAD;
+	}
+
+	@Override
+	protected boolean shouldUseFittingTextures()
+	{
+		return true;
+	}
+
+	@Override
+	public String getTextureDirectory()
+	{
+		return FilePaths.ENTITY_BOSS;
+	}
+}

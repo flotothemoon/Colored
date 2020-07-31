@@ -1,0 +1,252 @@
+package com.unlogical.colored.gui.panel;
+
+import java.util.LinkedHashMap;
+
+import org.newdawn.slick.Color;
+import org.newdawn.slick.GameContainer;
+import org.newdawn.slick.Graphics;
+
+import com.unlogical.colored.GameLauncher;
+import com.unlogical.colored.mapeditor.MapEditor;
+import com.unlogical.colored.util.ColorHelper;
+
+public class CakePanel extends GUIPanel
+{
+	private static final int AVERAGED_TIME = 1337;
+
+	private float totalFactors[] = new float[AVERAGED_TIME];
+
+	private LinkedHashMap<PartialConsumer, float[]> storedValues = new LinkedHashMap<PartialConsumer, float[]>();
+
+	private int currentBeforeStart;
+	private int currentStart;
+	private int currentEnd;
+
+	public CakePanel(float xOffset, float yOffset, float width, float height)
+	{
+		super("Resource Cake", xOffset, yOffset, width, height);
+
+		this.fillColor = new Color(MapEditor.panelColor);
+
+		this.initConsumers();
+	}
+
+	private void initConsumers()
+	{
+		addConsumer(new PartialConsumer("update", Color.blue)
+		{
+			@Override
+			protected long getConsumedTime()
+			{
+				return GameLauncher.getUpdateTime();
+			}
+		});
+
+		addConsumer(new PartialConsumer("render", Color.green)
+		{
+			@Override
+			protected long getConsumedTime()
+			{
+				return GameLauncher.getRenderTime();
+			}
+		});
+
+		addConsumer(new PartialConsumer("unspecified", Color.cyan)
+		{
+			@Override
+			protected long getConsumedTime()
+			{
+				return GameLauncher.getUnspecifiedTime() < 0 ? 0 : GameLauncher.getUnspecifiedTime();
+			}
+		});
+		
+		addConsumer(new PartialConsumer("idle", new Color(Color.gray).multiply(new Color(1.0f, 1.0f, 1.0f, 0.8f)))
+		{
+			@Override
+			protected long getConsumedTime()
+			{
+				return GameLauncher.getIdleTime();
+			}
+		});
+	}
+
+	private void addConsumer(PartialConsumer partialResource)
+	{
+		this.storedValues.put(partialResource, new float[AVERAGED_TIME]);
+	}
+
+	@Override
+	public void customUpdate(GameContainer container, int delta)
+	{
+		currentStart += delta;
+
+		if (currentStart >= AVERAGED_TIME)
+		{
+			currentStart %= AVERAGED_TIME;
+		}
+
+		currentBeforeStart = currentStart - 1;
+
+		if (currentBeforeStart < 0)
+		{
+			currentBeforeStart = AVERAGED_TIME - 1;
+		}
+
+		currentEnd = currentStart + delta;
+
+		if (currentEnd >= AVERAGED_TIME)
+		{
+			currentEnd %= AVERAGED_TIME;
+		}
+	}
+
+	public void storeCurrentValues()
+	{
+		if (GameLauncher.getRealDelta() == 0)
+		{
+			return;
+		}
+
+		float totalMilli = 1.0f / GameLauncher.getRealDelta();
+
+		for (int i = currentStart; i != currentEnd; i++)
+		{
+			if (i >= AVERAGED_TIME)
+			{
+				i = 0;
+
+				if (i == currentEnd)
+				{
+					break;
+				}
+			}
+
+			totalFactors[i] = totalMilli;
+		}
+
+		for (PartialConsumer consumer : this.storedValues.keySet())
+		{
+			float factor = ((float) consumer.getConsumedTime()) / ((float) GameLauncher.getTotalTime());
+			float factorMilli = factor / ((float) GameLauncher.getRealDelta());
+
+			for (int i = currentStart; i != currentEnd; i++)
+			{
+				if (i >= AVERAGED_TIME)
+				{
+					i = 0;
+
+					if (i == currentEnd)
+					{
+						break;
+					}
+				}
+
+				this.storedValues.get(consumer)[i] = factorMilli;
+			}
+		}
+	}
+
+	@Override
+	protected void customRender(GameContainer container, float alphaFactor, Graphics g)
+	{
+		float circleX = xOffset + width / 10.0f;
+		float circleY = yOffset + height / 6.0f;
+		float circleWidth = width * 0.8f;
+		float circleHeight = height * 0.8f;
+		float angle = -90.0f;
+
+		float total = 0.0f;
+
+		for (PartialConsumer consumer : this.storedValues.keySet())
+		{
+			consumer.factor = 0.0f;
+		}
+
+		for (int i = currentStart; i != currentBeforeStart; i++)
+		{
+			if (i >= AVERAGED_TIME)
+			{
+				i = 0;
+
+				if (i == currentBeforeStart)
+				{
+					break;
+				}
+			}
+
+			if (totalFactors[i] != 0.0f)
+			{
+				total += totalFactors[i];
+			}
+
+			for (PartialConsumer consumer : this.storedValues.keySet())
+			{
+				if (this.storedValues.get(consumer)[i] != 0.0f)
+				{
+					consumer.factor += this.storedValues.get(consumer)[i];
+				}
+			}
+		}
+
+		float totalFactor = 0.0f;
+
+		for (PartialConsumer consumer : this.storedValues.keySet())
+		{
+			consumer.factor /= total;
+
+			totalFactor += consumer.factor;
+		}
+
+		if (totalFactor > 1.0f)
+		{
+			float scale = 1.0f / totalFactor;
+
+			for (PartialConsumer consumer : this.storedValues.keySet())
+			{
+				consumer.factor *= scale;
+			}
+
+			totalFactor *= scale;
+		}
+
+		int index = 0;
+
+		for (PartialConsumer consumer : this.storedValues.keySet())
+		{
+			if (consumer.factor > 0.0f)
+			{
+				float percent = ((float) Math.round(consumer.factor * 1000)) / 10.0f;
+
+				g.setColor(ColorHelper.applyAlphaAndCopy(consumer.color, alphaFactor));
+				g.drawString(percent + "% " + consumer.name, xOffset + (index > 1 ? width - g.getFont().getWidth(percent + "% " + consumer.name) - 3 : 3), yOffset + (index % 2) * 20);
+				g.fillArc(circleX, circleY, circleWidth, circleHeight, Math.round(angle), Math.round(angle += consumer.factor * 360.0f));
+
+				index++;
+			}
+		}
+
+		g.setColor(ColorHelper.applyAlphaAndCopy(Math.round(((float) Math.round(totalFactor * 1000)) / 10.0f) == 100 ? Color.darkGray : Color.red, alphaFactor));
+		g.drawString(Math.round(((float) Math.round(totalFactor * 1000)) / 10.0f) + "% root", xOffset, yOffset + height - g.getFont().getLineHeight());
+	}
+
+	@Override
+	protected void onClose()
+	{
+		setShown(false);
+	}
+	
+	private abstract class PartialConsumer
+	{
+		private float factor;
+		private Color color;
+		private String name;
+
+		public PartialConsumer(String name, Color color)
+		{
+			this.name = name;
+			this.color = color;
+		}
+
+		protected abstract long getConsumedTime();
+	}
+}

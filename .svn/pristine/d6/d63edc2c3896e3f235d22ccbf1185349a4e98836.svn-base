@@ -1,0 +1,308 @@
+package com.unlogical.linked.terrain.tile.cage;
+
+import java.util.Map;
+import java.util.Random;
+
+import org.newdawn.slick.Color;
+import org.newdawn.slick.Graphics;
+import org.newdawn.slick.geom.Vector2f;
+
+import com.unlogical.linked.gui.menu.MenuDisplay;
+import com.unlogical.linked.level.Level;
+import com.unlogical.linked.particle.EmitterType;
+import com.unlogical.linked.particle.ParticleEmitter;
+import com.unlogical.linked.terrain.TileType;
+import com.unlogical.linked.terrain.property.TileProperty;
+import com.unlogical.linked.terrain.tile.Tile;
+import com.unlogical.linked.util.Dimension;
+import com.unlogical.linked.util.ILightSource;
+import com.unlogical.linked.util.IZDistortion;
+import com.unlogical.linked.util.LevelObject;
+import com.unlogical.linked.util.Renderer;
+import com.unlogical.linked.util.ShaderHandler;
+import com.unlogical.linked.util.ZDistortion;
+
+public abstract class TileCage extends Tile implements IZDistortion, ILightSource
+{
+	private static final Color lightColor = new Color(0.9882353f, 0.8608475f, 0.0038754323f);
+
+	private static final float OPENED_CAGE_AMBIENT_LIGHT_INTENSITY = 0.3f;
+	private static final float LINEAR_ATTENUATION = 0.012f;
+	private static final float QUADRATIC_ATTENUATION = 0.000011f;
+
+	private ZDistortion distortion;
+
+	private int cageID;
+
+	private boolean brightening;
+	private boolean opened;
+	private boolean reallyOpened;
+
+	private float intensityOffset;
+	private float intensityFactor = 1.0f;
+	private float linearAttenuation = LINEAR_ATTENUATION;
+	private float quadraticAttenuation = QUADRATIC_ATTENUATION;
+	private float lightUpFactor;
+
+	private ParticleEmitter openingEmitter;
+	private ParticleEmitter closedEmitter;
+
+	protected TileCage(TileType type, String metadata, int innerType, float rotation, Vector2f position, Level level, Dimension dimension, TileProperty properties, boolean allowMirrors)
+	{
+		super(type, metadata, innerType, rotation, position, level, dimension, properties, allowMirrors);
+
+		this.distortion = new ZDistortion()
+		{
+			@Override
+			public float getZDistortion(float x, float y)
+			{
+				return 0.0f;
+			}
+		};
+
+		if (this.dimension == Dimension.LIGHT && !this.shared)
+		{
+			this.setShared(true);
+		}
+	}
+	
+	@Override
+	public void init()
+	{
+		super.init();
+		
+		this.opened = this.innerType == 2;
+
+		if (level.isPlayMode())
+		{
+			if (level.readFromLevelSave(this.type + "" + cageID) != null)
+			{				
+				this.opened = Boolean.parseBoolean((String) level.readFromLevelSave(this.type + "" + cageID)[0]);
+				this.setInnerType(this.opened ? 2 : 0);
+				
+				if (this.opened)
+				{
+					level.onCageOpened(this, true);
+				}
+			}
+		}
+
+		if (!this.opened)
+		{
+			this.closedEmitter = this.resumeOrAddEmitter(EmitterType.LIGHT_CAGE, dimension);
+		}
+	}
+
+	@Override
+	public void onUpdate(float delta, Random rng)
+	{
+		if (brightening)
+		{
+			intensityFactor = OPENED_CAGE_AMBIENT_LIGHT_INTENSITY * lightUpFactor + (1.0f - level.getBrighteningFactor()) * 0.5f;
+			linearAttenuation = (1.0f - level.getBrighteningFactor()) * LINEAR_ATTENUATION;
+			quadraticAttenuation = (1.0f - level.getBrighteningFactor()) * QUADRATIC_ATTENUATION;
+		}
+		else if (!reallyOpened)
+		{
+			intensityOffset = (float) Math.sin(Math.toRadians(age / 5.0f)) / 4.0f;
+		}
+	}
+
+	protected void open()
+	{
+		if (!opened)
+		{
+			lightUpFactor = level.onCageOpened(this, false);
+			openingEmitter = this.addEmitter(EmitterType.LIGHT_CAGE_OPENED, this.dimension);
+			brightening = true;
+			opened = true;
+			reallyOpened = false;
+
+			this.stopAndRemoveEmitter(closedEmitter);
+			this.transitionAnimation(1, 2, false, true);
+			
+			level.writeToLevelSave(this.type + "" + cageID, true);
+			level.saveToActiveSave();
+			
+			MenuDisplay.displaySavedMessage();
+		}
+	}
+
+	@Override
+	protected void onTransitionFinished(int transitionInnerType, int finalInnerType)
+	{
+		reallyOpened = true;
+	}
+
+	public void onBrighteningFinished()
+	{
+		intensityFactor = OPENED_CAGE_AMBIENT_LIGHT_INTENSITY * lightUpFactor;
+		linearAttenuation = 0.0f;
+		quadraticAttenuation = 0.0f;
+
+		this.stopAndRemoveEmitter(openingEmitter);
+
+		brightening = false;
+	}
+
+	@Override
+	public void onCreated()
+	{
+		int maxID = 0;
+
+		for (Tile door : level.getTiles())
+		{
+			if (door.getDimension() == Dimension.LIGHT && door instanceof TileCage)
+			{
+				if (((TileCage) door).getCageID() > maxID)
+				{
+					maxID = ((TileCage) door).getCageID();
+				}
+			}
+		}
+
+		this.cageID = maxID + 1;
+	}
+
+	@Override
+	protected void customDraw(Graphics g)
+	{
+		super.customDraw(g);
+		
+		ShaderHandler.disableLighting();
+		
+//		g.resetFont();
+//		g.setColor(Color.white);
+//		g.drawString(this.cageID + "", this.position.x, this.position.y);
+		
+		Renderer.bindTexture(null);
+	}
+	
+	@Override
+	public void readMetadata()
+	{
+		try
+		{
+			this.cageID = Integer.parseInt(this.metadata);
+		}
+		catch (Exception e)
+		{
+			this.cageID = 0;
+		}
+	}
+
+	@Override
+	public void writeMetadata()
+	{
+		this.metadata = this.cageID + "";
+	}
+
+	@Override
+	public boolean isSpotLight()
+	{
+		return true;
+	}
+
+	@Override
+	public Color getColor()
+	{
+		return lightColor;
+	}
+
+	@Override
+	public float getPositionX()
+	{
+		return this.getCenterX();
+	}
+
+	@Override
+	public float getPositionY()
+	{
+		return this.getCenterY();
+	}
+
+	@Override
+	public float getIntensity()
+	{
+		return intensityFactor * (1.1f + intensityOffset);
+	}
+
+	@Override
+	public float getLinearAttenuation()
+	{
+		return linearAttenuation;
+	}
+
+	@Override
+	public float getQuadraticAttenuation()
+	{
+		return quadraticAttenuation;
+	}
+
+	@Override
+	public int getSpotExponent()
+	{
+		return 0;
+	}
+
+	@Override
+	public int getSpotDirection()
+	{
+		return 0;
+	}
+
+	@Override
+	public int getAngle()
+	{
+		return 360;
+	}
+
+	@Override
+	public int getMinDepth()
+	{
+		return -Level.MAX_DEPTH;
+	}
+
+	@Override
+	public int getMaxDepth()
+	{
+		return Level.MAX_DEPTH;
+	}
+
+	@Override
+	public ZDistortion getZDistortion()
+	{
+		return distortion;
+	}
+
+	@Override
+	public boolean shouldUpdate()
+	{
+		return true;
+	}
+
+	public boolean isReallyChangeable()
+	{
+		return true;
+	}
+
+	public int getCageID()
+	{
+		return cageID;
+	}
+
+	public void setCageID(int cageID)
+	{
+		this.cageID = cageID;
+	}
+
+	public boolean isOpened()
+	{
+		return this.opened;
+	}
+
+	public boolean renderStatic()
+	{
+		return true;
+	}
+}

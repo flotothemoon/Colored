@@ -1,0 +1,338 @@
+package com.unlogical.colored.resources;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
+
+import org.newdawn.slick.Image;
+import org.newdawn.slick.SlickException;
+
+import com.unlogical.colored.configuration.Resolutions;
+import com.unlogical.colored.debug.Debug;
+import com.unlogical.colored.entity.Entity;
+import com.unlogical.colored.entity.EntityAction;
+import com.unlogical.colored.entity.EntityType;
+import com.unlogical.colored.filesystem.FilePaths;
+import com.unlogical.colored.util.Dimension;
+import com.unlogical.colored.util.RealImage;
+
+public class ResourceLoader
+{
+	private static ArrayList<RealImage> imageBuffer = new ArrayList<RealImage>();
+
+	public static RealImage[][] getImages(String fullPath) throws IOException
+	{
+		RealImage[][] availableImages;
+		RealImage[] mainImages;
+		String path = fullPath.endsWith(".png") ? fullPath.substring(0, fullPath.length() - 4) : fullPath;
+		String imgPath = path + "-1.png";
+		String imgPathMonochrome = path + "-1m.png";
+
+		imageBuffer.clear();
+
+		int counter = 0;
+
+		while ((FilePaths.getFile(imgPath)).exists())
+		{
+			try
+			{
+				imageBuffer.add(new RealImage(imgPath));
+				imageBuffer.add(new RealImage(imgPathMonochrome));
+			}
+			catch (SlickException e)
+			{
+				throw new IOException("BaconException: Could not load textures, " + e);
+			}
+
+			counter++;
+
+			imgPath = path + counter + "-1.png";
+			imgPathMonochrome = path + counter + "-1m.png";
+		}
+
+		mainImages = new RealImage[imageBuffer.size()];
+
+		for (int i = 0; i < imageBuffer.size(); i++)
+		{
+			mainImages[i] = imageBuffer.get(i);
+		}
+
+		availableImages = new RealImage[mainImages.length][];
+
+		for (int i = 0; i < availableImages.length; i++)
+		{
+			availableImages[i] = getAnimationImages(path + (i / 2 > 0 ? i / 2 : ""), (i % 2 == 0) ? "" : "m");
+		}
+
+		return availableImages;
+	}
+
+	public static RealImage[] getImages(String fullPath, boolean useDimensions)
+	{
+		RealImage[] images = new RealImage[2];
+		String path = fullPath.endsWith(".png") ? fullPath.substring(0, fullPath.length() - 4) : fullPath;
+		String imgPath = path + ".png";
+		String imgPathMonochrome = path + "m.png";
+
+		if ((FilePaths.getFile(imgPath)).exists())
+		{
+			try
+			{
+				images[0] = new RealImage(imgPath);
+
+				if (useDimensions)
+				{
+					images[1] = new RealImage(imgPathMonochrome);
+				}
+			}
+			catch (SlickException e)
+			{
+				Debug.warn("BaconException: Could not load images", e);
+			}
+		}
+		else
+		{
+			Debug.warn("Tried to load image(s) from path " + fullPath + ", the resolved path " + imgPath + " however does not exist.");
+		}
+
+		return images;
+	}
+
+	public static RealImage[][] getTileImages(String tileName, boolean animated)
+	{
+		RealImage[][] availableImages;
+		RealImage[] mainImages;
+		String path = animated ? (FilePaths.TILE_ANIMATIONS + "/" + tileName) : (FilePaths.TILE_TEXTURES + "/" + tileName);
+		String imgPath = animated ? (path + "/" + tileName + "-1.png") : (path + ".png");
+		String imgPathMonochrome = animated ? (path + "/" + tileName + "-1m.png") : (path + "m.png");
+
+		imageBuffer.clear();
+
+		int counter = 0;
+
+		while ((FilePaths.getFile(imgPath)).exists())
+		{
+			try
+			{
+				imageBuffer.add(new RealImage(imgPath));
+			}
+			catch (Exception e)
+			{
+				throw new RuntimeException("A required resource for tile " + tileName + " was not found, " + imgPath + ": " + e, e);
+			}
+			
+			try
+			{
+				imageBuffer.add(new RealImage(imgPathMonochrome));
+			}
+			catch (Exception e)
+			{
+				imageBuffer.add(null);
+				
+				Debug.log("No monochrome version for tile " + tileName + ", searched in path " + imgPathMonochrome + ".");
+			}
+
+			counter++;
+
+			imgPath = animated ? (path + "/" + tileName + counter + "-1.png") : (path + counter + ".png");
+			imgPathMonochrome = animated ? (path + "/" + tileName + counter + "-1m.png") : (path + counter + "m.png");
+		}
+
+		mainImages = new RealImage[imageBuffer.size()];
+
+		for (int i = 0; i < imageBuffer.size(); i++)
+		{
+			if (imageBuffer.get(i) != null)
+			{
+				imageBuffer.get(i).setFilter(Image.FILTER_NEAREST);
+			}
+				
+			mainImages[i] = imageBuffer.get(i);
+		}
+
+		availableImages = new RealImage[mainImages.length][];
+
+		for (int i = 0; i < availableImages.length; i++)
+		{
+			if (animated)
+			{
+				availableImages[i] = getAnimationImages(path + "/" + tileName + (i / 2 > 0 ? i / 2 : ""), i % 2 == 0 ? "" : "m");
+			}
+			else
+			{
+				availableImages[i] = new RealImage[1];
+				availableImages[i][0] = mainImages[i];
+			}
+		}
+
+		return availableImages;
+	}
+
+	private static RealImage[] getAnimationImages(String path, String dimensionPrefix)
+	{
+		RealImage[] animationImages;
+		int counter = 1;
+		String imgPath = path + "-1" + dimensionPrefix + ".png";
+
+		imageBuffer.clear();
+		
+		while (FilePaths.getFile(imgPath).exists())
+		{
+			try
+			{
+				imageBuffer.add(new RealImage(imgPath));
+			}
+			catch (SlickException e)
+			{
+			}
+
+			counter++;
+			imgPath = path + "-" + counter + dimensionPrefix + ".png";
+		}
+
+		animationImages = new RealImage[imageBuffer.size()];
+		for (int i = 0; i < imageBuffer.size(); i++)
+		{
+			animationImages[i] = imageBuffer.get(i);
+		}
+
+		return animationImages;
+	}
+
+	public static Image getMainImage(String path, boolean scale)
+	{
+		Image image = null;
+
+		try
+		{
+			image = new Image(path);
+
+			if (scale)
+			{
+				return image.getScaledCopy(Resolutions.TILE_SIZE, Resolutions.TILE_SIZE);
+			}
+		}
+		catch (SlickException e)
+		{
+		}
+
+		return image;
+	}
+
+	public static HashMap<EntityAction, RealImage[][]> getEntityImages(EntityType type)
+	{
+		HashMap<EntityAction, RealImage[][]> images = new HashMap<EntityAction, RealImage[][]>();
+
+		Entity entity = Entity.createEntity(type, null, null, Dimension.LIGHT, false);
+
+		if (entity == null)
+		{
+			Debug.warn("Tried to load entity images for " + type + ", but an entity for it could not be instantiated (createEntity returned null).");
+			
+			return null;
+		}
+		
+		for (EntityAction action : EntityAction.values())
+		{
+			if (entity.supportsAction(action))
+			{
+				images.put(action, getEntityImages(action, type, entity));
+			}
+		}
+		
+		return images;
+	}
+
+	public static RealImage[][] getEntityImages(EntityAction action, EntityType type, Entity entity)
+	{
+		RealImage[][] images = new RealImage[4][];
+		RealImage[] unfocusedImages;
+		RealImage[] focusedImages;
+		RealImage[] unfocusedImagesMonochrome;
+		RealImage[] focusedImagesMonochrome;
+
+		ArrayList<RealImage> tempImages = new ArrayList<RealImage>();
+		ArrayList<RealImage> tempImagesMonochrome = new ArrayList<RealImage>();
+
+		String directory = entity.getTextureDirectory() + "/" + type.toLowerCaseNameTag() + "/" + type.toLowerCaseNameTag();
+		int count = 1;
+
+		try
+		{
+			while ((FilePaths.getFile(directory + action.getPrefix() + "-" + count + ".png")).exists())
+			{
+				tempImages.add(new RealImage(directory + action.getPrefix() + "-" + count + ".png"));
+				tempImagesMonochrome.add(new RealImage(directory + action.getPrefix() + "-" + count + "m.png"));
+
+				count++;
+			}
+
+			unfocusedImages = new RealImage[tempImages.size()];
+			focusedImages = new RealImage[tempImages.size()];
+			unfocusedImagesMonochrome = new RealImage[tempImages.size()];
+			focusedImagesMonochrome = new RealImage[tempImages.size()];
+
+			for (int i = 0; i < tempImages.size(); i++)
+			{
+				if (entity.getDefaultFocus())
+				{
+					focusedImages[i] = tempImages.get(i);
+
+					unfocusedImages[i] = focusedImages[i].getFlippedCopy(true, false);
+
+					focusedImagesMonochrome[i] = tempImagesMonochrome.get(i);
+
+					unfocusedImagesMonochrome[i] = focusedImagesMonochrome[i].getFlippedCopy(true, false);
+				}
+				else
+				{
+					unfocusedImages[i] = tempImages.get(i);
+
+					focusedImages[i] = unfocusedImages[i].getFlippedCopy(true, false);
+
+					unfocusedImagesMonochrome[i] = tempImagesMonochrome.get(i);
+
+					focusedImagesMonochrome[i] = unfocusedImagesMonochrome[i].getFlippedCopy(true, false);
+				}
+			}
+
+			images[0] = focusedImages;
+			images[1] = unfocusedImages;
+
+			images[2] = focusedImagesMonochrome;
+			images[3] = unfocusedImagesMonochrome;
+		}
+		catch (SlickException e)
+		{
+			Debug.warn("Error while loading textures for " + type + " at " + count + " " + action + " (" + e + ").", e);
+		}
+
+		return images;
+	}
+
+	public static Image[] getWrapperAnimationImages(String path)
+	{
+		imageBuffer.clear();
+		RealImage[] images;
+		int counter = 0;
+		String imgPath = path + "";
+
+		while (FilePaths.getFile(imgPath).exists())
+		{
+			try
+			{
+				imageBuffer.add(new RealImage(path));
+			}
+			catch (SlickException e)
+			{
+			}
+
+			counter++;
+			imgPath = path + counter + ".png";
+		}
+
+		images = (RealImage[]) imageBuffer.toArray();
+
+		return images;
+	}
+}

@@ -1,0 +1,1482 @@
+package com.unlogical.colored.particle;
+
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Random;
+import java.util.Set;
+
+import org.newdawn.slick.Color;
+import org.newdawn.slick.Image;
+import org.newdawn.slick.geom.Point;
+import org.newdawn.slick.geom.Vector2f;
+
+import com.unlogical.colored.GameLauncher;
+import com.unlogical.colored.collision.Hitbox;
+import com.unlogical.colored.debug.Debug;
+import com.unlogical.colored.level.Level;
+import com.unlogical.colored.level.LevelType;
+import com.unlogical.colored.util.Dimension;
+import com.unlogical.colored.util.ICopyable;
+import com.unlogical.colored.util.LevelObject;
+import com.unlogical.colored.wrapper.WrapperTexture;
+
+public class ParticleEmitterImpl extends ParticleEmitter implements ICopyable<ParticleEmitterImpl>
+{
+	private static Vector2f buffer = new Vector2f();
+	private static Point point = new Point(0.0f, 0.0f);
+	private static Point otherPoint = new Point(0.0f, 0.0f);
+
+	private ParticleEmitterImpl mirroredEmitter;
+
+	private IEmitterWrapper wrapper;
+
+	private LinkedHashMap<LevelObject, AttractorConfiguration> attractors;
+	private Set<LevelObject> particleEaters;
+
+	private EmitterType type;
+
+	private IntegerRange spawnInterval = new IntegerRange(500, 1000);
+	private IntegerRange spawnCount = new IntegerRange(1, 3);
+
+	private IntegerRange initialLife = new IntegerRange(15000, 20000);
+	private IntegerRange initalSize = new IntegerRange(40, 60);
+
+	private FloatRange xOffset = new FloatRange(0.0f, 1.0f);
+	private FloatRange yOffset = new FloatRange(0.0f, 1.0f);
+
+	private FloatRange velocityX = new FloatRange(0.0f, 0.0f);
+	private FloatRange velocityY = new FloatRange(0.0f, 0.0f);
+
+	private FloatRange startRotation = new FloatRange(0.0f, 0.0f);
+	private FloatRange rotationVelocity = new FloatRange(0.0f, 0.0f);
+
+	private FloatRange growthFactor = new FloatRange(0.0f, 0.0f);
+
+	private FloatRange gravityFactor = new FloatRange(0.0f, 0.0f);
+	private FloatRange windFactor = new FloatRange(0.0f, 0.0f);
+
+	private IntegerRange startAlpha = new IntegerRange(255, 255);
+
+	private IntegerRange fadeOutTime = new IntegerRange(4000, 6000);
+	private IntegerRange fadeInTime = new IntegerRange(2000, 3000);
+
+	private float trailFactor = 1.0f;
+
+	private float newMinX = Float.MIN_VALUE;
+	private float newMaxX = Float.MAX_VALUE;
+	private float newMinY = Float.MIN_VALUE;
+	private float newMaxY = Float.MAX_VALUE;
+	private float minX = Float.MIN_VALUE;
+	private float maxX = Float.MAX_VALUE;
+	private float minY = Float.MIN_VALUE;
+	private float maxY = Float.MAX_VALUE;
+
+	private boolean boundToWrapperTexture;
+	private boolean stopped;
+	private boolean hasMirror;
+	private boolean shouldFadeOut = true;
+	private boolean shouldFadeIn = true;
+	private boolean limitToWrapper = true;
+	private boolean rotateAccelerations = true;
+	private boolean shouldBounceOutOfArea;
+	private boolean timeLimitedLifetime;
+	private boolean useAttractors;
+	private boolean scaleWithWidth;
+	private boolean scaleWithHeight;
+	private boolean maxOutParticles = true;
+	private boolean circularEmitter;
+
+	private int renderMode = RENDER_IDENTICAL;
+
+	private int lifeTime = 1000;
+	private int life = lifeTime;
+
+	private int originalMaxParticles;
+	private int originalMinCount;
+	private int originalMaxCount;
+	private int originalWidth;
+	private int originalHeight;
+
+	private int nextSpawn;
+
+	public ParticleEmitterImpl(Dimension dimension, IEmitterWrapper wrapper)
+	{
+		super(dimension, wrapper.getLevel().getParticleSystem(), wrapper.getEmitterSprites(), wrapper.getMaxParticles());
+
+		this.wrapper = wrapper;
+		this.dimension = dimension;
+		this.boundToWrapperTexture = wrapper instanceof WrapperTexture;
+
+		this.enable();
+		this.ensureManualRendering();
+	}
+
+	public ParticleEmitterImpl(Dimension dimension, IEmitterWrapper wrapper, EmitterType type)
+	{
+		this(dimension, wrapper, type.spawnInterval, (type.scaleWithWidth || type.scaleWithHeight) ? type.spawnCount.copy() : type.spawnCount, type.initialLife, type.initalSize, type.xOffset, type.yOffset, type.velocityX, type.velocityY, type.startRotation, type.rotationVelocity, type.growthFactor, type.gravityFactor, type.windFactor, type.startAlpha, type.fadeInTime, type.fadeOutTime, type.lifeTime, type.shouldFadeIn, type.shouldFadeOut, type.limitToWrapper, type.shouldBounceOutOfArea, type.hasLimitedLifetime, type.useAttractors, type.rotateAccelerations, type.maxOutParticles, type.circularEmitter, RENDER_IDENTICAL);
+
+		if ((type.scaleWithWidth || type.scaleWithHeight) && wrapper.shouldApplySpawnScaleFactor(type) && type.circularEmitter)
+		{
+			spawnCount.minValue = Math.round(spawnCount.minValue * type.getScaleFactor(wrapper.getEmitterWidth(), wrapper.getEmitterHeight()));
+			spawnCount.maxValue = Math.round(spawnCount.maxValue * type.getScaleFactor(wrapper.getEmitterWidth(), wrapper.getEmitterHeight()));
+		}
+
+		this.trailFactor = type.trailFactor;
+		this.type = type;
+		this.scaleWithWidth = type.scaleWithWidth;
+		this.scaleWithHeight = type.scaleWithHeight;
+		this.originalMinCount = type.spawnCount.minValue;
+		this.originalMaxCount = type.spawnCount.maxValue;
+		this.originalWidth = type.originalWidth;
+		this.originalHeight = type.originalHeight;
+		this.renderMode = type.renderMode;
+	}
+
+	public ParticleEmitterImpl(Dimension dimension, IEmitterWrapper wrapper, IntegerRange spawnInterval, IntegerRange spawnCount, IntegerRange initalLife, IntegerRange initalSize, FloatRange xOffset, FloatRange yOffset, FloatRange velocityX, FloatRange velocityY, FloatRange startRotation, FloatRange rotationVelocity, FloatRange growthFactor, FloatRange gravityFactor, FloatRange windFactor, IntegerRange startAlpha, IntegerRange fadeInTime, IntegerRange fadeOutTime, int lifeTime, boolean shouldFadeIn, boolean shouldFadeOut, boolean shouldKillOutOfWrapper, boolean shouldBounceOutOfWrapper, boolean hasLimitedLifetime, boolean useAttractors, boolean rotateAccelerations, boolean maxOutParticles, boolean circularEmitter, int renderMode)
+	{
+		super(dimension, wrapper.getLevel().getParticleSystem(), wrapper.getEmitterSprites(), wrapper.getMaxParticles());
+
+		init(dimension, wrapper, spawnInterval, spawnCount, initalLife, initalSize, xOffset, yOffset, velocityX, velocityY, startRotation, rotationVelocity, growthFactor, gravityFactor, windFactor, startAlpha, fadeInTime, fadeOutTime, lifeTime, shouldFadeIn, shouldFadeOut, shouldKillOutOfWrapper, shouldBounceOutOfWrapper, hasLimitedLifetime, useAttractors, rotateAccelerations, maxOutParticles, circularEmitter, renderMode);
+	}
+
+	private ParticleEmitterImpl()
+	{
+		super(null, null, null, 0);
+	}
+
+	private void init(Dimension dimension, IEmitterWrapper wrapper, IntegerRange spawnInterval, IntegerRange spawnCount, IntegerRange initalLife, IntegerRange initalSize, FloatRange xOffset, FloatRange yOffset, FloatRange velocityX, FloatRange velocityY, FloatRange startRotation, FloatRange rotationVelocity, FloatRange growthFactor, FloatRange gravityFactor, FloatRange windFactor, IntegerRange startAlpha, IntegerRange fadeInTime, IntegerRange fadeOutTime, int lifeTime, boolean shouldFadeIn, boolean shouldFadeOut, boolean shouldKillOutOfWrapper, boolean shouldBounceOutOfWrapper, boolean hasLimitedLifetime, boolean useAttractors, boolean rotateAccelerations, boolean maxOutParticles, boolean circularEmitter, int renderMode)
+	{
+		this.wrapper = wrapper;
+		this.spawnInterval = spawnInterval;
+		this.spawnCount = spawnCount;
+		this.initialLife = initalLife;
+		this.initalSize = initalSize;
+		this.xOffset = xOffset;
+		this.yOffset = yOffset;
+		this.velocityX = velocityX;
+		this.velocityY = velocityY;
+		this.startRotation = startRotation;
+		this.rotationVelocity = rotationVelocity;
+		this.growthFactor = growthFactor;
+		this.gravityFactor = gravityFactor;
+		this.windFactor = windFactor;
+		this.startAlpha = startAlpha;
+		this.fadeOutTime = fadeOutTime;
+		this.fadeInTime = fadeInTime;
+		this.lifeTime = this.life = lifeTime;
+		this.shouldFadeIn = shouldFadeIn;
+		this.shouldFadeOut = shouldFadeOut;
+		this.limitToWrapper = shouldKillOutOfWrapper;
+		this.shouldBounceOutOfArea = shouldBounceOutOfWrapper;
+		this.timeLimitedLifetime = hasLimitedLifetime;
+		this.dimension = dimension;
+		this.useAttractors = useAttractors;
+		this.boundToWrapperTexture = wrapper instanceof WrapperTexture;
+		this.rotateAccelerations = rotateAccelerations;
+		this.maxOutParticles = maxOutParticles;
+		this.circularEmitter = circularEmitter;
+
+		this.enable();
+		this.ensureManualRendering();
+
+		if (this.useAttractors)
+		{
+			this.attractors = new LinkedHashMap<LevelObject, AttractorConfiguration>(4);
+		}
+	}
+
+	@Override
+	public ParticleEmitter deepCopy(Map<Object, Object> copiedReferences)
+	{
+		ParticleEmitterImpl copy = new ParticleEmitterImpl();
+
+		Level.putCopy(this, copy, copiedReferences);
+
+		copy.system = (ParticleSystem) Level.getCopy(this.system, copiedReferences);
+		copy.images = this.images;
+		copy.maxParticles = this.maxParticles;
+		copy.emitterXOffset = this.emitterXOffset;
+		copy.emitterYOffset = this.emitterYOffset;
+		copy.enabled = this.enabled;
+		copy.renderViaSystem = this.renderViaSystem;
+		copy.init(dimension, (IEmitterWrapper) Level.getCopy(wrapper, copiedReferences), copy(spawnInterval), copy(spawnCount), copy(initialLife), copy(initalSize), copy(xOffset), copy(yOffset), copy(velocityX), copy(velocityY), copy(startRotation), copy(rotationVelocity), copy(growthFactor), copy(gravityFactor), copy(windFactor), copy(startAlpha), copy(fadeInTime), copy(fadeOutTime), lifeTime, shouldFadeIn, shouldFadeOut, limitToWrapper, shouldBounceOutOfArea, timeLimitedLifetime, useAttractors, rotateAccelerations, maxOutParticles, circularEmitter, renderMode);
+		copy.mirroredEmitter = (ParticleEmitterImpl) Level.getCopy(this.mirroredEmitter, copiedReferences);
+		copy.attractors = new LinkedHashMap<LevelObject, AttractorConfiguration>();
+
+		if (this.attractors != null)
+		{
+			for (LevelObject object : this.attractors.keySet())
+			{
+				copy.attractors.put((LevelObject) Level.getCopy(object, copiedReferences), this.attractors.get(object));
+			}
+		}
+
+		Level.putCopy(this.attractors, copy.attractors, copiedReferences);
+
+		copy.particleEaters = this.particleEaters != null ? new HashSet<LevelObject>() : null;
+		copy.particleEaters = this.particleEaters == null ? null : (Set<LevelObject>) Level.deepCopyCollection(this.particleEaters, copy.particleEaters, copiedReferences);
+		copy.type = this.type;
+
+		copy.trailFactor = this.trailFactor;
+
+		copy.stopped = this.stopped;
+		copy.hasMirror = this.hasMirror;
+		copy.renderMode = this.renderMode;
+		copy.life = this.life;
+		copy.lifeTime = this.lifeTime;
+		copy.nextSpawn = this.nextSpawn;
+
+		copy.originalMaxParticles = this.originalMaxParticles;
+		copy.originalMinCount = this.originalMinCount;
+		copy.originalMaxCount = this.originalMaxCount;
+		copy.originalWidth = this.originalWidth;
+		copy.originalHeight = this.originalHeight;
+
+		return copy;
+	}
+
+	@Override
+	public boolean shouldCopy()
+	{
+		return wrapper.shouldCopy();
+	}
+
+	@Override
+	public void createMirror(LevelType levelType)
+	{
+		this.mirroredEmitter = copy(this.wrapper.getLevel());
+		this.mirroredEmitter.dimension = dimension.getOpposite();
+
+		this.hasMirror = true;
+		this.mirroredEmitter.mirroredEmitter = this;
+		this.mirroredEmitter.hasMirror = true;
+
+		if (levelType == LevelType.REVERSAL)
+		{
+			IntegerRange help = mirroredEmitter.fadeInTime;
+			mirroredEmitter.fadeInTime = mirroredEmitter.fadeOutTime;
+			mirroredEmitter.fadeOutTime = help;
+
+			mirroredEmitter.velocityX.sort(-mirroredEmitter.velocityX.minValue, -mirroredEmitter.velocityX.maxValue);
+			mirroredEmitter.velocityY.sort(-mirroredEmitter.velocityY.minValue, -mirroredEmitter.velocityY.maxValue);
+
+			mirroredEmitter.gravityFactor.sort(-mirroredEmitter.gravityFactor.minValue, -mirroredEmitter.gravityFactor.maxValue);
+
+			int averageLifetime = mirroredEmitter.initialLife.averageValue();
+			float averageFinalSize = mirroredEmitter.initalSize.averageValue() + averageLifetime * growthFactor.averageValue();
+			float averageFinalX = xOffset.averageValue() * wrapper.getEmitterWidth() + this.emitterXOffset + wrapper.getLevel().getCameraOffset().x * wrapper.getEmitterParallax();
+			float averageFinalY = yOffset.averageValue() * wrapper.getEmitterHeight() + this.emitterXOffset + wrapper.getLevel().getCameraOffset().x * wrapper.getEmitterParallax();
+			float averageStartX = averageFinalX;
+			float averageStartY = averageFinalY;
+
+			buffer.set((velocityX.averageValue() + windFactor.averageValue() * averageLifetime) * averageLifetime, (velocityY.averageValue() + gravityFactor.averageValue() * averageLifetime) * averageLifetime);
+			buffer.setTheta(buffer.getTheta() + wrapper.getRotation());
+
+			averageFinalX = Math.min(Math.max(averageFinalX + buffer.x, wrapper.getLevel().getAbsLeftLimit().getCenterX()), wrapper.getLevel().getAbsRightLimit().getCenterX());
+			averageFinalY = Math.min(Math.max(averageFinalY + buffer.y, wrapper.getLevel().getAbsTopLimit().getCenterY()), wrapper.getLevel().getAbsBottomLimit().getCenterY());
+
+			mirroredEmitter.xOffset.sort(1.0f - mirroredEmitter.xOffset.minValue + ((averageFinalX - averageStartX) / wrapper.getEmitterWidth()), 1.0f - mirroredEmitter.xOffset.maxValue);
+			mirroredEmitter.yOffset.sort(1.0f - mirroredEmitter.yOffset.minValue + ((averageFinalY - averageStartY) / wrapper.getEmitterHeight()), 1.0f - mirroredEmitter.yOffset.maxValue);
+
+			mirroredEmitter.initalSize.sort((int) (mirroredEmitter.initalSize.minValue - mirroredEmitter.initalSize.averageValue() + averageFinalSize), (int) (mirroredEmitter.initalSize.averageValue() - mirroredEmitter.initalSize.minValue + averageFinalSize));
+			mirroredEmitter.growthFactor.sort(-mirroredEmitter.growthFactor.minValue, -mirroredEmitter.growthFactor.maxValue);
+		}
+
+		this.wrapper.getLevel().addParticleEmitter(this.mirroredEmitter);
+	}
+
+	public void initMirror()
+	{
+		if (this.hasMirror)
+		{
+			this.wrapper.getLevel().removeParticleEmitter(mirroredEmitter);
+
+			this.createMirror(this.wrapper.getLevel().getType());
+		}
+	}
+
+	@Override
+	public void moveEmitter(float xChange, float yChange)
+	{
+		super.moveEmitter(xChange * trailFactor, yChange * trailFactor);
+	}
+
+	public void moveParticles(float xChange, float yChange)
+	{
+		Particle[] particles = system.particlePoolsByEmitter.get(this).particles;
+
+		for (Particle particle : particles)
+		{
+			if (particle.isInUse())
+			{
+				particle.adjustX(xChange);
+				particle.adjustY(yChange);
+
+				particle.setInitialX(particle.getInitialX() + xChange);
+				particle.setInitialY(particle.getInitialY() + yChange);
+			}
+		}
+	}
+
+	// ( ͡° ͜ʖ ͡°)
+	public void resize(float newWidth, float oldWidth, float newHeight, float oldHeight, boolean scaleX, boolean scaleY, float rotation)
+	{
+		Particle[] particles = system.particlePoolsByEmitter.get(this).particles;
+
+		Vector2f cameraOffset = wrapper.getLevel().getCameraOffset();
+
+		float offsetX = wrapper.getPosition().x - emitterXOffset - cameraOffset.x * wrapper.getEmitterParallax();
+		float offsetY = wrapper.getPosition().y - emitterYOffset - cameraOffset.y * wrapper.getEmitterParallax();
+		float xScale = (newWidth / oldWidth) - 1.0f;
+		float yScale = (newHeight / oldHeight) - 1.0f;
+
+		scaleX = scaleX && xOffset.averageValue() != 0.0f;
+		scaleY = scaleY && yOffset.averageValue() != 0.0f;
+
+		for (Particle particle : particles)
+		{
+			if (particle.isInUse())
+			{
+				if (scaleX)
+				{
+					float xChange = (particle.getInitialX() - offsetX) * xScale;
+
+					particle.adjustX(xChange);
+
+					particle.setInitialX(particle.getInitialX() + xChange);
+				}
+
+				if (scaleY)
+				{
+					float yChange = (particle.getInitialY() - offsetY) * yScale;
+
+					particle.adjustY(yChange);
+
+					particle.setInitialY(particle.getInitialY() + yChange);
+				}
+			}
+		}
+	}
+
+	@Override
+	public void rotate(float angle)
+	{
+		rotate(angle, wrapper.getCenterOfRotationX(), wrapper.getCenterOfRotationY());
+	}
+
+	public void rotate(float angle, float centerX, float centerY)
+	{
+		Vector2f cameraOffset = wrapper.getLevel().getCameraOffset();
+
+		float offsetX = cameraOffset.x + emitterXOffset;
+		float offsetY = cameraOffset.y + emitterYOffset;
+
+		for (Particle particle : system.particlePoolsByEmitter.get(this).particles)
+		{
+			if (particle.isInUse())
+			{
+				Point point = Hitbox.rotatePoint(particle.getXPos() + offsetX, particle.getYPos() + offsetY, centerX, centerY, angle);
+
+				particle.setXPos(point.getX() - offsetX);
+				particle.setYPos(point.getY() - offsetY);
+
+				particle.setRotation(particle.getRotation() + angle);
+
+				buffer.set(particle.getVelocityX(), particle.getVelocityY());
+				buffer.add(angle);
+
+				particle.setVelocityX(buffer.x);
+				particle.setVelocityY(buffer.y);
+			}
+		}
+	}
+
+	public void setColorFor(Particle particle)
+	{
+		Color color = wrapper.getColorDistributionMode().getColor(wrapper.getStartEmitterTint(), wrapper.getEndEmitterTint(), wrapper.getLevel().getPRNG(wrapper.isShared(), dimension));
+
+		particle.setColor(color.r, color.g, color.b);
+	}
+
+	@Override
+	public void setImageFor(Particle particle)
+	{
+		if (renderMode == RENDER_IDENTICAL)
+		{
+			particle.setImage(wrapper.getEmitterSprites()[wrapper.getLevel().getPRNG(wrapper.isShared(), dimension).nextInt(wrapper.getEmitterSprites().length / Dimension.COUNT) * Dimension.COUNT + dimension.code()][0]);
+		}
+		else if (renderMode == RENDER_PARTIAL)
+		{
+			particle.setImage(wrapper.getImage());
+		}
+		else
+		{
+			throw new UnsupportedOperationException("Can't set particle image for render mode " + renderMode + ".");
+		}
+	}
+
+	@Override
+	public boolean addAttractor(LevelObject attractor, AttractorConfiguration configuration)
+	{
+		if (this.attractors == null)
+		{
+			this.attractors = new LinkedHashMap<LevelObject, AttractorConfiguration>();
+		}
+
+		return this.attractors.put(attractor, configuration) != configuration;
+	}
+
+	@Override
+	public void removeAttractor(LevelObject attractor)
+	{
+		if (this.attractors != null)
+		{
+			this.attractors.remove(attractor);
+		}
+	}
+
+	@Override
+	public void pixelifyWrapper(ParticleSystem system, LevelObject object, int pixelSize)
+	{
+		int xParts = object.getImage().getWidth() / pixelSize;
+		int yParts = object.getImage().getHeight() / pixelSize;
+
+		float partWidth = object.getHitbox().getRawWidth() / ((float) xParts);
+		float partHeight = object.getHitbox().getRawHeight() / ((float) yParts);
+
+		float partTexWidth = 1.0f / ((float) xParts);
+		float partTexHeight = 1.0f / ((float) yParts);
+
+		for (int xi = 0; xi < xParts; xi++)
+		{
+			for (int yi = 0; yi < yParts; yi++)
+			{
+				int lifetime = initialLife.randomValue(object.getLevel().getPRNG(object.isShared(), dimension));
+
+				Particle particle = system.getParticle(this, lifetime);
+
+				initParticle(particle);
+
+				particle.setAlpha(0.8f);
+				particle.setRotation(object.getRotation());
+
+				point.setX(object.getPosition().x + xi * partWidth + pixelSize / 2);
+				point.setY(object.getPosition().y + yi * partHeight + pixelSize / 2);
+
+				particle.setInitialX(point.getX());
+				particle.setInitialY(point.getY());
+
+				otherPoint.setLocation(object.getCenterOfRotationX(), object.getCenterOfRotationY());
+
+				point = Hitbox.rotatePoint(point, otherPoint, object.getRotation());
+
+				particle.setXPos(point.getX() - object.getLevel().getCameraOffset().x);
+				particle.setYPos(point.getY() - object.getLevel().getCameraOffset().y);
+
+				particle.setVelocityX(object.getVelocity().x);
+				particle.setVelocityY(object.getVelocity().y);
+
+				particle.setSize(pixelSize);
+
+				particle.setTextureOffsetX(object.getImage().getTextureOffsetX() + (xi * partTexWidth * object.getImage().getTextureWidth()));
+				particle.setTextureOffsetY(object.getImage().getTextureOffsetY() + (yi * partTexHeight * object.getImage().getTextureHeight()));
+				particle.setTextureWidth(partTexWidth * object.getImage().getTextureWidth());
+				particle.setTextureHeight(partTexHeight * object.getImage().getTextureHeight());
+			}
+		}
+
+		this.stop();
+	}
+
+	@Override
+	public void addParticleEater(LevelObject object)
+	{
+		if (this.particleEaters == null)
+		{
+			this.particleEaters = new HashSet<LevelObject>(4);
+		}
+
+		this.particleEaters.add(object);
+	}
+
+	public void removeParticleEater(LevelObject object)
+	{
+		if (this.particleEaters != null)
+		{
+			this.particleEaters.remove(object);
+		}
+	}
+
+	@Override
+	public void update(ParticleSystem system, float delta)
+	{
+		Random rng = wrapper.getLevel().getPRNG(wrapper.isShared(), dimension);
+
+		if (timeLimitedLifetime)
+		{
+			life -= delta;
+		}
+
+		minX = newMinX;
+		maxX = newMaxX;
+		minY = newMinY;
+		maxY = newMaxY;
+
+		if (particleEaters != null)
+		{
+			Iterator<LevelObject> iterator = particleEaters.iterator();
+
+			while (iterator.hasNext())
+			{
+				LevelObject object = iterator.next();
+
+				if (!object.isEnabled() || object.getHitbox().getMinX() < minX || object.getHitbox().getMaxX() > maxX || object.getHitbox().getMinY() < minY || object.getHitbox().getMaxY() > maxY)
+				{
+					iterator.remove();
+				}
+			}
+		}
+
+		newMinX = Float.MIN_VALUE;
+		newMaxX = Float.MAX_VALUE;
+		newMinY = Float.MIN_VALUE;
+		newMaxY = Float.MAX_VALUE;
+
+		nextSpawn -= delta;
+
+		if (!stopped && life > 0 && (nextSpawn <= 0 || maxOutParticles))
+		{
+			nextSpawn = spawnInterval.randomValue(rng);
+
+			int count = maxOutParticles ? (this.maxParticles - this.particleCount) : spawnCount.randomValue(rng);
+
+			if (wrapper.shouldCreateParticles())
+			{
+				for (int i = 0; i < count; i++)
+				{
+					int value = initialLife.randomValue(rng);
+
+					Particle particle = system.getParticle(this, value);
+
+					if (particle != null)
+					{
+						if (!initParticle(particle))
+						{
+							particle.kill();
+
+							continue;
+						}
+
+						buffer.set(velocityX.randomValue(rng), velocityY.randomValue(rng));
+
+						if (circularEmitter)
+						{
+							buffer.scale(2.0f);
+							buffer.setTheta(startRotation.randomValue(rng));
+						}
+
+						buffer.setTheta(buffer.getTheta() + wrapper.getRotation());
+
+						particle.setVelocityX(buffer.x);
+						particle.setVelocityY(buffer.y);
+					}
+				}
+
+				if (attractors != null)
+				{
+					for (LevelObject attractor : attractors.keySet())
+					{
+						Hitbox hitbox = attractor.getHitbox();
+
+						int additionalCount = (int) (attractors.get(attractor).getAttractionFactor() * count);
+
+						for (int i = 0; i < additionalCount; i++)
+						{
+							int value = (int) (initialLife.randomValue(wrapper.getLevel().getPRNG(wrapper.isShared(), dimension)) * 2.5f);
+
+							Particle p = system.getParticle(this, value);
+
+							if (p != null)
+							{
+								if (!initParticle(p))
+								{
+									continue;
+								}
+
+								float xAttract = hitbox.getCenterX();
+								float yAttract = hitbox.getMaxY() - attractors.get(attractor).getAttractionRange() * hitbox.getHeight() * wrapper.getLevel().getPRNG(wrapper.isShared(), dimension).nextFloat();
+								float relXPos = p.getXPos() + emitterXOffset + GameLauncher.getLevelContext().getCameraOffset().x * wrapper.getEmitterParallax();
+								float relYPos = p.getYPos() + emitterYOffset + GameLauncher.getLevelContext().getCameraOffset().y * wrapper.getEmitterParallax();
+
+								buffer.set(velocityX.randomValue(wrapper.getLevel().getPRNG(wrapper.isShared(), dimension)) * 1.5f, velocityY.randomValue(wrapper.getLevel().getPRNG(wrapper.isShared(), dimension)) * 1.5f);
+								buffer.setTheta(Math.toDegrees(Math.tan((relYPos - yAttract) / (Math.abs(xAttract - relXPos)))));
+
+								p.setVelocityX(xAttract < relXPos ? -buffer.x : buffer.x);
+								p.setVelocityY(-Math.abs(buffer.y));
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	@Override
+	public void updateParticle(Particle particle, float delta)
+	{
+		buffer.x = particle.getWindFactor() * delta;
+		buffer.y = particle.getGravityFactor() * delta;
+
+		if (rotateAccelerations && (buffer.x != 0.0f || buffer.y != 0.0f))
+		{
+			buffer.setTheta(buffer.getTheta() + wrapper.getRotation());
+		}
+
+		particle.adjustVelocityX(buffer.x);
+		particle.adjustVelocityY(buffer.y);
+
+		// TODO fix bug where particles out of area don't disappear because the
+		// if-s are wrong for rotated emitters
+		if (limitToWrapper)
+		{
+			if (((particle.getXPos() + emitterXOffset + wrapper.getLevel().getCameraOffset().x * wrapper.getEmitterParallax() - wrapper.getHitbox().getPoints()[0]) < -particle.getSize() / 2 && !(particle.getVelocityX() > 0.0f)) || ((wrapper.getHitbox().getPoints()[0] + wrapper.getEmitterWidth() - (particle.getXPos() + emitterXOffset + wrapper.getLevel().getCameraOffset().x * wrapper.getEmitterParallax())) < -particle.getSize() / 2 && !(particle.getVelocityX() < 0.0f)))
+			{
+				onParticleOutOfArea(particle, true);
+			}
+
+			if (((particle.getYPos() + emitterYOffset + wrapper.getLevel().getCameraOffset().y * wrapper.getEmitterParallax() - wrapper.getHitbox().getPoints()[1]) < -particle.getSize() / 2 && !(particle.getVelocityY() > 0.0f)) || ((wrapper.getHitbox().getPoints()[1] + wrapper.getEmitterHeight() - (particle.getYPos() + emitterYOffset + wrapper.getLevel().getCameraOffset().y * wrapper.getEmitterParallax()) < -particle.getSize() / 2) && !(particle.getVelocityY() < 0.0f)))
+			{
+				onParticleOutOfArea(particle, false);
+			}
+		}
+		else
+		{
+			if ((particle.getYPos() + emitterYOffset < -particle.getSize() / 2 && !(particle.getVelocityY() > 0.0f)) || (particle.getYPos() + emitterYOffset > wrapper.getLevel().getMapHeight() + particle.getSize() / 2 && !(particle.getVelocityY() < 0.0f)))
+			{
+				onParticleOutOfArea(particle, false);
+			}
+
+			if ((particle.getXPos() + emitterXOffset < -particle.getSize() / 2 && !(particle.getVelocityX() > 0.0f)) || (particle.getXPos() + emitterXOffset > wrapper.getLevel().getMapWidth() + particle.getSize() / 2 && !(particle.getVelocityX() < 0.0f)))
+			{
+				onParticleOutOfArea(particle, true);
+			}
+		}
+
+		if (particle.getLifetime() < particle.getFadeOutTime() && shouldFadeOut && !particle.isFadingOut())
+		{
+			particle.setFadingOut(true);
+		}
+
+		if (wrapper.getLevel().getType() == LevelType.REVERSAL && this.dimension == Dimension.SHADOW)
+		{
+			if (!particle.isFadingOut() && wrapper.getHitbox().contains(particle))
+			{
+				if (shouldFadeOut)
+				{
+					if (!particle.isFadingOut())
+					{
+						particle.setFadingOut(true);
+					}
+				}
+				else
+				{
+					particle.kill();
+				}
+			}
+		}
+
+		if (wrapper.getLevel().isOutOfMap(particle.getXPos() + wrapper.getLevel().getCameraOffset().x * wrapper.getEmitterParallax() + emitterXOffset, particle.getYPos() + wrapper.getLevel().getCameraOffset().y * wrapper.getEmitterParallax() + emitterYOffset))
+		{
+			particle.kill();
+		}
+
+		if (particle.isFadingIn() && shouldFadeIn)
+		{
+			particle.adjustAlpha(((float) (delta * particle.getTargetAlpha())) / ((float) (particle.getFadeInTime())));
+		}
+
+		if (particle.isFadingOut() && shouldFadeOut)
+		{
+			particle.adjustAlpha(-((float) (delta * particle.getTargetAlpha())) / ((float) (particle.getFadeOutTime())));
+		}
+
+		particle.adjustSize(particle.getGrowthFactor() * delta);
+
+		if (this.particleEaters != null)
+		{
+			for (LevelObject object : this.particleEaters)
+			{
+				if (object.getHitbox().contains(particle.getXPos() + wrapper.getLevel().getCameraOffset().x * wrapper.getEmitterParallax(), particle.getYPos() + wrapper.getLevel().getCameraOffset().y * wrapper.getEmitterParallax()))
+				{
+					particle.setAlpha(0.25f); // TODO not quite sure what to do
+												// with these particles yet but
+												// this looks kind of cool
+
+					break;
+				}
+			}
+		}
+
+		if (particle.getXPos() < newMinX)
+		{
+			newMinX = particle.getXPos();
+		}
+
+		if (particle.getYPos() < newMinY)
+		{
+			newMinY = particle.getYPos();
+		}
+
+		if (particle.getXPos() > newMaxX)
+		{
+			newMaxX = particle.getXPos();
+		}
+
+		if (particle.getXPos() > newMaxY)
+		{
+			newMaxY = particle.getYPos();
+		}
+	}
+
+	private boolean initParticle(Particle particle)
+	{
+		Random rng = wrapper.getLevel().getPRNG(wrapper.isShared(), dimension);
+
+		if (xOffset != null && yOffset != null)
+		{
+			buffer.set(xOffset.randomValue(rng) * wrapper.getEmitterWidth(), yOffset.randomValue(rng) * wrapper.getEmitterHeight());
+			
+			if (!wrapper.canCreateParticleAt(buffer.x, buffer.y))
+			{
+				return false;
+			}
+
+			particle.setSize(initalSize.randomValue(rng));
+
+			if (circularEmitter)
+			{
+				particle.setXPos(wrapper.getHitbox().getCenterX() - emitterXOffset - GameLauncher.getLevelContext().getCameraOffset().x * wrapper.getEmitterParallax());
+				particle.setYPos(wrapper.getHitbox().getCenterY() - emitterYOffset - GameLauncher.getLevelContext().getCameraOffset().y * wrapper.getEmitterParallax());
+				particle.setInitialX(particle.getXPos());
+				particle.setInitialY(particle.getYPos());
+			}
+			else
+			{
+				particle.setInitialX(wrapper.getPosition().x - emitterXOffset - GameLauncher.getLevelContext().getCameraOffset().x * wrapper.getEmitterParallax() + buffer.x);
+				particle.setInitialY(wrapper.getPosition().y - emitterYOffset - GameLauncher.getLevelContext().getCameraOffset().y * wrapper.getEmitterParallax() + buffer.y);
+
+				buffer.setTheta(buffer.getTheta() + wrapper.getRotation());
+
+				particle.setXPos(wrapper.getHitbox().getPoints()[0] - emitterXOffset - GameLauncher.getLevelContext().getCameraOffset().x * wrapper.getEmitterParallax() + buffer.x);
+				particle.setYPos(wrapper.getHitbox().getPoints()[1] - emitterYOffset - GameLauncher.getLevelContext().getCameraOffset().y * wrapper.getEmitterParallax() + buffer.y);
+			}
+		}
+
+		particle.setGravityFactor(gravityFactor.randomValue(rng) / 5.0f);
+		particle.setWindFactor(windFactor.randomValue(rng));
+		particle.setGrowthFactor(growthFactor.randomValue(rng));
+
+		particle.setRotationVelocity(rotationVelocity.randomValue(rng) / 120.0f);
+
+		if (!circularEmitter)
+		{
+			particle.setRotation(startRotation.randomValue(rng) + wrapper.getRotation());
+		}
+		else
+		{
+			buffer.set(particle.getVelocityX(), particle.getVelocityY());
+			particle.setRotation((float) buffer.getTheta());
+		}
+
+		particle.setFadeOutTime(fadeOutTime.randomValue(rng));
+
+		if (shouldFadeIn)
+		{
+			particle.setFadeInTime(fadeInTime.randomValue(rng));
+			particle.setAlpha(0.0f);
+			particle.setTargetAlpha((startAlpha.randomValue(rng)) / 255.0f);
+		}
+		else
+		{
+			particle.setAlpha((startAlpha.randomValue(rng)) / 255.0f);
+		}
+
+		setColorFor(particle);
+
+		particle.setFadingIn(shouldFadeIn);
+		particle.setParallax(wrapper.getEmitterParallax());
+
+		return true;
+	}
+
+	protected void onParticleOutOfArea(Particle particle, boolean horizontal)
+	{
+		if (shouldBounceOutOfArea)
+		{
+			if (horizontal)
+			{
+				particle.setVelocityX(-particle.getVelocityX());
+			}
+			else
+			{
+				particle.setVelocityY(-particle.getVelocityY());
+			}
+		}
+		else
+		{
+			if (shouldFadeOut)
+			{
+				if (!particle.isFadingOut())
+				{
+					particle.setFadingOut(true);
+					particle.setLifetime(particle.getFadeOutTime());
+				}
+			}
+			else
+			{
+				particle.kill();
+			}
+		}
+	}
+
+	@Override
+	public int getRenderMode()
+	{
+		return renderMode;
+	}
+
+	@Override
+	public Image[][] getImages()
+	{
+		return wrapper.getEmitterSprites();
+	}
+
+	@Override
+	public boolean isBoundToWrapperTexture()
+	{
+		return boundToWrapperTexture;
+	}
+
+	@Override
+	public boolean isCompleted()
+	{
+		return timeLimitedLifetime && life <= 0;
+	}
+
+	@Override
+	public boolean hasLimitedLength()
+	{
+		return timeLimitedLifetime;
+	}
+
+	@Override
+	public Vector2f getPosition()
+	{
+		return wrapper.getPosition();
+	}
+
+	public boolean isTimeEffected()
+	{
+		return wrapper.isTimeEffectedAnyWay() || !(this.type == EmitterType.TIME_RESISTANT_AREA || this.type == EmitterType.TIME_RESISTANT_AREA || this.type == EmitterType.TIME_RESISTANT_SURFACE) && wrapper.isTimeEffected();
+	}
+
+	public boolean hasMirror()
+	{
+		return this.hasMirror;
+	}
+
+	private static IntegerRange copy(IntegerRange integerRange)
+	{
+		return integerRange == null ? null : integerRange.copy();
+	}
+
+	private static FloatRange copy(FloatRange floatRange)
+	{
+		return floatRange == null ? null : floatRange.copy();
+	}
+
+	public static class IntegerRange
+	{
+		private int minValue;
+		private int maxValue;
+
+		public IntegerRange(int minValue, int maxValue)
+		{
+			sort(minValue, maxValue);
+		}
+
+		public int averageValue()
+		{
+			return (minValue + maxValue) / 2;
+		}
+
+		public IntegerRange copy()
+		{
+			return new IntegerRange(minValue, maxValue);
+		}
+
+		public void sort(int minValue, int maxValue)
+		{
+			this.minValue = Math.min(minValue, maxValue);
+			this.maxValue = Math.max(minValue, maxValue);
+		}
+
+		public void setMinValue(int minValue)
+		{
+			this.minValue = minValue;
+		}
+
+		public void setMaxValue(int maxValue)
+		{			
+			this.maxValue = maxValue;
+		}
+
+		public int minValue()
+		{
+			return this.minValue;
+		}
+
+		public int maxValue()
+		{
+			return this.maxValue;
+		}
+
+		public int randomValue(Random rng)
+		{
+			return (int) (minValue + rng.nextFloat() * (maxValue - minValue));
+		}
+
+		@Override
+		public String toString()
+		{
+			return "IntegerRange(" + minValue + ", " + maxValue + ")";
+		}
+
+		public String buildString()
+		{
+			return "new " + toString();
+		}
+	}
+
+	public static class FloatRange
+	{
+		private float minValue;
+		private float maxValue;
+
+		public FloatRange(float minValue, float maxValue)
+		{
+			sort(minValue, maxValue);
+		}
+
+		public FloatRange copy()
+		{
+			return new FloatRange(minValue, maxValue);
+		}
+
+		private void sort(float minValue, float maxValue)
+		{
+			this.minValue = Math.min(minValue, maxValue);
+			this.maxValue = Math.max(minValue, maxValue);
+		}
+
+		public void setMinValue(float minValue)
+		{
+			this.minValue = minValue;
+		}
+
+		public void setMaxValue(float maxValue)
+		{
+			this.maxValue = maxValue;
+		}
+
+		public float averageValue()
+		{
+			return (minValue + maxValue) / 2;
+		}
+
+		public float minValue()
+		{
+			return this.minValue;
+		}
+
+		public float maxValue()
+		{
+			return this.maxValue;
+		}
+
+		public float randomValue(Random rng)
+		{
+			return (float) (minValue + rng.nextFloat() * (maxValue - minValue));
+		}
+
+		@Override
+		public String toString()
+		{
+			return "FloatRange(" + minValue + "f, " + maxValue + "f)";
+		}
+
+		public String buildString()
+		{
+			return "new " + toString();
+		}
+	}
+
+	public void restart()
+	{
+		reset();
+
+		this.stopped = false;
+		this.life = lifeTime;
+	}
+
+	public void stop()
+	{
+		this.stopped = true;
+	}
+
+	public void resume()
+	{
+		this.stopped = false;
+	}
+
+	@Override
+	public Hitbox getHitbox()
+	{
+		return wrapper.getHitbox();
+	}
+
+	@Override
+	public boolean shouldCreateMirror(boolean allowMirrors)
+	{
+		return allowMirrors && wrapper.getLevel().shouldCreateMirrors();
+	}
+
+	@Override
+	public void setLevel(Level level)
+	{
+		wrapper.setLevel(level);
+	}
+
+	@Override
+	public ParticleEmitterImpl copy(Level level)
+	{
+		return copy(wrapper, level);
+	}
+
+	public ParticleEmitterImpl copy(IEmitterWrapper wrapper, Level level)
+	{
+		ParticleEmitterImpl copy = new ParticleEmitterImpl(dimension, wrapper, spawnInterval.copy(), spawnCount.copy(), initialLife.copy(), initalSize.copy(), xOffset.copy(), yOffset.copy(), velocityX.copy(), velocityY.copy(), startRotation.copy(), rotationVelocity.copy(), growthFactor.copy(), gravityFactor.copy(), windFactor.copy(), startAlpha.copy(), fadeInTime.copy(), fadeOutTime.copy(), lifeTime, shouldFadeIn, shouldFadeOut, limitToWrapper, shouldBounceOutOfArea, timeLimitedLifetime, useAttractors, rotateAccelerations, maxOutParticles, circularEmitter, renderMode);
+
+		copy.scaleWithWidth = this.scaleWithWidth;
+		copy.scaleWithHeight = this.scaleWithHeight;
+		copy.originalWidth = this.originalWidth;
+		copy.originalHeight = this.originalHeight;
+		copy.originalMaxParticles = this.originalMaxParticles;
+		copy.originalMinCount = this.originalMinCount;
+		copy.originalMaxCount = this.originalMaxCount;
+
+		return copy;
+	}
+
+	@Override
+	public boolean isShared()
+	{
+		return wrapper.isShared();
+	}
+
+	@Override
+	public void setPosition(float x, float y)
+	{
+		wrapper.setPosition(x, y);
+	}
+
+	@Override
+	public boolean isRotateable()
+	{
+		return wrapper.isRotateable();
+	}
+
+	@Override
+	public float getCenterOfRotationX()
+	{
+		return wrapper.getCenterOfRotationX();
+	}
+
+	@Override
+	public float getCenterOfRotationY()
+	{
+		return wrapper.getCenterOfRotationY();
+	}
+
+	@Override
+	public int getDepth()
+	{
+		return wrapper.getEmitterDepth();
+	}
+
+	@Override
+	public boolean isInBackground()
+	{
+		return wrapper.isInBackground();
+	}
+
+	@Override
+	public boolean ownsMouse()
+	{
+		return false;
+	}
+
+	@Override
+	public IEmitterWrapper getWrapper()
+	{
+		return wrapper;
+	}
+
+	public IntegerRange getSpawnInterval()
+	{
+		return spawnInterval;
+	}
+
+	public IntegerRange getSpawnCount()
+	{
+		return spawnCount;
+	}
+
+	public IntegerRange getInitialLife()
+	{
+		return initialLife;
+	}
+
+	public IntegerRange getInitialSize()
+	{
+		return initalSize;
+	}
+
+	public FloatRange getXOffset()
+	{
+		return xOffset;
+	}
+
+	public FloatRange getYOffset()
+	{
+		return yOffset;
+	}
+
+	public FloatRange getVelocityX()
+	{
+		return velocityX;
+	}
+
+	public FloatRange getVelocityY()
+	{
+		return velocityY;
+	}
+
+	public FloatRange getStartRotation()
+	{
+		return startRotation;
+	}
+
+	public FloatRange getRotationVelocity()
+	{
+		return rotationVelocity;
+	}
+
+	public FloatRange getGrowthFactor()
+	{
+		return growthFactor;
+	}
+
+	public FloatRange getGravityFactor()
+	{
+		return gravityFactor;
+	}
+
+	public FloatRange getWindFactor()
+	{
+		return windFactor;
+	}
+
+	public IntegerRange getStartAlpha()
+	{
+		return startAlpha;
+	}
+
+	public IntegerRange getFadeOutTime()
+	{
+		return fadeOutTime;
+	}
+
+	public int getLifeTime()
+	{
+		return lifeTime;
+	}
+
+	public boolean shouldFadeOut()
+	{
+		return shouldFadeOut;
+	}
+
+	public boolean limittedToWrapper()
+	{
+		return limitToWrapper;
+	}
+
+	public boolean hasLimitedLifetime()
+	{
+		return timeLimitedLifetime;
+	}
+
+	public boolean shouldRemoveOnCompletion()
+	{
+		return wrapper.getLevel().shouldRemoveEmittersOnCompletion() && (type == null || type.shouldRemoveOnCompletion());
+	}
+
+	public boolean shouldBounceOutOfArea()
+	{
+		return shouldBounceOutOfArea;
+	}
+
+	public void setWrapper(WrapperTexture wrapper)
+	{
+		this.wrapper = wrapper;
+	}
+
+	public void setLifeTime(int lifeTime)
+	{
+		this.lifeTime = lifeTime;
+		this.life = lifeTime;
+	}
+
+	public void setSpawnInterval(IntegerRange spawnInterval)
+	{
+		this.spawnInterval = spawnInterval;
+	}
+
+	public void setSpawnCount(IntegerRange spawnCount)
+	{
+		this.spawnCount = spawnCount;
+	}
+
+	public void setInitalLife(IntegerRange initalLife)
+	{
+		this.initialLife = initalLife;
+	}
+
+	public void setInitalSize(IntegerRange initalSize)
+	{
+		this.initalSize = initalSize;
+	}
+
+	public void setxOffset(FloatRange xOffset)
+	{
+		this.xOffset = xOffset;
+	}
+
+	public void setyOffset(FloatRange yOffset)
+	{
+		this.yOffset = yOffset;
+	}
+
+	public void setVelocityX(FloatRange velocityX)
+	{
+		this.velocityX = velocityX;
+	}
+
+	public void setVelocityY(FloatRange velocityY)
+	{
+		this.velocityY = velocityY;
+	}
+
+	public void setStartRotation(FloatRange startRotation)
+	{
+		this.startRotation = startRotation;
+	}
+
+	public void setRotationVelocity(FloatRange rotationVelocity)
+	{
+		this.rotationVelocity = rotationVelocity;
+	}
+
+	public void setGrowthFactor(FloatRange growthFactor)
+	{
+		this.growthFactor = growthFactor;
+	}
+
+	public void setGravityFactor(FloatRange gravityFactor)
+	{
+		this.gravityFactor = gravityFactor;
+	}
+
+	public void setWindFactor(FloatRange windFactor)
+	{
+		this.windFactor = windFactor;
+	}
+
+	public void setStartAlpha(IntegerRange startAlpha)
+	{
+		this.startAlpha = startAlpha;
+	}
+
+	public void setFadeOutTime(IntegerRange fadeOutTime)
+	{
+		this.fadeOutTime = fadeOutTime;
+	}
+
+	public void setShouldFadeOut(boolean shouldFadeOut)
+	{
+		this.shouldFadeOut = shouldFadeOut;
+	}
+
+	public void setLimitToWrapper(boolean limitToWrapper)
+	{
+		this.limitToWrapper = limitToWrapper;
+	}
+
+	public void setShouldBounceOutOfArea(boolean shouldBounceOutOfArea)
+	{
+		this.shouldBounceOutOfArea = shouldBounceOutOfArea;
+	}
+
+	public void setHasLimitedLifetime(boolean hasLimitedLifetime)
+	{
+		this.timeLimitedLifetime = hasLimitedLifetime;
+	}
+
+	public boolean shouldFadeIn()
+	{
+		return this.shouldFadeIn;
+	}
+
+	public void setShouldFadeIn(boolean shouldFadeIn)
+	{
+		this.shouldFadeIn = shouldFadeIn;
+	}
+
+	public IntegerRange getFadeInTime()
+	{
+		return fadeInTime;
+	}
+
+	public void setFadeInTime(IntegerRange fadeInTime)
+	{
+		this.fadeInTime = fadeInTime;
+	}
+
+	public ParticleEmitterImpl getMirroredEmitter()
+	{
+		return mirroredEmitter;
+	}
+
+	public int getOriginalMaxParticles()
+	{
+		return originalMaxParticles;
+	}
+
+	public void setOriginalMaxParticles(int originalMaxParticles)
+	{
+		this.originalMaxParticles = originalMaxParticles;
+	}
+
+	public int getOriginalMinCount()
+	{
+		return originalMinCount;
+	}
+
+	public void setOriginalMinCount(int originalMinCount)
+	{
+		this.originalMinCount = originalMinCount;
+	}
+
+	public int getOriginalMaxCount()
+	{
+		return originalMaxCount;
+	}
+
+	public void setOriginalMaxCount(int originalMaxCount)
+	{
+		this.originalMaxCount = originalMaxCount;
+	}
+
+	public int getOriginalWidth()
+	{
+		return originalWidth;
+	}
+
+	public void setOriginalWidth(int originalWidth)
+	{
+		this.originalWidth = originalWidth;
+	}
+
+	public int getOriginalHeight()
+	{
+		return originalHeight;
+	}
+
+	public void setOriginalHeight(int originalHeight)
+	{
+		this.originalHeight = originalHeight;
+	}
+
+	public boolean isStopped()
+	{
+		return this.stopped;
+	}
+
+	public EmitterType getType()
+	{
+		return type;
+	}
+
+	public boolean isScaleWithWidth()
+	{
+		return scaleWithWidth;
+	}
+
+	public boolean isScaleWithHeight()
+	{
+		return scaleWithHeight;
+	}
+
+	public void setScaleWithWidth(boolean scaleWithWidth)
+	{
+		this.scaleWithWidth = scaleWithWidth;
+	}
+
+	public void setScaleWithHeight(boolean scaleWithHeight)
+	{
+		this.scaleWithHeight = scaleWithHeight;
+	}
+
+	public boolean isRotateAccelerations()
+	{
+		return rotateAccelerations;
+	}
+
+	public void setRotateAccelerations(boolean rotateAccelerations)
+	{
+		this.rotateAccelerations = rotateAccelerations;
+	}
+
+	public boolean isMaxOutParticles()
+	{
+		return maxOutParticles;
+	}
+
+	public void setMaxOutParticles(boolean maxOutParticles)
+	{
+		this.maxOutParticles = maxOutParticles;
+	}
+
+	public boolean isCircularEmitter()
+	{
+		return circularEmitter;
+	}
+
+	public void setCircularEmitter(boolean circularEmitter)
+	{
+		this.circularEmitter = circularEmitter;
+	}
+}

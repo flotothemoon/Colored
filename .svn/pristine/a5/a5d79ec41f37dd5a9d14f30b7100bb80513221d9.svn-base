@@ -1,0 +1,52 @@
+package com.unlogical.colored.entity.item;
+
+import java.util.HashMap;
+
+public class DefaultDrops {
+
+	private static final HashMap<String,Integer[]> drops = new HashMap<String,Integer[]>();
+	private static boolean init;
+	public static final int NUMBER_OF_CATEGORIES = 7;
+	
+	public static Integer[] getDrops(String name)
+	{
+		if(!init)
+			init();
+		
+		return drops.get(name);
+	}
+		
+	private static void init()
+	{
+		drops.put("spider", getProbabilities(25, 0, 20, 0, 0,40, 15));
+		drops.put("babyspider", getProbabilities(10, 0, 10, 0, 0,70, 10));
+		drops.put("bigspider", getProbabilities(20, 5, 20, 15, 0,20, 20));
+		drops.put("forestspirit", getProbabilities(15, 0, 20, 0, 0,35, 30));
+		drops.put("littleforestspirit", getProbabilities(25, 0, 10, 0, 0,50, 15));
+		drops.put("iceelemental", getProbabilities(5, 15, 10, 25, 10,20, 15));
+		drops.put("fireelemental", getProbabilities(5, 15, 10, 25, 10,20, 15));
+		drops.put("corruptedsoul", getProbabilities(0, 20, 5, 15, 25,10, 25));
+		drops.put("witch", getProbabilities(10, 5, 10, 30, 5, 30, 10));
+		drops.put("witchsgolem", getProbabilities(0, 0, 0, 0, 0, 50, 50));
+		drops.put("lavamonster", getProbabilities(5, 35, 10, 10, 10, 15, 15));
+		drops.put("goomonster", getProbabilities(5, 35, 10, 10, 10, 15, 15));
+		drops.put("shadow", getProbabilities(0, 25, 0, 10, 50, 5, 10));
+		
+		init = true;
+	}
+
+	private static Integer[] getProbabilities(int powerUpsI,int powerUpsII,int weaponsI,int weaponsII,int weaponsIII,int gold,int heart)
+	{
+		Integer[] probabilities = new Integer[7];
+		probabilities[0] = new Integer(powerUpsI);
+		probabilities[1] = new Integer(powerUpsII);
+		probabilities[2] = new Integer(weaponsI);
+		probabilities[3] = new Integer(weaponsII);
+		probabilities[4] = new Integer(weaponsIII);
+		probabilities[5] = new Integer(gold);
+		probabilities[6] = new Integer(heart);
+		
+		return probabilities;
+	}
+	
+}

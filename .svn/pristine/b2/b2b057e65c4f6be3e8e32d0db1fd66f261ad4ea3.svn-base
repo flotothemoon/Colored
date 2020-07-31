@@ -1,0 +1,386 @@
+package com.unlogical.linked.entity.goomba;
+
+import java.util.Random;
+
+import org.newdawn.slick.GameContainer;
+import org.newdawn.slick.geom.Vector2f;
+
+import com.unlogical.linked.entity.Entity;
+import com.unlogical.linked.entity.EntityAction;
+import com.unlogical.linked.entity.EntityLiving;
+import com.unlogical.linked.entity.EntityType;
+import com.unlogical.linked.entity.projectile.EntityProjectile;
+import com.unlogical.linked.entity.property.EntityProperty;
+import com.unlogical.linked.entity.property.SharedEntityProperties;
+import com.unlogical.linked.level.Level;
+import com.unlogical.linked.level.LevelType;
+import com.unlogical.linked.terrain.TerrainObject;
+import com.unlogical.linked.terrain.tile.cannon.ICannonBall;
+import com.unlogical.linked.terrain.tile.cannon.TileCannon;
+import com.unlogical.linked.util.Dimension;
+import com.unlogical.linked.util.LevelObject;
+
+public class EntityGoomba extends EntityLiving implements ICannonBall
+{
+	private static float[] handOffsets = new float[] { 12, 21, 22, 21 };
+
+	private static Vector2f handOffset = new Vector2f();
+
+	private LevelObject cannon;
+	private boolean movingRight = true;
+	protected boolean turnOnEdges = false;
+	protected float maxSpeed;
+
+	public EntityGoomba(Vector2f position, Level level, Dimension dimension, boolean allowMirrors)
+	{
+		super(EntityType.GOOMBA, position, level, dimension, allowMirrors);
+
+		this.maxSpeed = properties.getMaxSpeed();		
+	}
+
+	protected EntityGoomba(EntityType type, Vector2f position, Level level, Dimension dimension, boolean allowMirrors)
+	{
+		super(type, position, level, dimension, allowMirrors);
+
+		this.maxSpeed = properties.getMaxSpeed();
+	}
+
+	@Override
+	public void init()
+	{
+		super.init();
+		
+		this.turnOnEdges = this.wasCreatedFromFile;
+		
+		System.out.println("init");
+	}
+	
+	@Override
+	public void onUpdate(GameContainer container, float delta, Random generator)
+	{
+		if (collidedRight || -hitbox.getRightAngle() > 45 && !hitbox.isLeftBottom())
+		{
+			if (shooting && this.dimension == Dimension.SHADOW && level.getType() == LevelType.REVERSAL)
+			{
+				movingRight = true;
+			}
+			else
+			{
+				movingRight = false;
+			}
+		}
+
+		if (collidedLeft || hitbox.getLeftAngle() > 45 && !hitbox.isRightBottom())
+		{
+			if (shooting && this.dimension == Dimension.SHADOW && level.getType() == LevelType.REVERSAL)
+			{
+				movingRight = false;
+			}
+			else
+			{
+				movingRight = true;
+			}
+		}
+
+		if (shooting)
+		{
+			if (this.cannon != null && !cannon.getHitbox().intersects(this.hitbox) && !cannon.getHitbox().contains(this.hitbox))
+			{
+				this.cannon = null;
+			}
+
+			if (this.velocity.y == 0.0f && isOnGround() || !alive)
+			{
+				shooting = false;
+			}
+		}
+
+		if (collidedBelow && !shooting)
+		{
+			if (movingRight)
+			{
+				velocity.x += properties.getAcceleration(delta);
+			}
+			else
+			{
+				velocity.x -= properties.getAcceleration(delta);
+			}
+		}
+
+		if (Math.abs(velocity.x) > maxSpeed)
+		{
+			if (shooting)
+			{
+				velocity.x *= (1.0f - 0.002f * delta);
+			}
+			else
+			{
+				velocity.x = velocity.x > 0 ? maxSpeed : -maxSpeed;
+			}
+		}
+		
+		if (turnOnEdges && collidedBelow)
+		{			
+			if (movingRight)
+			{
+				if (velocity.x > 0.0f && delta * velocity.x >= hitbox.getDistanceToRightEnd() - 2 && !onRightConnectedTile)
+				{
+					reverseDirection();
+				}
+			}
+			else
+			{
+				if (velocity.x < 0.0f && delta * -velocity.x >= hitbox.getDistanceToLeftEnd() - 2 && !hitbox.isConnectedLeft() && !onLeftConnectedTile)
+				{
+					reverseDirection();
+				}
+			}
+		}
+
+		setFocused(!movingRight);
+	}
+
+	private void reverseDirection()
+	{
+		movingRight = !movingRight;
+		velocity.x *= -0.5f;
+	}
+
+	@Override
+	protected void customOnDeath(LevelObject damageSource)
+	{
+		// fallOnDeath();
+
+		velocity.x /= 3.0f;
+		velocity.y /= 3.0f;
+
+		transformToPixels(damageSource instanceof EntityProjectile ? damageSource : null, PIXELIFIED_PARTICLE_SIZE);
+
+		resetVelocities();
+	}
+
+	@Override
+	protected void onCloseMoveToBlockLeft(float distance)
+	{
+		reverseDirection();
+	}
+
+	@Override
+	protected void onCloseMoveToBlockRight(float distance)
+	{
+		reverseDirection();
+	}
+
+	@Override
+	public void onReSimulation()
+	{
+		super.onReSimulation();
+
+		this.movingRight = ((EntityGoomba) this.mirroredEntity).movingRight;
+	}
+
+	@Override
+	protected Vector2f getHandOffset(boolean focused, EntityAction currentAction, int currentImage)
+	{
+		if (focused)
+		{
+			handOffset.x = handOffsets[0];
+		}
+		else
+		{
+			handOffset.x = handOffsets[2];
+		}
+
+		handOffset.y = handOffsets[1];
+
+		return handOffset;
+	}
+
+	@Override
+	public ICannonBall getMirroredBall()
+	{
+		return (ICannonBall) mirroredEntity;
+	}
+
+	@Override
+	public void onShoot(LevelObject cannon, float cannonRotation, float shootSpeed)
+	{
+		this.shooting = true;
+		this.cannon = cannon;
+
+		if (this.cannon.getDimension() != this.dimension)
+		{
+			this.cannon = this.cannon.getMirror();
+		}
+		
+		if (this.hasMirror && level.getType() == LevelType.REVERSAL && this.dimension == Dimension.LIGHT)
+		{
+			this.mirroredEntity.setPosition(((ICannonBall) this.mirroredEntity).getStartPosition(cannon, cannonRotation).copy());
+			this.mirroredEntity.setVelocity(((ICannonBall) this.mirroredEntity).getStartVelocity(cannon, cannonRotation, shootSpeed).copy());
+						
+			((ICannonBall) this.mirroredEntity).onShoot(cannon, cannonRotation, shootSpeed);
+		}
+		
+		this.movingRight = this.velocity.x > 0;
+		
+		if (level.getType() == LevelType.REVERSAL && this.dimension == Dimension.SHADOW)
+		{
+			this.movingRight = !this.movingRight;
+		}
+		
+		this.setImageFocus(!movingRight);
+	}
+
+	@Override
+	public boolean collidesWithEntities()
+	{
+		return true;
+	}
+
+	@Override
+	protected boolean shouldBounceOnGround()
+	{
+		return this.alive && (level.getType() != LevelType.TIME_TRAVEL || this.shared || this.dimension == Dimension.LIGHT);
+	}
+
+	@Override
+	protected boolean isBlocked(TerrainObject tile, Vector2f myVelocity)
+	{
+		return tile != cannon && super.isBlocked(tile, myVelocity);
+	}
+
+	@Override
+	public Vector2f getStartVelocity(LevelObject cannon, float cannonRotation, float shootSpeedFactor)
+	{
+		bufferedVector.x = 0.0f;
+		bufferedVector.y = -shootSpeedFactor * properties.getMaxSpeed() * 20.0f;
+		bufferedVector.add(cannonRotation);
+
+		return bufferedVector;
+	}
+
+	@Override
+	public Vector2f getStartPosition(LevelObject cannon, float cannonRotation)
+	{
+		if (cannon.getRotation() == cannonRotation)
+		{
+			bufferedVector.x = (cannon.getHitbox().getPoints()[0] + cannon.getHitbox().getPoints()[2] - this.hitbox.getWidth()) / 2;
+			bufferedVector.y = (cannon.getHitbox().getPoints()[1] + cannon.getHitbox().getPoints()[3] - this.hitbox.getHeight()) / 2;
+		}
+		else
+		{
+			bufferedVector.x = (cannon.getHitbox().getPoints()[4] + cannon.getHitbox().getPoints()[6] - this.hitbox.getWidth()) / 2;
+			bufferedVector.y = (cannon.getHitbox().getPoints()[5] + cannon.getHitbox().getPoints()[7] - this.hitbox.getHeight()) / 2;
+		}
+
+		return bufferedVector;
+	}
+
+	@Override
+	public boolean isDead()
+	{
+		return !this.alive;
+	}
+
+	@Override
+	public boolean hasCollided()
+	{
+		return this.collidedAbove || this.collidedBelow || this.collidedRight || this.collidedLeft;
+	}
+
+	@Override
+	public boolean supportsAction(EntityAction action)
+	{
+		return action == EntityAction.STANDING || action == EntityAction.WALKING || action == EntityAction.FALLING || action == EntityAction.DEAD;
+	}
+
+	@Override
+	protected EntityProperty getEntityProperty()
+	{
+		return SharedEntityProperties.GOOMBA;
+	}
+
+	@Override
+	protected boolean canBeHarmedBy(Entity entity)
+	{
+		return canInteractWith(entity);
+	}
+
+	@Override
+	protected boolean canInteractWith(Entity entity)
+	{
+		return entity.getType() != this.type;
+	}
+
+	@Override
+	public boolean getDefaultFocus()
+	{
+		return true;
+	}
+
+	@Override
+	protected boolean canWalkSlopes()
+	{
+		return true;
+	}
+
+	@Override
+	protected boolean canBeBouncedOff()
+	{
+		return true;
+	}
+
+	@Override
+	protected boolean shouldUseFittingTextures()
+	{
+		return true;
+	}
+
+	@Override
+	public boolean checkEntityCollisions()
+	{
+		return true;
+	}
+
+	@Override
+	public boolean collidesWithTerrain()
+	{
+		return true;
+	}
+
+	@Override
+	public boolean isBlocked()
+	{
+		return true;
+	}
+
+	public boolean isMovingRight()
+	{
+		return movingRight;
+	}
+
+	public void setMovingRight(boolean movingRight)
+	{
+		this.movingRight = movingRight;
+	}
+
+	public boolean isTurnOnEdges()
+	{
+		return turnOnEdges;
+	}
+
+	public void setTurnOnEdges(boolean turnOnEdges)
+	{
+		this.turnOnEdges = turnOnEdges;
+	}
+
+	public LevelObject getCannon()
+	{
+		return cannon;
+	}
+
+	public void setCannon(TileCannon cannon)
+	{
+		this.cannon = cannon;
+	}
+}

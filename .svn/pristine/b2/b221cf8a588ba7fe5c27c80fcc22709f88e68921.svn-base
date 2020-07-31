@@ -1,0 +1,25 @@
+package com.unlogical.linked.util;
+
+public class ScheduledEvent
+{
+	public final Object type;
+	public final Object object;
+
+	public ScheduledEvent(final Object eventType)
+	{
+		this.type = eventType;
+		this.object = null;
+	}
+
+	public ScheduledEvent(final Object eventType, final Object eventObject)
+	{
+		this.type = eventType;
+		this.object = eventObject;
+	}
+
+	@Override
+	public String toString()
+	{
+		return "[ScheduledEvent type:" + type + (object == null ? "" : " object:" + object) + "]";
+	}
+}

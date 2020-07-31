@@ -1,0 +1,83 @@
+ -- General -- 
+Generated on: 2016-03-21_14-41-37
+Build: 664 from 01:16 PM - 21/03/16
+GameState: IN_LEVEL (previous: MAP_EDITOR)
+Target FPS: 60
+Actual FPS: 60
+
+ -- Display -- 
+Target Width / Height: 1920 / 1080
+Actual Width / Height: 1920 / 1017 (windowed)
+
+ -- Environment -- 
+GPU: GeForce GTX 980 Ti/PCIe/SSE2 (NVIDIA Corporation)
+OpenGL Version: 4.5.0 NVIDIA 361.43
+Allocated Memory: 15MB
+Used Memory: 11MB
+"os.name": Windows 10
+"os.version": 10.0
+"os.arch": x86
+"java.version": 1.8.0_66
+"java.vendor": Oracle Corporation
+"sun.arch.data.model": 32
+
+ -- Level --
+ID: 20-02 (internal: 02)
+LevelType: NORMAL
+Dimension: LIGHT
+Location: ../worlds/maps/20-02
+
+ -- Stack Trace -- 
+java.lang.IllegalStateException: SpriteBatch.begin must be called before draw.
+com.unlogical.colored.util.CustomVerticesSpriteBatch.draw(CustomVerticesSpriteBatch.java:804)
+com.unlogical.colored.resources.image.Images.draw(Images.java:96)
+com.unlogical.colored.resources.image.Images.draw(Images.java:86)
+com.unlogical.colored.levelmanaging.GUIManager.render(GUIManager.java:105)
+com.unlogical.colored.levelmanaging.LevelManager.render(LevelManager.java:1146)
+com.unlogical.colored.GameLauncher.render(GameLauncher.java:464)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication.mainLoop(LwjglApplication.java:218)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication$1.run(LwjglApplication.java:123)
+
+ -- Last 20 Log Entries -- 
+@Log: Particle pre-simulation complete. Particles are now ahead of time by 45000.0ms. (11)
+@Log: Active save was saved to disk. (11)
+@Log: Loaded 20-02 (took 269ms). (11)
+@Log: Fetching lights for level "20-02" ... (11)
+@Log: Lights fetched for level "20-02", 4 lights found. (11)
+@Log: Loaded map Easy Steps (20-02, ../worlds/maps/20-02), took 35ms. (11)
+@Log: Loading map ../worlds/maps/20-02 ... (11)
+@Log: Loading map files took 9ms. (11)
+@Log: Active save was saved to disk. (11)
+@Log: Level 20-02 cleared. (11)
+@Log: Fetching lights for level "20-02" ... (11)
+@Log: Lights fetched for level "20-02", 4 lights found. (11)
+@Log: Pre-simulating particles for 45000.0ms (300 x 150.0ms)... (11)
+@Log: Particle pre-simulation complete. Particles are now ahead of time by 45000.0ms. (11)
+@Log: Active save was saved to disk. (11)
+@Log: Loaded 20-02 (took 43ms). (11)
+@Log: Play sound JUMP at volume 0.1 and pitch 1.0 (once). (11)
+@Log: Play sound JUMP at volume 0.1 and pitch 1.0 (once). (11)
+@Log: Play sound DEATH at volume 0.1 and pitch 1.0 (once). (11)
+@Log: Play sound DEATH at volume 0.1 and pitch 1.0 (once). (11)
+
+ -- Last 20 Input Events -- 
+Key up: Up (19) (5722ms ago)
+Key down: Up (19) (5223ms ago)
+Key up: Up (19) (4838ms ago)
+Key down: G (35) (4005ms ago)
+Key up: G (35) (3922ms ago)
+Key up: Right (22) (3422ms ago)
+Key down: Right (22) (3039ms ago)
+Key up: Right (22) (2938ms ago)
+Key down: Right (22) (2605ms ago)
+Key up: Right (22) (2538ms ago)
+Key down: Right (22) (2155ms ago)
+Key up: Right (22) (2122ms ago)
+Key down: Right (22) (1755ms ago)
+Key up: Right (22) (1705ms ago)
+Key down: Right (22) (1239ms ago)
+Key up: Right (22) (1188ms ago)
+Key down: Right (22) (772ms ago)
+Key up: Right (22) (722ms ago)
+Key down: Right (22) (322ms ago)
+Key up: Right (22) (272ms ago)

@@ -1,0 +1,179 @@
+package com.unlogical.colored.story;
+
+import java.util.Map;
+
+import com.badlogic.gdx.graphics.Color;
+import com.unlogical.colored.entity.Entity;
+import com.unlogical.colored.entity.player.EntityPlayer;
+import com.unlogical.colored.entity.player.EntityScientist;
+import com.unlogical.colored.gui.screen.CreditsScreen;
+import com.unlogical.colored.level.Level;
+import com.unlogical.colored.level.LevelType;
+import com.unlogical.colored.levelmanaging.MapManager;
+import com.unlogical.colored.terrain.TriggerPort;
+import com.unlogical.colored.terrain.tile.logical.TileLever;
+import com.unlogical.colored.util.Dimension;
+import com.unlogical.colored.util.TextInfo;
+import com.unlogical.colored.util.Transitions;
+
+public class EndingStoryHandler extends CustomStoryHandler
+{
+	private static final int FADE_TO_CREDITS_TIME = 5000;
+	
+	private int fadeToCreditsTime;
+	
+	private boolean firstMachineStarted;
+	private boolean finishingGame;
+	
+	public EndingStoryHandler(Level level)
+	{
+		super(level);
+	}
+
+	@Override
+	public void onPreLevelInit()
+	{
+		level.setLevelType(LevelType.TIME_TRAVEL);
+		
+		level.backgroundAlpha = level.foregroundAlpha;
+		level.setBackgroundFactor(1.0f);
+		level.getDimensionColor(level.getBackgroundDimension()).a = 1.0f;
+	}
+
+	@Override
+	public void onLevelInit()
+	{
+		level.setChapter("25");
+		
+		for (Entity entity : level.getEntities())
+		{
+			if (entity instanceof EntityScientist)
+			{
+				level.removeEntity(entity);
+			}
+		}
+	}
+	
+	@Override
+	public void onLeverPulled(TileLever lever, EntityPlayer interactor, boolean realInput)
+	{
+		if (TriggerPort.getColor(lever.getPort()) == Color.WHITE)
+		{
+			if (interactor.getDimension() == Dimension.LIGHT)
+			{
+				firstMachineStarted = true;
+				
+				level.getStoryHandler().shatter(5.0f);
+				
+				level.setLevelType(LevelType.SEPERATED);
+				
+				EntityPlayer shadowPlayer = (EntityPlayer) level.getControllingPlayer().getMirroredEntity();
+				EntityScientist selfAwareShadowPlayer = new EntityScientist(shadowPlayer.getPosition().cpy(), level, Dimension.SHADOW, false);
+				selfAwareShadowPlayer.init();
+				selfAwareShadowPlayer.changeImagesTo(shadowPlayer);
+				selfAwareShadowPlayer.synchronizeAnimation(shadowPlayer);
+				selfAwareShadowPlayer.setVelocity(shadowPlayer.getVelocity().x, shadowPlayer.getVelocity().y);
+				
+				level.addEntity(selfAwareShadowPlayer);
+				
+				level.removeEntity(shadowPlayer);
+				
+				selfAwareShadowPlayer.say(new TextInfo("?", 0.2f));
+				selfAwareShadowPlayer.say(new TextInfo("Where am I?"));
+				selfAwareShadowPlayer.say(new TextInfo("You are trying to corrupt the world - "));
+				selfAwareShadowPlayer.say(new TextInfo(" - with these machines..."));
+				selfAwareShadowPlayer.say(new TextInfo("I just saw you!"));
+			}
+			else if (interactor.getDimension() == Dimension.SHADOW)
+			{
+				level.getStoryHandler().shatter(5.5f);
+			}
+		}
+		else if (TriggerPort.getColor(lever.getPort()) == Color.BLUE && lever.isShared())
+		{
+			if (interactor.getDimension() == Dimension.LIGHT)
+			{
+				level.getStoryHandler().shatter(7.0f);
+				
+				MapManager.toggleCameraMode();
+			}
+			else if (interactor.getDimension() == Dimension.SHADOW)
+			{
+				level.getStoryHandler().shatter(10.0f);
+				
+				fadeToCreditsTime = FADE_TO_CREDITS_TIME;
+				finishingGame = true;
+				
+				MapManager.toggleCameraMode();
+			}
+		}
+	}
+	
+	@Override
+	public void update(int delta)
+	{			
+		EntityPlayer player = level.getControllingPlayer();
+		EntityPlayer mirroredPlayer = (EntityPlayer) level.getControllingPlayer().getMirroredEntity();
+		
+		if (!mirroredPlayer.isRemoved() && mirroredPlayer.getDistanceFromSpawnpoint().len() > 30.0f && player.getHitbox().intersects(mirroredPlayer.getHitbox()))
+		{			
+			player.onDeath(null);
+		}
+				
+		if (finishingGame)
+		{
+			fadeToCreditsTime -= delta;
+			
+			level.setControlAlphaFactor(Transitions.getFactor(((float) fadeToCreditsTime) / ((float) FADE_TO_CREDITS_TIME)));
+			
+			if (fadeToCreditsTime < 0)
+			{
+				CreditsScreen.show();
+			}
+		}
+	}
+
+	@Override
+	public CustomStoryHandler deepCopy(Map<Object, Object> copiedReferences)
+	{
+		EndingStoryHandler copy = new EndingStoryHandler((Level) Level.getCopy(this.level, copiedReferences));
+
+		return copy;
+	}
+	
+	@Override
+	public boolean canPlayerTravelDimensions()
+	{
+		return false;
+	}
+	
+	@Override
+	public boolean canLeverBePulled(TileLever lever, EntityPlayer interactor)
+	{
+		return super.canLeverBePulled(lever, interactor);
+	}
+
+	@Override
+	public boolean canPlayerExitCurrentWorld()
+	{
+		return false;
+	}
+	
+	@Override
+	public boolean shouldShatterWorldLikeMad()
+	{
+		return true;
+	}
+	
+	@Override
+	public float getShatteringMultiplier()
+	{
+		return firstMachineStarted ? 1.9f : 1.7f;
+	}
+	
+	@Override
+	public boolean shouldPlayerBeHandledAsShared()
+	{
+		return false;
+	}	
+}

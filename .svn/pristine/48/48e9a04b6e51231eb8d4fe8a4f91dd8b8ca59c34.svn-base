@@ -1,0 +1,121 @@
+package com.unlogical.colored.sound;
+
+import java.util.Random;
+
+import org.newdawn.slick.Music;
+import org.newdawn.slick.SlickException;
+
+import com.unlogical.colored.configuration.SoundVolume;
+
+
+
+public class GameMusic extends Object
+{
+	private int randomIndex;
+	private Random generator = new Random();
+	private boolean playMusic = false;
+	private Music currentMusic;
+	private String[] names;
+ 
+	public GameMusic(String name)
+	{
+		try
+		{
+			currentMusic = new Music("res/music/" + name + ".ogg");
+		}
+		catch (SlickException e)
+		{
+			throw new RuntimeException("No music for you :( " + e);
+		}
+	}
+
+	public GameMusic(String path, boolean hasFileEnding)
+	{
+		try
+		{
+			currentMusic = new Music(path + (hasFileEnding ? "" : ".ogg"));
+		}
+		catch (SlickException e)
+		{
+			throw new RuntimeException("No music for you :( " + e);
+		}
+	}
+
+	public GameMusic(String[] names)
+	{
+		this.names = names;
+		if (!playMusic)
+		{
+			randomIndex = generator.nextInt(names.length);
+			try
+			{
+				currentMusic = new Music("res/music/" + names[randomIndex] + ".ogg");
+			}
+			catch (SlickException e)
+			{
+				e.printStackTrace();
+			}
+			currentMusic.setVolume(SoundVolume.MUSIC.relVolume());
+		}
+	}
+
+	public void nextTrack()
+	{
+		if (names != null)
+		{
+			randomIndex = generator.nextInt(names.length);
+			try
+			{
+				currentMusic = new Music("res/music/" + names[randomIndex] + ".ogg");
+			}
+			catch (SlickException e)
+			{
+				e.printStackTrace();
+			}
+			currentMusic.setVolume(SoundVolume.MUSIC.relVolume());
+			currentMusic.play();
+		}
+	}
+
+	public boolean isPlaying()
+	{
+		return currentMusic.playing();
+	}
+
+	public void pauseMusic()
+	{
+		currentMusic.pause();
+	}
+
+	public void resumeMusic()
+	{
+		currentMusic.resume();
+	}
+
+	public void startMusic()
+	{
+		if (!this.isPlaying())
+		{
+			if (names == null)
+			{
+				currentMusic.play();
+			}
+			else
+			{
+				this.nextTrack();
+			}
+			
+			currentMusic.setVolume(SoundVolume.MUSIC.relVolume());
+		}
+	}
+
+	public void setPlayMusic(boolean playMusic)
+	{
+		this.playMusic = playMusic;
+	}
+
+	public void setVolume(float volume)
+	{
+		currentMusic.setVolume(volume);
+	}
+}

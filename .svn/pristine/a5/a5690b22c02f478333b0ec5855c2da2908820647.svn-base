@@ -1,0 +1,44 @@
+package com.unlogical.linked.gui.screen;
+
+import org.newdawn.slick.Color;
+import org.newdawn.slick.Graphics;
+
+public class LoadingScreen extends Thread {
+	
+	private boolean active = true;
+	private Graphics g;
+	
+	@Override	
+	public void run()
+	{
+		while (true)
+		{
+			if (active)
+			{
+				update();
+				render(g);
+			}
+			
+			try {
+				sleep(50);
+			} catch (InterruptedException e) {
+			}
+		}
+	}
+	
+	public void update()
+	{
+		
+	}
+	
+	public void render(Graphics g)
+	{
+		g.setColor(Color.white);
+		g.drawString("TEST", 500, 550);
+	}
+
+	public void init(Graphics g)
+	{
+		this.g = g;
+	}
+}

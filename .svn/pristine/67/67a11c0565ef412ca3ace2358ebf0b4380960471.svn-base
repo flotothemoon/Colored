@@ -1,0 +1,261 @@
+package com.unlogical.linked.entity.boss;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.Set;
+
+import org.newdawn.slick.Color;
+import org.newdawn.slick.GameContainer;
+import org.newdawn.slick.Graphics;
+import org.newdawn.slick.geom.Vector2f;
+
+import com.unlogical.linked.debug.Debug;
+import com.unlogical.linked.entity.Entity;
+import com.unlogical.linked.entity.EntityType;
+import com.unlogical.linked.entity.projectile.EntityIceSpike;
+import com.unlogical.linked.entity.projectile.EntityMiniIceSpike;
+import com.unlogical.linked.entity.property.EntityProperty;
+import com.unlogical.linked.entity.property.SharedEntityProperties;
+import com.unlogical.linked.level.Level;
+import com.unlogical.linked.resources.font.Fonts;
+import com.unlogical.linked.terrain.tile.Tile;
+import com.unlogical.linked.util.ColorHelper;
+import com.unlogical.linked.util.Dimension;
+import com.unlogical.linked.util.LevelObject;
+import com.unlogical.linked.util.Renderer;
+import com.unlogical.linked.util.ShaderHandler;
+
+public class EntityTimeScaleBoss extends EntityBoss
+{
+	private static final int JUMP_WAIT_TIME = 7000;
+
+	private List<EntityIceSpike> mainSpikes = new ArrayList<EntityIceSpike>();
+	private List<EntityMiniIceSpike> miniSpikes = new ArrayList<EntityMiniIceSpike>();
+	private EntityIceSpike nextSpike;
+	
+	private boolean lastJumping;
+	private int timeUntilJump;
+	
+	public EntityTimeScaleBoss(EntityType type, Vector2f position, Level level, Dimension dimension, boolean allowMirrors)
+	{
+		super(type, position, level, dimension, allowMirrors);
+	}
+
+	@Override
+	public LevelObject deepCopy(Map<Object, Object> copiedReferences)
+	{
+		EntityTimeScaleBoss copy = (EntityTimeScaleBoss) super.deepCopy(copiedReferences);
+		
+		copy.mainSpikes = Level.deepCopyCollection(this.mainSpikes, copy.mainSpikes, copiedReferences);
+		copy.miniSpikes = Level.deepCopyCollection(this.miniSpikes, copy.miniSpikes, copiedReferences);
+		copy.nextSpike = (EntityIceSpike) Level.getCopy(nextSpike, copiedReferences);
+		copy.lastJumping = this.lastJumping;
+		copy.timeUntilJump = this.timeUntilJump;
+		
+		return copy;
+	}
+	
+	@Override
+	public void init()
+	{
+		super.init();
+
+		mainSpikes.clear();
+
+		for (Entity entity : level.getEntities())
+		{
+			if (entity instanceof EntityIceSpike && entity.getDimension() == Dimension.LIGHT)
+			{
+				if (entity instanceof EntityMiniIceSpike)
+				{
+					miniSpikes.add((EntityMiniIceSpike) entity);
+				}
+				else
+				{
+					mainSpikes.add((EntityIceSpike) entity);
+				}
+			}
+		}
+		
+		Collections.sort(mainSpikes, new Comparator<Entity>()
+		{
+			@Override
+			public int compare(Entity o1, Entity o2)
+			{
+				return (int) (o1.getCenterX() - o2.getCenterX());
+			}
+		});
+
+		if (!mainSpikes.isEmpty())
+		{
+			nextSpike = mainSpikes.get(0);
+		}
+	}
+
+	@Override
+	public void onUpdate(GameContainer container, float delta, Random rng)
+	{
+		super.onUpdate(container, delta, rng);
+
+		if (Math.abs(distanceToPlayer.x) < 720.0f && Math.abs(distanceToPlayer.y) < 80)
+		{
+			if (!active)
+			{
+				active = true;
+
+				timeUntilJump = -1;
+			}
+		}
+
+		if (active)
+		{
+			this.movingRight = nextSpike.getCenterX() > this.getCenterX();
+
+			float speedFactor = 0.5f;
+			
+			if (Math.abs(distanceToPlayer.x) < 400.0f)
+			{				
+				timeUntilJump -= delta;
+				
+				speedFactor = 1.0f;
+			}
+			
+			if (!this.jumping)
+			{				
+				this.velocity.x += this.properties.getAcceleration(delta) * (this.movingRight ? 1 : -1) * speedFactor;
+
+				if (Math.abs(this.velocity.x) > this.properties.getMaxSpeed() * speedFactor)
+				{
+					this.velocity.x = this.properties.getMaxSpeed() * speedFactor * Math.signum(this.velocity.x);
+				}
+			}
+				
+			if (timeUntilJump < 0)
+			{
+				this.resetVelocities();
+				this.velocity.y = -0.9f;
+				this.jumping = true;
+
+				timeUntilJump = JUMP_WAIT_TIME;
+			}
+
+			if (this.lastJumping && !this.jumping && !this.mainSpikes.isEmpty())
+			{
+				for (EntityMiniIceSpike spike : miniSpikes)
+				{
+					spike.fall();
+				}
+
+				nextSpike.fall();
+
+				int nextIndex = rng.nextInt(mainSpikes.size());
+
+				if (mainSpikes.get(nextIndex) == nextSpike)
+				{
+					nextIndex++;
+
+					if (nextIndex >= mainSpikes.size())
+					{
+						nextIndex = 0;
+					}
+				}
+
+				nextSpike = mainSpikes.get(nextIndex);
+
+				if (this.tileBelow != null)
+				{
+					
+				}
+				else
+				{
+					Debug.warn("EntityTimeScaleBoss stopped jumping but tilebelow is null. (" + this + ")");
+				}
+			}
+		}
+
+		this.lastJumping = this.jumping;
+	}
+
+	public void getAllLeft(Tile tile, Set<Tile> tiles)
+	{
+		tiles.add(tile);
+
+		if (tile.getHitbox().isConnectedLeft() && tile.getLeftConnectedTile() != null)
+		{
+			getAllLeft(tile.getLeftConnectedTile(), tiles);
+		}
+	}
+
+	public void getAllRight(Tile tile, Set<Tile> tiles)
+	{
+		tiles.add(tile);
+
+		if (tile.getHitbox().isConnectedRight() && tile.getRightConnectedTile() != null)
+		{
+			getAllRight(tile.getRightConnectedTile(), tiles);
+		}
+	}
+
+	@Override
+	public void onDeathUpdate(GameContainer container, float delta, Random rng)
+	{
+		super.onDeathUpdate(container, delta, rng);
+	}
+
+	@Override
+	public void draw(Graphics g)
+	{
+		super.draw(g);
+
+		if (alive && active)
+		{
+			g.setAntiAlias(true);
+			g.setColor(ColorHelper.applyAlphaAndCopy(Color.red, level.getDimensionColor(this.dimension).a * 0.5f));
+			g.fillRect(this.getCenterX() - 50, this.getCenterY() - 65, 100 - (((float) timeUntilJump) / (float) JUMP_WAIT_TIME) * 100.0f, 10);
+			g.setAntiAlias(false);
+			
+			ShaderHandler.disableLighting();
+
+			g.setFont(Fonts.getSmallFont());
+			g.setColor(customModifiyDrawColor(this.getDrawColor(this.dimension, ColorHelper.buffer)));
+
+			String drawString = "";
+
+			for (int i = 0; i < this.properties.getMaxHealth() - this.health; i++)
+			{
+				drawString += "X";
+			}
+
+			for (int i = 0; i < this.health; i++)
+			{
+				drawString += "O";
+			}
+
+			g.drawString(drawString, this.getCenterX() - g.getFont().getWidth(drawString) / 2.0f, this.getCenterY() - 58);
+
+			Renderer.bindTexture(null);
+		}
+	}
+
+	@Override
+	protected boolean canInteractWith(Entity entity)
+	{
+		return super.canInteractWith(entity) && entity.getType() != EntityType.GOOMBA && !(entity instanceof EntityMiniIceSpike);
+	}
+
+	@Override
+	protected boolean shouldBounceOnGround()
+	{
+		return false;
+	}
+
+	@Override
+	protected EntityProperty getEntityProperty()
+	{
+		return SharedEntityProperties.TIME_SCALE_BOSS;
+	}
+}

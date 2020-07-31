@@ -1,0 +1,601 @@
+package com.unlogical.colored.gui.menu;
+
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+
+import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.g2d.Batch;
+import com.badlogic.gdx.graphics.g2d.TextureRegion;
+import com.badlogic.gdx.math.Vector2;
+import com.unlogical.colored.GameLauncher;
+import com.unlogical.colored.configuration.DisplayConstants;
+import com.unlogical.colored.filesystem.FilePaths;
+import com.unlogical.colored.gui.menu.Transition.AlphaTransition;
+import com.unlogical.colored.level.Level;
+import com.unlogical.colored.particle.ColorDistributionMode;
+import com.unlogical.colored.particle.EmitterType;
+import com.unlogical.colored.particle.ParticleEmitterImpl;
+import com.unlogical.colored.resources.font.Fonts;
+import com.unlogical.colored.resources.image.Images;
+import com.unlogical.colored.sound.SoundManager;
+import com.unlogical.colored.util.ColorHelper;
+import com.unlogical.colored.util.Dimension;
+import com.unlogical.colored.util.GameStatus;
+import com.unlogical.colored.util.Renderer;
+import com.unlogical.colored.util.ShaderHandler;
+import com.unlogical.colored.util.Transitions;
+import com.unlogical.colored.wrapper.WrapperTexture;
+
+public class MenuHandler
+{
+	private static final float MAIN_EMITTER_RADIAL_EXPLODE_ACCELERATION = 0.03f;
+	private static final float MENU_ALPHA_TRANSITION_FADE_OUT_FACTOR = 1.5f;
+
+	private static final int DEFAULT_DISPALY_SAVING_TIME = (int) (1337 * 1.5f);
+	private static final int MAIN_EMITTER_FADE_OUT_ALL_TIME = 1600;
+	private static final int MENU_ALPHA_TRANSITION_TIME = 500;
+
+	private static final int MENU_SLIDING_TRANSITION_TIME = 1337;
+
+	private static int totalDisplaySavingTime;
+	private static int displaySavingTime;
+
+	private static Map<GameStatus, IMenu> menus;
+	private static Set<GameStatus> alphaFadingOutStates;
+	private static GameStatus slidingOutMenu;
+
+	private static MenuEmitterHandler mainEmitter;
+	private static SoundManager<?> soundManager;
+
+	private static GameStatus lastStatus;
+	private static String savingText;
+
+	private static AlphaTransition menuAlphaTransition;
+	private static Transition slidingTransition;
+
+	public static void init() throws IOException
+	{
+		mainEmitter = new MenuEmitterHandler(new Vector2(0.0f, 0.0f), GameLauncher.getWidth(), GameLauncher.getHeight(), 0, EmitterType.MENU_MAIN_EMITTER_20);
+
+		alphaFadingOutStates = new HashSet<GameStatus>();
+		menus = new HashMap<GameStatus, IMenu>();
+		menus.put(GameStatus.PAUSE_MENU, new PauseMenu(DisplayConstants.MENU_Y_OFFSET, DisplayConstants.MENU_PADDING));
+		menus.put(GameStatus.MAIN_MENU, new MainMenu(DisplayConstants.MENU_Y_OFFSET, DisplayConstants.MENU_PADDING));
+		menus.put(GameStatus.SETTINGS_MENU, new SettingsMenu(DisplayConstants.MENU_Y_OFFSET, DisplayConstants.MENU_PADDING));
+		menus.put(GameStatus.MAP_EDITOR_MENU, new MapEditorMenu(DisplayConstants.MENU_Y_OFFSET, DisplayConstants.SELECTION_MENU_WIDTH, DisplayConstants.SELECTION_MENU_HEIGHT));
+		menus.put(GameStatus.PLAY_MAP_SELECTION, new MapSelection(DisplayConstants.MENU_Y_OFFSET, DisplayConstants.SELECTION_MENU_WIDTH, DisplayConstants.SELECTION_MENU_HEIGHT));
+		menus.put(GameStatus.MAP_CREATION_MENU, new MapCreationMenu());
+		menus.put(GameStatus.SAVE_SLOT_MENU, new SaveSlotMenu(DisplayConstants.MENU_Y_OFFSET, DisplayConstants.SELECTION_MENU_WIDTH, DisplayConstants.SELECTION_MENU_HEIGHT));
+
+		Images.registerAndLoad("saving", FilePaths.GUI + "/saving.png");
+
+		menuAlphaTransition = Transition.alphaTransition(0.0f, 1.0f, 1.0f, MENU_ALPHA_TRANSITION_FADE_OUT_FACTOR, MENU_ALPHA_TRANSITION_TIME);
+		menuAlphaTransition.setReversed(true);
+		slidingTransition = new Transition(MENU_SLIDING_TRANSITION_TIME);
+
+		soundManager = new SoundManager<>();
+	}
+
+	public static void update(int delta)
+	{
+		boolean statusChanged = GameLauncher.getStatus() != lastStatus;
+		lastStatus = GameLauncher.getStatus();
+
+		if (statusChanged)
+		{
+			alphaFadingOutStates.clear();
+
+			for (GameStatus state : menus.keySet())
+			{
+				IMenu menu = menus.get(state);
+
+				if (menu.isActive())
+				{
+					alphaFadingOutStates.add(state);
+					menu.setActive(false);
+				}
+			}
+		}
+
+		MenuEmitterHandler.syncLevel(GameLauncher.getLevelContext());
+
+		if (GameLauncher.getStatus() != GameStatus.LOADING)
+		{
+			if (GameLauncher.getStatus() == GameStatus.IN_LEVEL || GameLauncher.getStatus() == GameStatus.MAP_EDITOR)
+			{
+				if (mainEmitter.emitter.isRunning())
+				{
+					mainEmitter.emitter.stop();
+					mainEmitter.emitter.fadeOutAll(MAIN_EMITTER_FADE_OUT_ALL_TIME);
+
+					if (mainEmitter.emitter.hasMirror())
+					{
+						mainEmitter.emitter.getMirroredEmitter().stop();
+						mainEmitter.emitter.getMirroredEmitter().fadeOutAll(MAIN_EMITTER_FADE_OUT_ALL_TIME);
+					}
+				}
+
+				if (mainEmitter.emitter.hasActiveParticles())
+				{
+					float explodeX = GameLauncher.getLevelContext().getControllingPlayer() == null ? GameLauncher.getWidth() / 2 : GameLauncher.getLevelContext().getPlayer().getCenterX();
+					float explodeY = GameLauncher.getLevelContext().getControllingPlayer() == null ? GameLauncher.getHeight() / 2 : GameLauncher.getLevelContext().getPlayer().getCenterY();
+
+					mainEmitter.emitter.radialExplode(explodeX, explodeY, MAIN_EMITTER_RADIAL_EXPLODE_ACCELERATION);
+				}
+			}
+			else
+			{
+				if (mainEmitter.emitter.isStopped())
+				{
+					mainEmitter.emitter.resume();
+				}
+			}
+
+			MenuEmitterHandler.level.updateParticleSystem(delta, delta, delta);
+
+			if (statusChanged)
+			{
+				if (menus.containsKey(GameLauncher.getPreviousStatus()))
+				{
+					if (!menus.containsKey(GameLauncher.getStatus()))
+					{
+						menuAlphaTransition.setReversed(true);
+					}
+				}
+				else if (menus.containsKey(GameLauncher.getStatus()))
+				{
+					menuAlphaTransition.setReversed(false);
+				}
+			}
+
+			menuAlphaTransition.update(delta);
+			slidingTransition.update(delta);
+		}
+
+		if (!GameLauncher.getSanityPanel().isShown() || !GameLauncher.getSanityPanel().isActive())
+		{
+			if (menus.containsKey(GameLauncher.getStatus()))
+			{
+				IMenu menu = menus.get(GameLauncher.getStatus());
+
+				if (!menu.isActive())
+				{
+					menu.setActive(true);
+				}
+
+				if (statusChanged && menu instanceof SelectionMenu)
+				{
+					((SelectionMenu) menu).updateItems();
+				}
+
+				menu.update(delta);
+			}
+		}
+
+		if (displaySavingTime > 0)
+		{
+			displaySavingTime -= delta;
+		}
+	}
+
+	public static void render(Batch batch)
+	{
+		Renderer.useSpriteBatch();
+
+		ShaderHandler.disableLighting();
+
+		mainEmitter.wrapper.draw(batch);
+
+		ShaderHandler.enableLighting();
+
+		float alphaFactor = menuAlphaTransition.getAlphaFactor();
+		boolean fadingOut = isFadingOut();
+
+		for (GameStatus status : menus.keySet())
+		{
+			IMenu menu = menus.get(status);
+
+			if (menu.isActive() || fadingOut && alphaFadingOutStates.contains(status) || slidingTransition.isActive() && status == slidingOutMenu)
+			{
+				float cameraTranslationX = 0.0f;
+
+				if (slidingTransition.isActive() && slidingOutMenu != null)
+				{
+					if (slidingTransition.isReversed() ^ status == slidingOutMenu)
+					{
+						cameraTranslationX = -slidingTransition.getTransitionFactor() * GameLauncher.getWidth();
+					}
+					else
+					{
+						cameraTranslationX = (1.0f - slidingTransition.getTransitionFactor()) * GameLauncher.getWidth();
+					}
+
+					Renderer.moveCamera(cameraTranslationX, 0.0f);
+				}
+
+				menu.render(alphaFactor, batch);
+
+				if (slidingTransition.isActive())
+				{
+					Renderer.moveCamera(-cameraTranslationX, 0.0f);
+				}
+			}
+		}
+
+		if (displaySavingTime > 0)
+		{
+			ShaderHandler.disableLighting();
+			TextureRegion image = Images.getImage("saving");
+			Color color = ColorHelper.applyAlphaAndCopy(Color.WHITE, Transitions.getFactor((float) displaySavingTime / (float) totalDisplaySavingTime));
+
+			Renderer.useSpriteBatch();
+
+			batch.setColor(color);
+			batch.draw(image, GameLauncher.getWidth() - image.getRegionWidth() - 16, GameLauncher.getHeight() - image.getRegionHeight() - 64);
+
+			Renderer.setFont(Fonts.getSmallFont());
+
+			Renderer.drawString(savingText, color, GameLauncher.getWidth() - image.getRegionWidth() / 2 - 16 - Renderer.getWidth(savingText, Fonts.getSmallFont()) / 2, GameLauncher.getHeight() - 60, 1.0f, batch);
+			ShaderHandler.enableLighting();
+		}
+	}
+
+	public static void transitionTo(GameStatus nextMenuState, boolean fromRight)
+	{
+		if (!menus.containsKey(nextMenuState) || !menus.containsKey(GameLauncher.getStatus()))
+		{
+			throw new IllegalArgumentException("Can only slide transition from menu to menu, not from " + GameLauncher.getStatus() + " to " + nextMenuState + ".");
+		}
+
+		slidingTransition.setReversed(!fromRight);
+		slidingTransition.reset();
+
+		slidingOutMenu = GameLauncher.getStatus();
+
+		GameLauncher.setStatus(nextMenuState);
+	}
+
+	public static void displaySavedMessage(String text, int displayTime)
+	{
+		savingText = text;
+		totalDisplaySavingTime = displayTime;
+		displaySavingTime = displayTime;
+	}
+
+	public static void displaySavedMessage(int displayTime)
+	{
+		displaySavedMessage("", displayTime);
+	}
+
+	public static void displaySavedMessage(String text)
+	{
+		displaySavedMessage(text, DEFAULT_DISPALY_SAVING_TIME);
+	}
+
+	public static void displaySavedMessage()
+	{
+		displaySavedMessage("", DEFAULT_DISPALY_SAVING_TIME);
+	}
+
+	public static void refresh()
+	{
+		for (IMenu menu : menus.values())
+		{
+			if (menu instanceof SelectionMenu)
+			{
+				((SelectionMenu) menu).updateItems();
+			}
+		}
+	}
+
+	public static class MenuEmitterHandler
+	{
+		private static Level level;
+		private static Set<MenuEmitterHandler> emitterHandlers = new HashSet<MenuEmitterHandler>();
+
+		private WrapperTexture wrapper;
+		private ParticleEmitterImpl emitter;
+
+		private boolean active = true;
+
+		public MenuEmitterHandler(float x, float y, float width, float height, float rotation, EmitterType type)
+		{
+			this(x, y, (int) width, (int) height, (int) rotation, type);
+		}
+
+		public MenuEmitterHandler(float x, float y, int width, int height, int rotation, EmitterType type)
+		{
+			this(new Vector2(x, y), width, height, rotation, type);
+		}
+
+		public MenuEmitterHandler(Vector2 position, int width, int height, int rotation, EmitterType type)
+		{
+			if (level == null)
+			{
+				level = new Level();
+				level.setID("_init_");
+				level.createParticleSystem();
+				level.setDummyLevel(true);
+			}
+
+			this.initEmitter(position, width, height, rotation, type);
+
+			emitterHandlers.add(this);
+		}
+
+		private void initEmitter(Vector2 position, int width, int height, int rotation, EmitterType type)
+		{
+			this.wrapper = new WrapperTexture("", "", position, true, false, 0, rotation, 1.0f, type.startTint, 0, 1.0f, type.sprites, 100, level, true, false, true, false, false, width, height, null)
+			{
+				@Override
+				public boolean shouldUpdateEmitter()
+				{
+					return MenuEmitterHandler.this.isActive();
+				}
+			};
+			this.wrapper.setEmitter(new ParticleEmitterImpl(Dimension.LIGHT, this.wrapper, type));
+			this.wrapper.setMainTint(type.startTint);
+			this.wrapper.setEndTint(type.endTint);
+			this.wrapper.setAddTint(type.addTint);
+			this.wrapper.setColorDistributionMode((ColorDistributionMode) type.colorDistrMode);
+
+			this.emitter = this.wrapper.getEmitter();
+
+			if (level.shouldCreateMirrors())
+			{
+				this.emitter.createMirror(level.getLevelType());
+			}
+		}
+
+		private void initEmitter(EmitterType type)
+		{
+			this.initEmitter(this.wrapper.getPosition(), this.wrapper.getWidth(), this.wrapper.getHeight(), (int) this.wrapper.getRotation(), type);
+		}
+
+		private static EmitterType getEmitterType(Level level)
+		{
+			if (level.getWorldID().equals("21"))
+			{
+				return EmitterType.MENU_MAIN_EMITTER_21;
+			}
+			else if (level.getWorldID().equals("22"))
+			{
+				return EmitterType.MENU_MAIN_EMITTER_22;
+			}
+			else if (level.getWorldID().equals("23"))
+			{
+				return EmitterType.MENU_MAIN_EMITTER_23;
+			}
+			else if (level.getWorldID().equals("24"))
+			{
+				return EmitterType.MENU_MAIN_EMITTER_24;
+			}
+
+			return EmitterType.MENU_MAIN_EMITTER_20;
+		}
+
+		private static void syncLevel(Level other)
+		{
+			boolean reset = false;
+
+			if (level.getType() != other.getType())
+			{
+				boolean activeParticles = false;
+
+				for (MenuEmitterHandler handler : emitterHandlers)
+				{
+					if (handler.emitter.hasActiveParticles() || handler.emitter.hasMirror() && handler.emitter.getMirroredEmitter().hasActiveParticles())
+					{
+						activeParticles = true;
+
+						break;
+					}
+				}
+
+				if (!activeParticles)
+				{
+					level = new Level();
+					level.createParticleSystem();
+					level.setDummyLevel(true);
+
+					reset = true;
+				}
+			}
+
+			level.setAbsLeftLimit(other.getAbsLeftLimit());
+			level.setAbsRightLimit(other.getAbsRightLimit());
+			level.setAbsTopLimit(other.getAbsTopLimit());
+			level.setAbsBottomLimit(other.getAbsBottomLimit());
+			level.setForegroundDimension(other.getForegroundDimension());
+			level.setBackgroundDimension(other.getBackgroundDimension());
+			level.setForegroundFactor(other.getForegroundFactor());
+			level.setBackgroundFactor(other.getBackgroundFactor());
+			level.getDimensionColor(Dimension.LIGHT).set(other.getDimensionColor(Dimension.LIGHT));
+			level.getDimensionColor(Dimension.SHADOW).set(other.getDimensionColor(Dimension.SHADOW));
+
+			if (reset)
+			{
+				for (MenuEmitterHandler handler : emitterHandlers)
+				{
+					handler.initEmitter(getEmitterType(other));
+				}
+			}
+		}
+
+		public void adjustPosition(float xChange, float yChange)
+		{
+			this.wrapper.adjustX(xChange);
+			this.wrapper.adjustY(yChange);
+
+			this.emitter.moveEmitter(xChange, yChange);
+			this.emitter.moveParticles(xChange, yChange);
+
+			if (this.emitter.hasMirror())
+			{
+				this.emitter.getMirroredEmitter().moveEmitter(xChange, yChange);
+				this.emitter.getMirroredEmitter().moveParticles(xChange, yChange);
+			}
+		}
+
+		public void setPosition(float x, float y)
+		{
+			this.adjustPosition(x - this.getX(), y - this.getY());
+		}
+
+		public boolean contains(float x, float y)
+		{
+			return this.wrapper.getHitbox().contains(x, y);
+		}
+
+		public boolean isActive()
+		{
+			return this.active;
+		}
+
+		public void setActive(boolean active)
+		{
+			this.active = active;
+		}
+
+		public float getX()
+		{
+			return this.wrapper.getX();
+		}
+
+		public float getY()
+		{
+			return this.wrapper.getY();
+		}
+
+		public float getWidth()
+		{
+			return this.wrapper.getEmitterWidth();
+		}
+
+		public void setWidth(float width)
+		{
+			if (this.wrapper.getWidth() != (int) width)
+			{
+				this.wrapper.setWidth((int) width);
+
+				float scale = this.emitter.getType().getScaleFactor(this.wrapper.getWidth(), (int) width);
+
+				if (scale != 1.0f)
+				{
+					this.wrapper.setMaxParticles((int) (this.wrapper.getEmitter().getOriginalMaxParticles() * scale));
+					this.emitter.getSpawnCount().setMinValue(Math.round(this.wrapper.getEmitter().getOriginalMinCount() * scale));
+					this.emitter.getSpawnCount().setMaxValue(Math.round(this.wrapper.getEmitter().getOriginalMaxCount() * scale));
+					this.wrapper.recreateEmitter();
+				}
+
+				level.getParticleSystem().simulateEmitter(this.emitter, 5000, 100);
+
+				if (this.wrapper.getEmitter().hasMirror())
+				{
+					level.getParticleSystem().simulateEmitter(this.emitter.getMirroredEmitter(), 5000, 100);
+				}
+			}
+		}
+
+		public void setHeight(float height)
+		{
+			if (this.wrapper.getHeight() != (int) height)
+			{
+				this.wrapper.setHeight((int) height);
+
+				float scale = this.emitter.getType().getScaleFactor(this.wrapper.getWidth(), (int) height);
+
+				if (scale != 1.0f)
+				{
+					this.wrapper.setMaxParticles((int) (this.wrapper.getEmitter().getOriginalMaxParticles() * scale));
+					this.emitter.getSpawnCount().setMinValue(Math.round(this.wrapper.getEmitter().getOriginalMinCount() * scale));
+					this.emitter.getSpawnCount().setMaxValue(Math.round(this.wrapper.getEmitter().getOriginalMaxCount() * scale));
+					this.wrapper.recreateEmitter();
+				}
+
+				level.getParticleSystem().simulateEmitter(this.emitter, 25000, 100);
+
+				if (this.wrapper.getEmitter().hasMirror())
+				{
+					level.getParticleSystem().simulateEmitter(this.emitter.getMirroredEmitter(), 25000, 100);
+				}
+			}
+		}
+
+		public float getHeight()
+		{
+			return this.wrapper.getEmitterHeight();
+		}
+
+		public EmitterType getEmitterType()
+		{
+			return this.emitter.getType();
+		}
+
+		public WrapperTexture getWrapper()
+		{
+			return this.wrapper;
+		}
+
+		public ParticleEmitterImpl getEmitter()
+		{
+			return this.emitter;
+		}
+
+		public void remove()
+		{
+			if (this.wrapper != null)
+			{
+				level.removeWrapper(this.wrapper);
+
+				this.emitter = null;
+				this.wrapper = null;
+
+				emitterHandlers.remove(this);
+			}
+		}
+	}
+
+	public static int getMenuParticleEmitters()
+	{
+		return MenuEmitterHandler.emitterHandlers.size();
+	}
+
+	public static int getActiveMenuParticleEmitters()
+	{
+		return MenuEmitterHandler.level.getParticleSystem().activeEmitters;
+	}
+
+	public static int getMenuParticleCount()
+	{
+		return MenuEmitterHandler.level.getParticleSystem().particleCount;
+	}
+
+	public static int getMenuRealParticleCount()
+	{
+		return MenuEmitterHandler.level.getParticleSystem().realParticleCount;
+	}
+
+	public static boolean isFadingIn()
+	{
+		return !menuAlphaTransition.isReversed() && !menuAlphaTransition.isComplete();
+	}
+
+	public static boolean isFadingOut()
+	{
+		return menuAlphaTransition.isReversed() && !menuAlphaTransition.isComplete();
+	}
+
+	public static boolean isSlidingOut(IMenu menu)
+	{
+		return menus.get(slidingOutMenu) == menu;
+	}
+
+	public static SoundManager<?> getSoundManager()
+	{
+		return soundManager;
+	}
+}

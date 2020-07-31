@@ -1,0 +1,64 @@
+ -- General -- 
+Generated on: 2016-06-20_17-45-26
+Build: 762 from 09:42 PM - 19/06/16
+GameState: IN_LEVEL (previous: LOADING)
+Target FPS: 60
+Actual FPS: 25
+
+ -- Display -- 
+Target Width / Height: 1920 / 1080
+Actual Width / Height: 1920 / 1017 (windowed)
+
+ -- Environment -- 
+GPU: GeForce GTX 980 Ti/PCIe/SSE2 (NVIDIA Corporation)
+OpenGL Version: 4.5.0 NVIDIA 361.43
+Allocated Memory: 123MB
+Used Memory: 18MB
+"os.name": Windows 10
+"os.version": 10.0
+"os.arch": x86
+"java.version": 1.8.0_66
+"java.vendor": Oracle Corporation
+"sun.arch.data.model": 32
+
+ -- Stack Trace -- 
+java.lang.RuntimeException: Even more bacon while loading map: java.lang.ArrayIndexOutOfBoundsException: 9
+com.unlogical.colored.levelmanaging.LevelManager.initLevel(LevelManager.java:188)
+com.unlogical.colored.GameLauncher.goToLastVisitedLevel(GameLauncher.java:804)
+com.unlogical.colored.GameLauncher.update(GameLauncher.java:376)
+com.unlogical.colored.GameLauncher.render(GameLauncher.java:460)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication.mainLoop(LwjglApplication.java:218)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication$1.run(LwjglApplication.java:123)
+Caused by: java.lang.ArrayIndexOutOfBoundsException: 9
+com.unlogical.colored.filesystem.files.WrapperTextureHandler.read(WrapperTextureHandler.java:232)
+com.unlogical.colored.levelmanaging.LevelManager.initLevel(LevelManager.java:184)
+com.unlogical.colored.GameLauncher.goToLastVisitedLevel(GameLauncher.java:804)
+com.unlogical.colored.GameLauncher.update(GameLauncher.java:376)
+com.unlogical.colored.GameLauncher.render(GameLauncher.java:460)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication.mainLoop(LwjglApplication.java:218)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication$1.run(LwjglApplication.java:123)
+
+ -- Last 20 Log Entries -- 
+@Log    : SaveState 1.dat found and read successfully. (tid: 12)
+@Log    : SaveState 2.dat found and read successfully. (tid: 12)
+@Log    : Active save state selected, last accessed on Mon Jun 20 17:45:13 CEST 2016 (tid: 12)
+@Log    : Initializing animation handler... (tid: 12)
+@Log    : Fetching maps... (tid: 12)
+@Log    : Found world hub for world 20 at 20-05. (tid: 12)
+@Log    : Found world hub for world 21 at 21-08. (tid: 12)
+@Log    : Found world hub for world 22 at 22-08. (tid: 12)
+@Log    : Found world hub for world 23 at 23-09. (tid: 12)
+@Log    : Found world hub for world 24 at 24-10. (tid: 12)
+@Log    : Initializing map editor... (tid: 12)
+@Log    : Initialising levelrenderer... (tid: 12)
+@Log    : Initializing menus... (tid: 12)
+@Log    : SaveState 1.dat found and read successfully. (tid: 12)
+@Log    : SaveState 2.dat found and read successfully. (tid: 12)
+@Log    : Initializing story handler... (tid: 12)
+@Log    : Initializing credits screen... (tid: 12)
+@Log    : Resizing contents to current window size... (tid: 12)
+@Log    : Finished loading, took 613ms. (tid: 12)
+@Log    : Loading map ../worlds/maps/21-01 ... (tid: 12)
+
+ -- Last 1 Input Events -- 
+Touch up: 0 (pointer: 0) at x:143 y: 255 (2050ms ago)

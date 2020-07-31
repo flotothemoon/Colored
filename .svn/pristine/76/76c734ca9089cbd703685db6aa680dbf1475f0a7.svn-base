@@ -1,0 +1,149 @@
+package com.unlogical.colored.profiling;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
+
+import com.badlogic.gdx.utils.PerformanceCounter;
+
+public class Profiling
+{
+	public static final Section root = new Section(null, "root");
+	private static Section currentSection = root;
+
+	public static void tick()
+	{
+		root.tick();
+	}
+
+	public static void reset()
+	{
+		root.reset();
+	}
+
+	public static void startSection(String section)
+	{
+		if (!currentSection.subSections.containsKey(section))
+		{
+			currentSection.subSections.put(section, new Section(currentSection, section));
+		}
+
+		currentSection = currentSection.subSections.get(section);
+
+		currentSection.counter.start();
+	}
+
+	public static void endSection(String section)
+	{
+		if (currentSection == root)
+		{
+			throw new RuntimeException("Cannot end root section, must call start() before");
+		}
+
+		if (!currentSection.name.equals(section))
+		{
+			throw new RuntimeException("Currently in session " + currentSection.name + ", cannot end " + section);
+		}
+
+		currentSection.counter.stop();
+
+		currentSection = currentSection.parent;
+	}
+
+	public static class Section
+	{
+		private Section parent;
+		private Map<String, Section> subSections = new HashMap<String, Section>();
+		private String name;
+		private String entireName;
+		public final PerformanceCounter counter;
+
+		public Section(Section parent, String name)
+		{
+			this.parent = parent;
+			this.name = name;
+			this.counter = new PerformanceCounter(name);
+			this.entireName = this.getEntireSectionName();
+		}
+
+		private void tick()
+		{
+			if (this.counter.valid)
+			{
+				this.counter.tick();
+			}
+
+			for (Section sub : this.subSections.values())
+			{
+				sub.tick();
+			}
+		}
+
+		private void reset()
+		{
+			this.counter.reset();
+
+			for (Section sub : this.subSections.values())
+			{
+				sub.tick();
+			}
+		}
+
+		private String getEntireSectionName()
+		{
+			return (this.parent != null ? this.parent.getEntireSectionName() + "." : "") + this.name;
+		}
+
+		@Override
+		public String toString()
+		{
+			return this.name + ": " + this.counter.load.latest;
+		}
+
+		public String fancyNameString(String preamble)
+		{
+			String str = this.entireName + "\n";
+
+			for (Section sub : this.subSections.values())
+			{
+				str += sub.fancyNameString(preamble + "  ");
+			}
+
+			return str;
+		}
+
+		public String fancyInfoString()
+		{
+			String info = String.format("%3.2f (%3.3f)", this.counter.load.latest * 100, this.counter.load.average) + "\n";
+
+			for (Section sub : this.subSections.values())
+			{
+				info += sub.fancyInfoString();
+			}
+
+			return info;
+		}
+
+		public Set<Section> fetchAllSections(Set<Section> allSections)
+		{
+			allSections.add(this);
+
+			for (Section sub : this.subSections.values())
+			{
+				sub.fetchAllSections(allSections);
+			}
+
+			return allSections;
+		}
+	}
+
+	public static Section getCurrentSection()
+	{
+		return currentSection;
+	}
+
+	public static Section getRoot()
+	{
+		return root;
+	}
+}

@@ -1,0 +1,51 @@
+package com.unlogical.colored.util;
+
+import org.lwjgl.input.Cursor;
+import org.newdawn.slick.GameContainer;
+import org.newdawn.slick.SlickException;
+import org.newdawn.slick.opengl.CursorLoader;
+
+import com.unlogical.colored.GameLauncher;
+import com.unlogical.colored.filesystem.FilePaths;
+
+public enum CursorType
+{
+	DEFAULT(FilePaths.CURSOR + "/default.png", 0, 0), GRAB(FilePaths.CURSOR + "/grab.png", 0, 0), SET(FilePaths.CURSOR + "/set.png", 7, 7);
+
+	private Cursor cursor;
+
+	private int hotspotX;
+	private int hotspotY;
+
+	private CursorType(String path, int hotspotX, int hotspotY)
+	{
+		try
+		{
+			this.cursor = CursorLoader.get().getCursor(path, hotspotX, hotspotY);
+		}
+		catch (Exception e)
+		{
+			throw new RuntimeException("Failed to load cursor (" + path + ")", e);
+		}
+
+		this.hotspotX = hotspotX;
+		this.hotspotY = hotspotY;
+	}
+	
+	public static void useCursor(CursorType cursorType)
+	{
+		 useCursor(cursorType, GameLauncher.getContainer());
+	}
+
+	public static void useCursor(CursorType cursorType, GameContainer container)
+	{
+		try
+		{
+			container.setMouseCursor(cursorType.cursor, cursorType.hotspotX, cursorType.hotspotY);
+		}
+		catch (SlickException e)
+		{
+			throw new RuntimeException("Could not set cursor type to " + cursorType, e);
+		}
+	}
+}

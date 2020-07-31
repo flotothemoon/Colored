@@ -1,0 +1,171 @@
+package com.unlogical.colored.util;
+
+import java.io.PrintWriter;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.List;
+import java.util.SortedMap;
+import java.util.SortedSet;
+import java.util.TreeMap;
+import java.util.TreeSet;
+
+import com.badlogic.gdx.math.Vector2;
+import com.unlogical.colored.debug.Debug;
+import com.unlogical.colored.filesystem.FileHandle;
+import com.unlogical.colored.filesystem.FileManager;
+import com.unlogical.colored.filesystem.files.TerrainFileHandler;
+import com.unlogical.colored.level.Level;
+import com.unlogical.colored.terrain.tile.Tile;
+import com.unlogical.colored.terrain.tile.TileText;
+
+public class NotePrinter
+{
+	private SortedMap<String, SortedSet<Note>> allNotes = new TreeMap<String, SortedSet<Note>>();
+	private FileHandle file;
+
+	public NotePrinter(FileHandle file)
+	{
+		this.file = file;
+	}
+
+	public static void printNotes()
+	{
+		print(FileManager.getFileQuietly("dev/notes.txt"));
+	}
+
+	public static void print(FileHandle file)
+	{
+		try
+		{
+			NotePrinter printer = new NotePrinter(file);
+
+			printer.fetchNotes();
+			printer.print();
+		}
+		catch (Exception e)
+		{
+			Debug.warn("Something went wrong while printing notes to file " + file, e);
+		}
+	}
+
+	public void fetchNotes() throws Exception
+	{
+		allNotes.clear();
+
+		for (String levelID : Level.getLevelMap().keySet())
+		{
+			TerrainFileHandler handler = new TerrainFileHandler(Level.getMapPathByID(levelID) + "/terrain.map");
+
+			Level newLevel = new Level();
+			newLevel.setDummyLevel(true);
+			newLevel.createParticleSystem();
+
+			List<Tile> tiles = handler.read(newLevel);
+			SortedSet<Note> notes = new TreeSet<Note>();
+			allNotes.put(levelID, notes);
+
+			for (Tile tile : tiles)
+			{
+				if (tile instanceof TileText && tile.dimension == Dimension.COLORED)
+				{
+					notes.add(parseTextTile(levelID, (TileText) tile));
+				}
+			}
+		}
+	}
+
+	private Note parseTextTile(String levelID, TileText tile)
+	{
+		String entireText, specifier = null;
+		StringBuilder parsedText = new StringBuilder();
+
+		entireText = tile.getText();
+
+		if (entireText.contains("@"))
+		{
+			int nextSpace = entireText.indexOf(" ", entireText.indexOf("@"));
+
+			specifier = entireText.substring(entireText.indexOf("@") + 1, nextSpace < 0 ? entireText.length() : nextSpace);
+			parsedText.append(entireText.substring(0, entireText.indexOf("@")));
+
+			if (nextSpace >= 0)
+			{
+				parsedText.append(entireText.substring(nextSpace + 1));
+			}
+		}
+		else
+		{
+			parsedText.append(entireText);
+		}
+
+		return new Note(parsedText.toString(), specifier, new Vector2(tile.getCenterX(), tile.getCenterY()), levelID);
+	}
+
+	public void print() throws Exception
+	{
+		PrintWriter writer = new PrintWriter(file.createOutputStream());
+
+		writer.write(" ~=~=~ Compiled notes from " + allNotes.size() + " levels, from " + new SimpleDateFormat("h:mm a, EEEEEEEEEEEE, MMMMMMMMMMMM d, yyyy").format(new Date()) + " ~=~=~ \n");
+		
+		for (String levelID : this.allNotes.keySet())
+		{
+			writer.write(" -+- " + levelID + " -+- \n");
+
+			for (Note note : this.allNotes.get(levelID))
+			{
+				if (note.specifier != null)
+				{
+					writer.write("\t@" + note.specifier + ": ");
+				}
+				
+				writer.write(note.text + "\n");
+			}
+		}
+
+		writer.close();
+		file.closeOutputStream();
+	}
+
+	private static class Note implements Comparable<Note>
+	{
+		private Vector2 position;
+		private String text;
+		private String specifier;
+//		private String levelID;
+
+		public Note(String parsedText, String specifier, Vector2 position, String levelID)
+		{
+			this.text = parsedText;
+			this.specifier = specifier;
+			this.position = position;
+//			this.levelID = levelID;
+		}
+
+		@Override
+		public int compareTo(Note other)
+		{
+			if (this.specifier == null)
+			{
+				return other.specifier == null ? comparePositions(this.position, other.position) : -1;
+			}
+			else
+			{
+				if (other.specifier == null)
+				{
+					return 1;
+				}
+				else
+				{
+					int result = other.specifier.compareTo(this.specifier);
+
+					return result == 0 ? comparePositions(this.position, other.position) : result;
+				}
+			}
+		}
+
+		private int comparePositions(Vector2 myPosition, Vector2 otherPosition)
+		{
+			return (int) (otherPosition.y - this.position.y * 5 + otherPosition.x - this.position.x);
+		}
+	}
+}

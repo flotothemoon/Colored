@@ -1,0 +1,702 @@
+package com.unlogical.colored.gui.panel;
+
+import java.io.IOException;
+import java.lang.ProcessBuilder.Redirect;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
+
+import org.newdawn.slick.Color;
+import org.newdawn.slick.GameContainer;
+import org.newdawn.slick.Graphics;
+import org.newdawn.slick.Image;
+import org.newdawn.slick.Input;
+import org.newdawn.slick.geom.Rectangle;
+import org.newdawn.slick.geom.Vector2f;
+
+import com.unlogical.colored.GameLauncher;
+import com.unlogical.colored.configuration.Resolutions;
+import com.unlogical.colored.debug.Debug;
+import com.unlogical.colored.filesystem.FilePaths;
+import com.unlogical.colored.gui.InputChangeListener;
+import com.unlogical.colored.gui.UserInputLine;
+import com.unlogical.colored.gui.button.Button;
+import com.unlogical.colored.mapeditor.MapEditor;
+import com.unlogical.colored.particle.EmitterType;
+import com.unlogical.colored.particle.ParticleEmitterImpl;
+import com.unlogical.colored.resources.ResourceLoader;
+import com.unlogical.colored.resources.ResourceLoader.LoadMode;
+import com.unlogical.colored.util.Dimension;
+import com.unlogical.colored.util.RectanglePacker;
+import com.unlogical.colored.util.RectanglePacker.IPackableRectangle;
+import com.unlogical.colored.util.RectanglePacker.RectanglePackMode;
+import com.unlogical.colored.util.Renderer;
+import com.unlogical.colored.wrapper.WrapperTexture;
+import com.unlogical.colored.wrapper.WrapperTextureFinder;
+
+public class ImportWrapperPanel extends GUIPanel
+{
+	private static final int SELECTABLE_HEIGHT = 100;
+	private static final int INPUT_HEIGHT = 40;
+
+	private ArrayList<WrapperTexture> wrappers = new ArrayList<WrapperTexture>();
+	private LinkedHashSet<SelectableWrapper> selectedWrappers = new LinkedHashSet<SelectableWrapper>();
+	private List<SelectableWrapper> allWrappers = new ArrayList<SelectableWrapper>();
+	private List<SelectableWrapper> selectableWrappers = new ArrayList<SelectableWrapper>();
+
+	private Rectangle scrollbarBorder;
+	private Rectangle moveableScrollbar;
+
+	private UserInputLine input;
+	private String matchString;
+
+	private Button cancelButton;
+	private Button importButton;
+
+	private float areaHeight;
+	private float barHeight;
+	private float barOffset;
+	private boolean scrolling;
+	private boolean particleCreationMode;
+
+	private Color selectedColor = new Color(1.0f, 1.0f, 1.0f, 0.4f);
+	private Color hoverColor = new Color(1.0f, 1.0f, 1.0f, 0.3f);
+
+	public ImportWrapperPanel(String title, float xOffset, float yOffset, float width, float height)
+	{
+		super(title, xOffset, yOffset, width, height);
+
+		this.areaHeight = height - INPUT_HEIGHT;
+
+		this.input = new UserInputLine((int) xOffset, (int) yOffset, (int) width, (int) INPUT_HEIGHT);
+		this.input.setActive(true);
+		this.input.addInputChangedListener(new InputChangeListener()
+		{
+			@Override
+			public void onInputChanged()
+			{
+				updateSelectableWrappers();
+			}
+		});
+		this.input.setAlwaysFocus(true);
+		this.input.setAllowSpecialCharacters(true);
+
+		this.moveableScrollbar = new Rectangle(xOffset + width - Resolutions.SELECTION_MENU_SCROLLBAR_WIDTH, yOffset + INPUT_HEIGHT, Resolutions.SELECTION_MENU_SCROLLBAR_WIDTH, areaHeight);
+		this.scrollbarBorder = new Rectangle(moveableScrollbar.getX(), moveableScrollbar.getY(), moveableScrollbar.getWidth(), contentBox.getHeight());
+		this.fillColor = new Color(MapEditor.panelColor);
+
+		this.cancelButton = new Button("Cancel", (int) (xOffset), (int) (yOffset + height), (int) (width / 2), 40)
+		{
+			@Override
+			public void onClick()
+			{
+				disable();
+			}
+		};
+
+		this.importButton = new Button("Import", (int) (xOffset + width / 2), (int) (yOffset + height), (int) (width / 2), 40)
+		{
+			@Override
+			public void onClick()
+			{
+				try
+				{
+					if (ResourceLoader.LOAD_MODE == LoadMode.SPRITESHEET)
+					{
+						List<String> entireCommand = new ArrayList<String>();
+
+						entireCommand.add("java");
+						entireCommand.add("-jar");
+						entireCommand.add("imagePackager.jar");
+						entireCommand.add("flat");
+
+						for (SelectableWrapper selectableWrapper : selectedWrappers)
+						{
+							String parent = selectableWrapper.getWrapper().getRelativePath().substring(0, selectableWrapper.getWrapper().getRelativePath().lastIndexOf('/'));
+
+							if (!entireCommand.contains(parent) && ResourceLoader.getAnimatedImages(selectableWrapper.getWrapper().getPath(), LoadMode.SPRITESHEET) == null)
+							{
+								Debug.log("Spritesheet version of " + selectableWrapper.getSimpleName() + " seems to be missing, will attempt reload...");
+
+								ResourceLoader.release(selectableWrapper.wrapper.getPath());
+
+								entireCommand.add(parent);
+							}
+						}
+
+						if (entireCommand.size() > 4)
+						{
+							Debug.log("As " + (entireCommand.size() - 4) + " spritesheet versions were missing, they will be reloaded now...");
+
+							Debug.log("Executing command: " + Arrays.toString(entireCommand.toArray(new String[] {})));
+
+							ProcessBuilder builder = new ProcessBuilder(entireCommand);
+
+							builder.redirectError(Redirect.INHERIT);
+							builder.redirectOutput(Redirect.INHERIT);
+
+							builder.start().waitFor();
+
+							for (SelectableWrapper selectableWrapper : selectedWrappers)
+							{
+								String parent = selectableWrapper.getWrapper().getRelativePath().substring(0, selectableWrapper.getWrapper().getRelativePath().lastIndexOf('/'));
+
+								if (entireCommand.contains(parent))
+								{
+									selectableWrapper.getWrapper().setImages(selectableWrapper.wrapper.getRelativePath(), selectableWrapper.getSimpleName(), ResourceLoader.getAnimatedImages(selectableWrapper.wrapper.getPath(), LoadMode.SPRITESHEET));
+								}
+							}
+
+							Debug.log("Reload of " + (entireCommand.size() - 4) + " spritesheet versions was successful.");
+						}
+					}
+				}
+				catch (Exception e)
+				{
+					Debug.warn("Exception occured while attempting to repack spritesheets via imagePackager.jar: " + e, e);
+				}
+
+				RectanglePacker packer = new RectanglePacker(selectedWrappers, RectanglePackMode.GREEDY);
+				java.awt.Rectangle boundingBox = packer.pack();
+				
+				Set<WrapperTexture> addedWrappers = new HashSet<WrapperTexture>();
+
+				for (SelectableWrapper selectableWrapper : selectedWrappers)
+				{
+					try
+					{
+						WrapperTexture temp = selectableWrapper.getWrapper();
+
+						WrapperTexture wrapper;
+
+						wrapper = new WrapperTexture(temp.getRelativePath(), temp.getSimpleName(), new Vector2f((float) (selectableWrapper.rectangle.getX() + GameLauncher.getWidth() / 2 - boundingBox.getWidth()), (float) (selectableWrapper.rectangle.getY() + GameLauncher.getHeight() / 2 - boundingBox.getHeight() / 2)), true, true, 0, 0.0f, 1.0f, new Color(Color.white), 0, 1.0f, ResourceLoader.getAnimatedImages(selectableWrapper.wrapper.getPath(), LoadMode.SPRITESHEET), 100, MapEditor.getLevel(), false, false, false, false, false, false, particleCreationMode ? 500 : temp.getImage().getWidth(), particleCreationMode ? 300 : temp.getImage().getHeight(), null);
+
+						if (particleCreationMode)
+						{
+							String name = selectableWrapper.getSimpleName().substring(selectableWrapper.getSimpleName().lastIndexOf('/') + 1).toUpperCase();
+
+							if (EmitterType.contains(name))
+							{
+								wrapper.setEmitter(new ParticleEmitterImpl(Dimension.LIGHT, wrapper, EmitterType.valueOf(name)));
+								wrapper.setMainTint(new Color(EmitterType.valueOf(name).tint));
+							}
+							else
+							{
+								wrapper.setEmitter(new ParticleEmitterImpl(Dimension.LIGHT, wrapper));
+							}
+
+							if (wrapper.getEmitter().shouldCreateMirror(true))
+							{
+								wrapper.getEmitter().createMirror(wrapper.getLevel().getType());
+							}
+						}
+
+						addedWrappers.add(wrapper);
+						wrapper.createBorders();
+						MapEditor.getLevel().addWrapper(wrapper);
+					}
+					catch (Exception e)
+					{
+						Debug.warn("Exception while importing wrapper " + selectableWrapper.wrapper + ": " + e, e);
+					}
+				}
+
+				MapEditor.deselectAll();
+				MapEditor.getSelectedWrappers().addAll(addedWrappers);
+				MapEditor.getSelectedObjects().addAll(addedWrappers);
+
+				disable();
+			}
+		};
+
+		try
+		{
+			this.refresh();
+			this.updateSelectableWrappers();
+		}
+		catch (IOException e)
+		{
+			throw new RuntimeException("Error loading wrapper textures for MapEditor D:.", e);
+		}
+	}
+
+	@Override
+	public void customUpdate(GameContainer container, int delta)
+	{
+		Input in = container.getInput();
+
+		if (moveableScrollbar.contains(in.getMouseX(), in.getMouseY()))
+		{
+			if (in.isMouseButtonDown(Input.MOUSE_LEFT_BUTTON))
+			{
+				scrolling = true;
+			}
+		}
+		else if (!in.isMouseButtonDown(Input.MOUSE_LEFT_BUTTON))
+		{
+			scrolling = false;
+		}
+
+		if (scrolling)
+		{
+			if ((barOffset + barHeight) > (areaHeight))
+			{
+				barOffset = areaHeight - barHeight;
+			}
+			else if ((barOffset) < (0))
+			{
+				barOffset = 0;
+			}
+		}
+
+		input.setxOffset((int) xOffset);
+		input.setyOffset((int) yOffset);
+		input.updateInterface();
+
+		cancelButton.setX((int) xOffset);
+		importButton.setX((int) (xOffset + width / 2));
+
+		cancelButton.setY((int) (yOffset + height));
+		importButton.setY((int) (yOffset + height));
+
+		cancelButton.updateInterface();
+		importButton.updateInterface();
+
+		scrollbarBorder.setX(contentBox.getMaxX() - Resolutions.SELECTION_MENU_SCROLLBAR_WIDTH);
+		scrollbarBorder.setY(yOffset + INPUT_HEIGHT);
+
+		moveableScrollbar.setX(contentBox.getMaxX() - Resolutions.SELECTION_MENU_SCROLLBAR_WIDTH);
+		moveableScrollbar.setY(yOffset + INPUT_HEIGHT + barOffset);
+
+		float actualOffset = -(int) (((barOffset) / areaHeight) * (selectableWrappers.size() * SELECTABLE_HEIGHT));
+
+		input.update(container, delta);
+		cancelButton.update(container, delta);
+		importButton.update(container, delta);
+
+		int index = 0;
+		int hoveredIndex = -1;
+		int selectedIndex = -1;
+
+		for (SelectableWrapper selectableWrapper : selectableWrappers)
+		{
+			selectableWrapper.setXOffset(xOffset);
+			selectableWrapper.setYOffset(yOffset + INPUT_HEIGHT + index * SELECTABLE_HEIGHT + actualOffset);
+
+			selectableWrapper.setActive(selectableWrapper.getYOffset() >= yOffset + INPUT_HEIGHT - selectableWrapper.getHeight() && selectableWrapper.getYOffset() + SELECTABLE_HEIGHT <= yOffset + height + selectableWrapper.getHeight());
+
+			if (selectableWrapper.contains(in.getMouseX(), in.getMouseY()))
+			{
+				if (in.isMousePressed(Input.MOUSE_LEFT_BUTTON))
+				{
+					if (!selectedWrappers.contains(selectableWrapper))
+					{
+						if (particleCreationMode && selectedWrappers.size() >= 1)
+						{
+							selectedWrappers.clear();
+						}
+
+						selectedIndex = index;
+						hoveredIndex = index;
+					}
+					else
+					{
+						selectedWrappers.remove(selectableWrapper);
+					}
+				}
+				else
+				{
+					selectableWrapper.hovered = true;
+					hoveredIndex = index;
+				}
+			}
+			else
+			{
+				selectableWrapper.hovered = false;
+			}
+
+			index++;
+		}
+
+		int lastSelectedIndex = selectedWrappers.isEmpty() ? -1 : selectableWrappers.indexOf(selectedWrappers.toArray(new SelectableWrapper[]{})[selectedWrappers.size() - 1]);
+
+		if (hoveredIndex >= 0 && lastSelectedIndex >= 0 && container.getInput().isKeyDown(Input.KEY_LSHIFT) && !particleCreationMode)
+		{
+			int minIndex = Math.min(hoveredIndex, lastSelectedIndex);
+			int maxIndex = Math.max(hoveredIndex, lastSelectedIndex);
+
+			for (int i = minIndex; i <= maxIndex; i++)
+			{
+				if (selectedIndex >= 0 && i != selectedIndex)
+				{
+					selectedWrappers.add(selectableWrappers.get(i));
+				}
+				else
+				{
+					selectableWrappers.get(i).hovered = true;
+				}
+			}
+		}
+		
+		if (selectedIndex >= 0)
+		{
+			selectedWrappers.add(selectableWrappers.get(selectedIndex));
+		}
+	}
+
+	@Override
+	public void customRender(GameContainer container, float alphaFactor, Graphics g)
+	{
+		g.setColor(Color.white);
+		g.fill(scrollbarBorder);
+
+		g.setColor(Color.darkGray);
+		g.fill(moveableScrollbar);
+
+		g.setColor(Color.black);
+		g.draw(scrollbarBorder);
+
+		Renderer.push2DScissor((int) xOffset, (int) yOffset + INPUT_HEIGHT, (int) width, (int) areaHeight);
+
+		for (SelectableWrapper selectableWrapper : selectableWrappers)
+		{
+			if (selectableWrapper.isActive())
+			{
+				if (selectedWrappers.contains(selectableWrapper))
+				{
+					selectableWrapper.getPreviewImage().setImageColor(1.0f, 1.0f, 1.0f, 1.0f);
+					g.setColor(selectedColor);
+					g.fillRect(xOffset, selectableWrapper.getYOffset(), width - Resolutions.SELECTION_MENU_SCROLLBAR_WIDTH, SELECTABLE_HEIGHT);
+				}
+				else
+				{
+					if (selectableWrapper.hovered)
+					{
+						g.setColor(hoverColor);
+						g.fillRect(xOffset, selectableWrapper.getYOffset(), width - Resolutions.SELECTION_MENU_SCROLLBAR_WIDTH, SELECTABLE_HEIGHT);
+						selectableWrapper.getPreviewImage().setImageColor(0.9f, 0.9f, 0.9f, 1.0f);
+					}
+					else
+					{
+						selectableWrapper.getPreviewImage().setImageColor(0.9f, 0.9f, 0.9f, 0.8f);
+					}
+				}
+
+				g.drawImage(selectableWrapper.getPreviewImage(), xOffset + selectableWrapper.previewWidth / 2 - selectableWrapper.getPreviewImage().getWidth() / 2, selectableWrapper.getYOffset() + selectableWrapper.height / 2 - selectableWrapper.getPreviewImage().getHeight() / 2);
+
+				String name = selectableWrapper.getSimpleName();
+				int count = matchString.isEmpty() ? -1 : ((name.toLowerCase().length() - name.toLowerCase().replaceAll(matchString, "").length()) / matchString.length());
+				int lastIndex = 0;
+
+				g.setColor(Color.blue);
+
+				for (int j = 0; j < count; j++)
+				{
+					int index = name.toLowerCase().indexOf(matchString, lastIndex);
+
+					g.drawRect(xOffset + width / 3 + 10 + g.getFont().getWidth(name.substring(0, index)), selectableWrapper.getYOffset() + selectableWrapper.getHeight() / 2 - g.getFont().getLineHeight() / 2 + 4, g.getFont().getWidth(matchString), g.getFont().getLineHeight());
+
+					lastIndex = index + 1;
+				}
+
+				g.setColor(Color.white);
+				g.drawString(name, xOffset + width / 3 + 10, selectableWrapper.getYOffset() + selectableWrapper.getHeight() / 2 - g.getFont().getLineHeight() / 2 + 5);
+			}
+		}
+
+		Renderer.clearBind();
+
+		Renderer.popScissor();
+
+		g.setColor(fillColor);
+		g.fillRect(cancelButton.getX(), cancelButton.getY(), width, 40);
+
+		input.render(container, alphaFactor, g);
+		cancelButton.render(container, alphaFactor, g);
+		importButton.render(container, alphaFactor, g);
+
+		g.setColor(Color.black);
+		g.drawRect(cancelButton.getX(), cancelButton.getY(), width, 40);
+	}
+
+	@Override
+	public void mouseWheelMoved(int change)
+	{
+		barOffset -= 10.0f * ((float) change / 120.0f);
+
+		if ((barOffset + barHeight) > (height))
+		{
+			barOffset = height - barHeight;
+		}
+		else if ((barOffset) < (0))
+		{
+			barOffset = 0;
+		}
+
+		if (barOffset + barHeight > areaHeight)
+		{
+			barOffset = areaHeight - barHeight;
+		}
+	}
+
+	@Override
+	public void mouseDragged(int oldx, int oldy, int newx, int newy)
+	{
+		if (scrolling)
+		{
+			barOffset += newy - oldy;
+		}
+		else if (movingMode)
+		{
+			xOffset += newx - oldx;
+			yOffset += newy - oldy;
+
+			input.adjust(newx - oldx, newy - oldy);
+
+			cancelButton.setX((int) xOffset);
+			importButton.setX((int) (xOffset + width / 2));
+
+			cancelButton.setY((int) (yOffset + height));
+			importButton.setY((int) (yOffset + height));
+
+			cancelButton.updateInterface();
+			importButton.updateInterface();
+		}
+	}
+
+	public void refresh() throws IOException
+	{
+		WrapperTextureFinder finder = new WrapperTextureFinder(FilePaths.getFile(particleCreationMode ? FilePaths.PARTICLES : FilePaths.WRAPPERS));
+
+		wrappers = finder.getRawWrappers();
+
+		allWrappers.clear();
+
+		int i = 0;
+		for (WrapperTexture wrapper : wrappers)
+		{
+			allWrappers.add(new SelectableWrapper(wrapper, xOffset, yOffset + i++ * SELECTABLE_HEIGHT, width, width / 3, SELECTABLE_HEIGHT));
+		}
+
+		updateSelectableWrappers();
+	}
+
+	private void updateSelectableWrappers()
+	{
+		int beforeSize = selectableWrappers.size();
+
+		selectableWrappers.clear();
+
+		matchString = input.getInput().replaceAll(" ", "").toLowerCase();
+
+		for (SelectableWrapper selectableWrapper : allWrappers)
+		{
+			if (selectableWrapper.wrapper.getSimpleName().toLowerCase().contains(matchString))
+			{
+				selectableWrappers.add(selectableWrapper);
+			}
+			else if (selectedWrappers.contains(selectableWrapper))
+			{
+				selectedWrappers.remove(selectableWrapper);
+			}
+		}
+
+		int totalRows = selectableWrappers.size();
+		int displayableRows = (int) (areaHeight / SELECTABLE_HEIGHT);
+
+		this.barHeight = ((float) displayableRows) / ((float) (totalRows)) * areaHeight;
+
+		if (displayableRows > totalRows)
+		{
+			this.barHeight = areaHeight;
+		}
+
+		this.moveableScrollbar = new Rectangle(xOffset + width - Resolutions.SELECTION_MENU_SCROLLBAR_WIDTH, yOffset, Resolutions.SELECTION_MENU_SCROLLBAR_WIDTH, barHeight);
+
+		if (beforeSize != selectableWrappers.size())
+		{
+			if (barOffset + barHeight > areaHeight)
+			{
+				barOffset = areaHeight - barHeight;
+			}
+		}
+	}
+
+	public WrapperTexture getNextWrapper(WrapperTexture wrapper)
+	{
+		return getNextWrapper(wrapper, 1, false);
+	}
+
+	private WrapperTexture getNextWrapper(WrapperTexture wrapper, int offset, boolean respectGroups)
+	{
+		if (wrapper == null)
+		{
+			throw new NullPointerException("Wrapper can't be null.");
+		}
+
+		int wrapperIndex = getWrapperIndex(wrapper);
+
+		for (int i = wrapperIndex + offset; i != wrapperIndex; i++)
+		{
+			if (i >= wrappers.size())
+			{
+				i = 0;
+			}
+
+			if (wrappers.get(i).getGroup().equals(wrapper.getGroup()) || !respectGroups)
+			{
+				return wrappers.get(i);
+			}
+		}
+
+		return wrapper;
+	}
+
+	public WrapperTexture getNextGroupWrapper(WrapperTexture wrapper)
+	{
+		return getNextWrapper(wrapper, 1, true);
+	}
+
+	private int getWrapperIndex(WrapperTexture wrapper)
+	{
+		for (int i = 0; i < this.wrappers.size(); i++)
+		{
+			if (this.wrappers.get(i).getCleanPath().equals(wrapper.getCleanPath()))
+			{
+				return i;
+			}
+		}
+
+		throw new IllegalArgumentException("This shouldn't happen either. Unknown group.");
+	}
+
+	private class SelectableWrapper implements IPackableRectangle<SelectableWrapper>
+	{
+		private boolean active;
+		private boolean hovered;
+
+		private WrapperTexture wrapper;
+		private Image previewImage;
+		private String simpleName;
+		private java.awt.Rectangle rectangle;
+		
+		private float xOffset;
+		private float yOffset;
+
+		private float previewWidth;
+		private float width;
+		private float height;
+
+		public SelectableWrapper(WrapperTexture wrapper, float xOffset, float yOffset, float width, float previewWidth, float height)
+		{
+			this.wrapper = wrapper;
+
+			this.previewImage = wrapper.getAvailableImages()[wrapper.getInnerType()][0];
+			float scaleFactor = ((this.previewImage.getHeight()) / (height - 10));
+
+			if (this.previewImage.getWidth() / scaleFactor > previewWidth)
+			{
+				scaleFactor = (this.previewImage.getWidth()) / previewWidth;
+			}
+
+			this.previewImage = this.previewImage.getScaledCopy(1.0f / scaleFactor);
+
+			this.xOffset = xOffset;
+			this.yOffset = yOffset;
+			this.width = width;
+			this.previewWidth = previewWidth;
+			this.height = height;
+
+			this.simpleName = wrapper.getSimpleName();
+			this.rectangle = new java.awt.Rectangle(0, 0, (int) wrapper.getImage().getWidth(), (int) wrapper.getImage().getHeight());
+		}
+
+		public boolean contains(int mouseX, int mouseY)
+		{
+			return mouseX > xOffset && mouseX < xOffset + width - Resolutions.SELECTION_MENU_SCROLLBAR_WIDTH && mouseY > yOffset && mouseY <= yOffset + height;
+		}
+
+		@Override
+		public int compareTo(SelectableWrapper other)
+		{
+			return other.simpleName.compareTo(this.simpleName);
+		}
+
+		@Override
+		public java.awt.Rectangle getRectangle()
+		{
+			return rectangle;
+		}
+		
+		public boolean isActive()
+		{
+			return active;
+		}
+
+		public void setActive(boolean active)
+		{
+			this.active = active;
+		}
+
+		public void setXOffset(float xOffset)
+		{
+			this.xOffset = xOffset;
+		}
+
+		public float getYOffset()
+		{
+			return yOffset;
+		}
+
+		public void setYOffset(float yOffset)
+		{
+			this.yOffset = yOffset;
+		}
+
+		public float getHeight()
+		{
+			return height;
+		}
+
+		public String getSimpleName()
+		{
+			return simpleName;
+		}
+
+		public Image getPreviewImage()
+		{
+			return previewImage;
+		}
+
+		public WrapperTexture getWrapper()
+		{
+			return wrapper;
+		}
+	}
+
+	@Override
+	public void setActive(boolean active)
+	{
+		super.setActive(active);
+
+		this.selectedWrappers.clear();
+	}
+
+	public ArrayList<WrapperTexture> getWrappers()
+	{
+		return wrappers;
+	}
+
+	public void setParticleCreationMode(boolean particleCreationMode)
+	{
+		this.particleCreationMode = particleCreationMode;
+	}
+
+	public boolean shouldLockInput()
+	{
+		return isActive();
+	}
+}

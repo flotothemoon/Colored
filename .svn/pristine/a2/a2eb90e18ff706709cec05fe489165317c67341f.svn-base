@@ -1,0 +1,412 @@
+package com.unlogical.colored.util;
+
+import static org.lwjgl.opengl.GL11.GL_QUADS;
+import static org.lwjgl.opengl.GL11.glBegin;
+import static org.lwjgl.opengl.GL11.glEnd;
+
+import org.newdawn.slick.Color;
+import org.newdawn.slick.Graphics;
+import org.newdawn.slick.Image;
+import org.newdawn.slick.SlickException;
+import org.newdawn.slick.geom.Vector2f;
+
+import com.unlogical.colored.debug.Debug;
+
+public class RealImage extends Image
+{
+	private static final Vector2f drawPos = new Vector2f();
+
+	// private static float parWidth, parHeight;
+	// private static float curX, curY, curTexOffX, curTexOffY, curTexWidth,
+	// curTexHeight;
+	// private static float baseX, baseY, absX0, absX1, absX2, absX3, absY0,
+	// absY1, absY2, absY3;
+	// private static float sin, cos;
+	//
+	// private Vector2f buffer = new Vector2f();
+	private Color colorBuffer = new Color(1.0f, 1.0f, 1.0f, 1.0f);
+
+	public RealImage(String ref) throws SlickException
+	{
+		super(ref, false);
+	}
+
+	public RealImage(String ref, boolean flipped) throws SlickException
+	{
+		super(ref, flipped, FILTER_LINEAR);
+	}
+
+	public RealImage(String ref, boolean flipped, int filter) throws SlickException
+	{
+		super(ref, flipped, filter, null);
+	}
+
+	public RealImage(Image other)
+	{
+		super(other);
+	}
+
+	@Override
+	public Color getColor(int x, int y)
+	{
+		if (pixelData == null)
+		{
+			pixelData = texture.getTextureData();
+		}
+
+		int xo = (int) (textureOffsetX * texture.getTextureWidth());
+		int yo = (int) (textureOffsetY * texture.getTextureHeight());
+
+		if (textureWidth < 0)
+		{
+			x = xo - x;
+		}
+		else
+		{
+			x = xo + x;
+		}
+
+		if (textureHeight < 0)
+		{
+			y = yo - y;
+		}
+		else
+		{
+			y = yo + y;
+		}
+
+		int offset = x + (y * texture.getTextureWidth());
+		offset *= texture.hasAlpha() ? 4 : 3;
+
+		if (offset + 2 >= pixelData.length)
+		{
+			colorBuffer.r = colorBuffer.g = colorBuffer.b = colorBuffer.a = 1.0f;
+
+			Debug.warn("WTF - offset: " + offset + " is too big for this image, cannot fetch color at x:" + x + " y:" + y + ".");
+		}
+		else
+		{
+			colorBuffer.r = translate(pixelData[offset]) / 255.0f;
+			colorBuffer.g = translate(pixelData[offset + 1]) / 255.0f;
+			colorBuffer.b = translate(pixelData[offset + 2]) / 255.0f;
+
+			if (texture.hasAlpha())
+			{
+				colorBuffer.a = translate(pixelData[offset + 3]) / 255.0f;
+			}
+			else
+			{
+				colorBuffer.a = 1.0f;
+			}
+		}
+
+		return colorBuffer;
+	}
+
+	private int translate(byte b)
+	{
+		if (b < 0)
+		{
+			return 256 + b;
+		}
+
+		return b;
+	}
+
+	public void applyFilter(Color filter)
+	{
+		if (filter != null)
+		{
+			colorBuffer.r = filter.r;
+			colorBuffer.g = filter.g;
+			colorBuffer.b = filter.b;
+			colorBuffer.a = filter.a;
+		}
+		else
+		{
+			colorBuffer.r = colorBuffer.g = colorBuffer.b = colorBuffer.a = 1.0f;
+		}
+
+		colorBuffer.bind();
+	}
+
+	@Override
+	public void draw(float x, float y, float width, float height, Color filter)
+	{
+		init();
+
+		applyFilter(filter);
+
+		Renderer.bindTexture(texture);
+
+		GL.glTranslatef(x, y, 0);
+		drawPos.set(x, y);
+
+		if (angle != 0)
+		{
+			GL.glTranslatef(centerX, centerY, 0.0f);
+			GL.glRotatef(angle, 0.0f, 0.0f, 1.0f);
+			GL.glTranslatef(-centerX, -centerY, 0.0f);
+		}
+
+		drawEmbedded(0, 0, width, height);
+
+		if (angle != 0)
+		{
+			GL.glTranslatef(centerX, centerY, 0.0f);
+			GL.glRotatef(-angle, 0.0f, 0.0f, 1.0f);
+			GL.glTranslatef(-centerX, -centerY, 0.0f);
+		}
+
+		GL.glTranslatef(-x, -y, 0);
+	}
+
+	@Override
+	public void draw(float x, float y, float x2, float y2, float srcx, float srcy, float srcx2, float srcy2, Color filter)
+	{
+		init();
+
+		Renderer.bindTexture(texture);
+
+		GL.glTranslatef(x, y, 0);
+		drawPos.set(x, y);
+
+		if (angle != 0)
+		{
+			GL.glTranslatef(centerX, centerY, 0.0f);
+			GL.glRotatef(angle, 0.0f, 0.0f, 1.0f);
+			GL.glTranslatef(-centerX, -centerY, 0.0f);
+		}
+
+		drawEmbedded(0, 0, x2 - x, y2 - y, srcx, srcy, srcx2, srcy2, filter);
+
+		if (angle != 0)
+		{
+			GL.glTranslatef(centerX, centerY, 0.0f);
+			GL.glRotatef(-angle, 0.0f, 0.0f, 1.0f);
+			GL.glTranslatef(-centerX, -centerY, 0.0f);
+		}
+
+		GL.glTranslatef(-x, -y, 0);
+	}
+
+	public static void fillArea(Image image, float x, float y, float width, float height, float textureXOffset, float textureYOffset, float absCenterOfRotationX, float absCenterOfRotationY, Color color, boolean drawSubImages, Graphics g)
+	{
+		float startY = y;
+		float endY = y + image.getHeight();
+		float startTextureY = 0;
+		float endTextureY = image.getHeight();
+		float centerOfRotationY = absCenterOfRotationY - y;
+
+		textureXOffset %= image.getWidth();
+		textureYOffset %= image.getHeight();
+
+		int texOffsetY = (int) Math.ceil(textureYOffset % image.getWidth());
+		int drawHeight;
+		int startOffsetY = texOffsetY < 0 ? -texOffsetY : 0;
+
+		if (texOffsetY > 0)
+		{
+			fillHorizontalArea(image, x, y, width, textureXOffset, absCenterOfRotationX, centerOfRotationY, y, y + Math.min(texOffsetY, height), image.getHeight() - Math.min(texOffsetY, height), image.getHeight(), color, drawSubImages, g);
+		}
+
+		for (int yOffset = 0; yOffset < height - texOffsetY; yOffset += image.getHeight())
+		{
+			drawHeight = Math.min((int) ((height - yOffset - texOffsetY - startOffsetY)), image.getHeight());
+
+			if (drawSubImages || drawHeight == image.getHeight())
+			{
+				centerOfRotationY = absCenterOfRotationY - y - yOffset - texOffsetY - startOffsetY;
+
+				startY = y + yOffset + texOffsetY + startOffsetY;
+				endY = y + yOffset + drawHeight + texOffsetY;
+				startTextureY = startOffsetY;
+				endTextureY = drawHeight;
+
+				fillHorizontalArea(image, x, y, width, textureXOffset, absCenterOfRotationX, centerOfRotationY, startY, endY, startTextureY, endTextureY, color, drawSubImages, g);
+			}
+
+			startOffsetY = 0;
+		}
+	}
+
+	private static void fillHorizontalArea(Image image, float x, float y, float width, float textureXOffset, float absCenterOfRotationX, float centerOfRotationY, float startY, float endY, float startTextureY, float endTextureY, Color color, boolean drawSubImages, Graphics g)
+	{
+		int texOffsetX = (int) Math.ceil(textureXOffset % image.getWidth());
+		int drawWidth;
+		int startOffsetX = texOffsetX < 0 ? -texOffsetX : 0;
+
+		if (texOffsetX > 0)
+		{
+			g.drawImage(image, x, startY, x + Math.min(texOffsetX, width), endY, image.getWidth() - Math.min(texOffsetX, width), startTextureY, image.getWidth(), endTextureY, color);
+		}
+
+		for (int xOffset = 0; xOffset < width - texOffsetX; xOffset += image.getWidth())
+		{
+			drawWidth = Math.min((int) ((width - xOffset - texOffsetX - startOffsetX)), image.getWidth());
+
+			if (drawSubImages || drawWidth == image.getWidth())
+			{
+				image.setCenterOfRotation(absCenterOfRotationX - x - xOffset - texOffsetX - startOffsetX, centerOfRotationY);
+
+				g.drawImage(image, x + xOffset + texOffsetX + startOffsetX, startY, x + xOffset + drawWidth + texOffsetX, endY, startOffsetX, startTextureY, drawWidth, endTextureY, color);
+			}
+
+			startOffsetX = 0;
+		}
+	}
+
+	@Override
+	public void drawEmbedded(float x, float y, float x2, float y2, float srcx, float srcy, float srcx2, float srcy2, Color filter)
+	{
+		applyFilter(filter);
+
+		float texwidth = srcx2 - srcx;
+		float texheight = srcy2 - srcy;
+
+		drawFullEmbedded(x, y, x2 - x, y2 - y, (((srcx) / (width)) * textureWidth) + textureOffsetX, (((srcy) / (height)) * textureHeight) + textureOffsetY, ((texwidth) / (width)) * textureWidth, ((texheight) / (height)) * textureHeight);
+	}
+
+	@Override
+	public void drawEmbedded(float x, float y, float width, float height)
+	{
+		init();
+
+		drawFullEmbedded(x, y, width, height, textureOffsetX, textureOffsetY, textureWidth, textureHeight);
+	}
+
+	public void drawFullEmbedded(float x, float y, float width, float height, float textureOffsetX, float textureOffsetY, float textureWidth, float textureHeight)
+	{
+//		x = (int) x;
+//		y = (int) y;
+//		width = (int) width;
+//		height = (int) height;
+
+		// parWidth = Math.min(width, ZHandler.TEXTURE_QUADRANT_SIZE);
+		// parHeight = 0.0f;
+		// curX = 0.0f;
+		// curY = 0.0f;
+		// sin = (float) Math.sin(Math.toRadians(angle));
+		// cos = (float) Math.cos(Math.toRadians(angle));
+
+		ShaderHandler.startUsingTexture();
+
+		glBegin(GL_QUADS);
+
+		GL.glTexCoord2f(textureOffsetX, textureOffsetY);
+		GL.glVertex3f(x, y, 0);
+		GL.glTexCoord2f(textureOffsetX, textureOffsetY + textureHeight);
+		GL.glVertex3f(x, y + height, 0);
+		GL.glTexCoord2f(textureOffsetX + textureWidth, textureOffsetY + textureHeight);
+		GL.glVertex3f(x + width, y + height, 0);
+		GL.glTexCoord2f(textureOffsetX + textureWidth, textureOffsetY);
+		GL.glVertex3f(x + width, y, 0);
+
+		glEnd();
+
+		// glBegin(GL_QUADS);
+		// for (float drawX = 0; drawX < width; drawX += parWidth)
+		// {
+		// parWidth = Math.min(width - drawX, parWidth);
+		//
+		// for (float drawY = 0; drawY < height; drawY += parHeight)
+		// {
+		// parHeight = Math.min(height - drawY, ZHandler.TEXTURE_QUADRANT_SIZE);
+		//
+		// curX = x + drawX;
+		// curY = y + drawY;
+		//
+		// baseX = x + drawPos.x + centerX;
+		// baseY = y + drawPos.y + centerY;
+		//
+		// absX0 = absX1 = drawX - centerX;
+		// absX2 = absX3 = drawX + parWidth - centerX;
+		// absY0 = absY3 = drawY - centerY;
+		// absY1 = absY2 = drawY + parHeight - centerY;
+		//
+		// if (angle != 0.0f)
+		// {
+		// buffer.set(absX0 * cos - absY0 * sin, absX0 * sin + absY0 * cos);
+		//
+		// absX0 = buffer.x;
+		// absY0 = buffer.y;
+		//
+		// buffer.set(absX1 * cos - absY1 * sin, absX1 * sin + absY1 * cos);
+		//
+		// absX1 = buffer.x;
+		// absY1 = buffer.y;
+		//
+		// buffer.set(absX2 * cos - absY2 * sin, absX2 * sin + absY2 * cos);
+		//
+		// absX2 = buffer.x;
+		// absY2 = buffer.y;
+		//
+		// buffer.set(absX3 * cos - absY3 * sin, absX3 * sin + absY3 * cos);
+		//
+		// absX3 = buffer.x;
+		// absY3 = buffer.y;
+		// }
+		//
+		// absX0 += baseX;
+		// absX1 += baseX;
+		// absX2 += baseX;
+		// absX3 += baseX;
+		//
+		// absY0 += baseY;
+		// absY1 += baseY;
+		// absY2 += baseY;
+		// absY3 += baseY;
+		//
+		// curTexWidth = (parWidth / width) * textureWidth;
+		// curTexHeight = (parHeight / height) * textureHeight;
+		// curTexOffX = textureOffsetX + (drawX / width) * textureWidth;
+		// curTexOffY = textureOffsetY + (drawY / height) * textureHeight;
+		//
+		// glTexCoord2f(curTexOffX, curTexOffY);
+		// glVertex3f(curX, curY, ZHandler.getZ(absX0, absY0));
+		//
+		// glTexCoord2f(curTexOffX, curTexOffY + curTexHeight);
+		// glVertex3f(curX, curY + parHeight, ZHandler.getZ(absX1, absY1));
+		//
+		// glTexCoord2f(curTexOffX + curTexWidth, curTexOffY + curTexHeight);
+		// glVertex3f(curX + parWidth, curY + parHeight, ZHandler.getZ(absX2,
+		// absY2));
+		//
+		// glTexCoord2f(curTexOffX + curTexWidth, curTexOffY);
+		// glVertex3f(curX + parWidth, curY, ZHandler.getZ(absX3, absY3));
+		// }
+		// }
+
+		ShaderHandler.stopUsingTexture();
+	}
+	
+	public RealImage getSubImage(int x, int y, int width, int height)
+	{
+		return new RealImage(super.getSubImage(x, y, width, height));
+	}
+
+	public RealImage getFlippedCopy(boolean flipHorizontal, boolean flipVertical)
+	{
+		return new RealImage(super.getFlippedCopy(flipHorizontal, flipVertical));
+	}
+
+	public RealImage copy()
+	{
+		return new RealImage(super.copy());
+	}
+
+	public RealImage getScaledCopy(int width, int height)
+	{
+		return new RealImage(super.getScaledCopy(width, height));
+	}
+
+	public RealImage getScaledCopy(float scale)
+	{
+		return new RealImage(super.getScaledCopy(scale));
+	}
+
+	public static Vector2f getDrawPos()
+	{
+		return drawPos;
+	}
+}

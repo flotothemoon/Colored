@@ -1,0 +1,31 @@
+package com.unlogical.linked.entity.projectile;
+
+import org.newdawn.slick.geom.Vector2f;
+
+import com.unlogical.linked.entity.Entity;
+import com.unlogical.linked.entity.EntityType;
+import com.unlogical.linked.entity.boss.EntityBoss;
+import com.unlogical.linked.entity.property.EntityProperty;
+import com.unlogical.linked.entity.property.SharedEntityProperties;
+import com.unlogical.linked.level.Level;
+import com.unlogical.linked.util.Dimension;
+
+public class EntityMiniIceSpike extends EntityIceSpike
+{
+	public EntityMiniIceSpike(EntityType type, Vector2f position, Level level, Dimension dimension, boolean allowMirrors)
+	{
+		super(type, position, level, dimension, allowMirrors);
+	}
+	
+	@Override
+	protected boolean canInteractWith(Entity entity)
+	{
+		return !(entity instanceof EntityIceSpike) && !(entity instanceof EntityBoss);
+	}
+	
+	@Override
+	protected EntityProperty getEntityProperty()
+	{
+		return SharedEntityProperties.MINI_ICE_SPIKE;
+	}
+}

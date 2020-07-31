@@ -1,0 +1,524 @@
+package com.unlogical.colored.particle;
+
+import java.util.Map;
+
+import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.g2d.Batch;
+import com.badlogic.gdx.graphics.g2d.TextureRegion;
+import com.unlogical.colored.GameLauncher;
+import com.unlogical.colored.level.Level;
+import com.unlogical.colored.util.IDeepCopyable;
+
+public class Particle implements IDeepCopyable<Particle>
+{
+	private float initialX;
+	private float initialY;
+
+	private float xPos;
+	private float yPos;
+
+	private float velocityX;
+	private float velocityY;
+
+	private float rotationVelocity;
+	private float rotation;
+
+	private float rComp;
+	private float gComp;
+	private float bComp;
+
+	private float alpha;
+	private float targetAlpha;
+
+	private float gravityFactor;
+	private float growthFactor;
+	private float windFactor;
+
+	private float size = 10;
+
+	private int initialLifetime;
+	private int lifetime;
+
+	private int fadeOutTime;
+	private int fadeInTime;
+
+	private float parallax = 1.0f;
+
+	private boolean fadingOut;
+	private boolean fadingIn;
+
+	private ParticleSystem system;
+	private ParticleEmitter emitter;
+
+	private TextureRegion image;
+
+	public Particle(ParticleSystem system)
+	{
+		this.system = system;
+	}
+
+	private Particle()
+	{
+
+	}
+
+	@Override
+	public Particle deepCopy(Map<Object, Object> copiedReferences)
+	{
+		Particle copy = new Particle();
+
+		copy.system = (ParticleSystem) Level.getCopy(system, copiedReferences);
+		copy.emitter = (ParticleEmitter) Level.getCopy(this.emitter, copiedReferences);
+
+		if (this.lifetime > 0)
+		{
+			copy.rotationVelocity = this.rotationVelocity;
+			copy.rotation = this.rotation;
+
+			copy.initialX = this.initialX;
+			copy.initialY = this.initialY;
+
+			copy.xPos = this.xPos;
+			copy.yPos = this.yPos;
+
+			copy.velocityX = this.velocityX;
+			copy.velocityY = this.velocityY;
+
+			copy.gravityFactor = this.gravityFactor;
+			copy.growthFactor = this.growthFactor;
+			copy.windFactor = this.windFactor;
+
+			copy.rComp = this.rComp;
+			copy.gComp = this.gComp;
+			copy.bComp = this.bComp;
+
+			copy.alpha = this.alpha;
+			copy.targetAlpha = this.targetAlpha;
+
+			copy.size = this.size;
+
+			copy.initialLifetime = this.initialLifetime;
+			copy.lifetime = this.lifetime;
+
+			copy.fadeInTime = this.fadeInTime;
+			copy.fadeOutTime = this.fadeOutTime;
+			copy.parallax = this.parallax;
+
+			copy.fadingOut = this.fadingOut;
+			copy.fadingIn = this.fadingIn;
+
+			copy.image = this.image;
+		}
+
+		return copy;
+	}
+
+	@Override
+	public boolean shouldCopy()
+	{
+		return emitter.shouldCopy();
+	}
+
+	public void init(ParticleEmitter emitter, int lifetime)
+	{
+		this.emitter = emitter;
+		this.xPos = 0.0f;
+		this.yPos = 0.0f;
+		this.initialX = 0.0f;
+		this.initialY = 0.0f;
+		this.velocityX = 0.0f;
+		this.velocityY = 0.0f;
+		this.targetAlpha = 1.0f;
+		this.alpha = 1.0f;
+		this.initialLifetime = this.lifetime = lifetime;
+		this.rotation = 0.0f;
+		this.rotationVelocity = 1.0f;
+		this.fadingOut = false;
+		this.fadingIn = false;
+		this.fadeOutTime = -1;
+		this.fadeInTime = -1;
+		this.parallax = 1.0f;
+		this.gravityFactor = 0.0f;
+		this.growthFactor = 0.0f;
+		this.windFactor = 0.0f;
+		this.rComp = 1.0f;
+		this.gComp = 1.0f;
+		this.bComp = 1.0f;
+	}
+
+	public void update(float delta)
+	{
+		emitter.updateParticle(this, delta);
+
+		lifetime -= delta;
+
+		if (lifetime > 0 && alpha >= 0.0f)
+		{
+			xPos += velocityX * delta;
+			yPos += velocityY * delta;
+
+			rotation += rotationVelocity * delta;
+
+			if (fadingIn)
+			{
+				if (alpha >= targetAlpha)
+				{
+					fadingIn = false;
+				}
+			}
+		}
+		else
+		{
+			system.release(this);
+		}
+	}
+
+	public void render(float baseAlpha, Batch batch)
+	{
+		Level level = emitter.getWrapper().getLevel();
+
+		float xPos = getRelativeX();
+		float yPos = getRelativeY();
+		float halfSize = size / 2;
+
+		if (xPos + halfSize >= 0 && xPos - halfSize <= GameLauncher.getWidth() && yPos + halfSize >= 0 && yPos - halfSize <= GameLauncher.getHeight())
+		{
+			baseAlpha *= alpha;
+			baseAlpha *= level.getControlAlphaFactor();
+
+			Color color = level.getDimensionColor(emitter.getDimension());
+			
+			if (baseAlpha > 1.0f)
+			{
+				baseAlpha = 1.0f;
+			}
+							
+			//TODO proper linear filtering
+						
+			batch.setColor(rComp * color.r, gComp * color.g, bComp * color.b, baseAlpha);
+			batch.draw(image, xPos - size / 2, yPos - size / 2, size / 2, size / 2, size, size, 1.0f, 1.0f, rotation);
+		}
+	}
+
+	public float getRelativeX()
+	{
+		return this.xPos + emitter.getWrapper().getLevel().getCameraOffset().x * parallax + emitter.emitterXOffset + emitter.getWrapper().getLevel().getXOffset(this.emitter.dimension);
+	}
+	
+	public float getRelativeY()
+	{
+		return this.yPos + emitter.getWrapper().getLevel().getCameraOffset().y * parallax + emitter.emitterYOffset + emitter.getWrapper().getLevel().getYOffset(this.emitter.dimension);
+	}
+	
+	public void setAlpha(float alpha)
+	{
+		this.alpha = alpha;
+	}
+
+	public void adjustAlpha(float alphaChange)
+	{
+		this.setAlpha(this.getAlpha() + alphaChange);
+	}
+
+	public void adjustSize(float sizeChange)
+	{
+		this.size += sizeChange;
+
+		if (this.size < 0.0f)
+		{
+			this.size = 0.0f;
+		}
+	}
+
+	public void adjustVelocityX(float xVelocityChange)
+	{
+		this.velocityX += xVelocityChange;
+	}
+
+	public void adjustVelocityY(float yVelocityChange)
+	{
+		this.velocityY += yVelocityChange;
+	}
+
+	public void setImage(TextureRegion image)
+	{
+		this.image = image;
+	}
+
+	public int getFadeInTime()
+	{
+		return fadeInTime;
+	}
+
+	public void setFadeInTime(int fadeInTime)
+	{
+		this.fadeInTime = fadeInTime;
+	}
+
+	public boolean isFadingIn()
+	{
+		return fadingIn;
+	}
+
+	public void setFadingIn(boolean fadingIn)
+	{
+		this.fadingIn = fadingIn;
+	}
+
+	public boolean isInUse()
+	{
+		return this.lifetime > 0;
+	}
+
+	public void kill()
+	{
+		this.lifetime = 1;
+	}
+
+	public boolean isDead()
+	{
+		return this.lifetime <= 0;
+	}
+
+	public void adjustX(float xChange)
+	{
+		this.xPos += xChange;
+	}
+
+	public void adjustY(float yChange)
+	{
+		this.yPos += yChange;
+	}
+
+	public float getXPos()
+	{
+		return xPos;
+	}
+
+	public void setXPos(float xPos)
+	{
+		this.xPos = xPos;
+	}
+
+	public float getYPos()
+	{
+		return yPos;
+	}
+
+	public void setYPos(float yPos)
+	{
+		this.yPos = yPos;
+	}
+
+	public float getVelocityX()
+	{
+		return velocityX;
+	}
+
+	public void setVelocityX(float velocityX)
+	{
+		this.velocityX = velocityX;
+	}
+
+	public float getVelocityY()
+	{
+		return velocityY;
+	}
+
+	public void setVelocityY(float velocityY)
+	{
+		this.velocityY = velocityY;
+	}
+
+	public int getInitialLifetime()
+	{
+		return initialLifetime;
+	}
+
+	public void setInitialLifetime(int initialLifetime)
+	{
+		this.initialLifetime = initialLifetime;
+	}
+
+	public int getLifetime()
+	{
+		return lifetime;
+	}
+
+	public void setLifetime(int lifetime)
+	{
+		this.lifetime = lifetime;
+	}
+
+	public ParticleSystem getSystem()
+	{
+		return system;
+	}
+
+	public void setSystem(ParticleSystem system)
+	{
+		this.system = system;
+	}
+
+	public TextureRegion getImage()
+	{
+		return image;
+	}
+
+	public ParticleEmitter getEmitter()
+	{
+		return emitter;
+	}
+
+	public void setEmitter(ParticleEmitter emitter)
+	{
+		this.emitter = emitter;
+	}
+
+	public float getSize()
+	{
+		return size;
+	}
+
+	public void setSize(float size)
+	{
+		this.size = size;
+	}
+
+	public float getAlpha()
+	{
+		return alpha;
+	}
+
+	public float getRotationVelocity()
+	{
+		return rotationVelocity;
+	}
+
+	public void setRotationVelocity(float rotationVelocity)
+	{
+		this.rotationVelocity = rotationVelocity;
+	}
+
+	public float getRotation()
+	{
+		return rotation;
+	}
+
+	public void setRotation(float rotation)
+	{
+		this.rotation = rotation;
+	}
+
+	public int getFadeOutTime()
+	{
+		return fadeOutTime;
+	}
+
+	public void setFadeOutTime(int fadeOutTime)
+	{
+		this.fadeOutTime = fadeOutTime;
+	}
+
+	public boolean isFadingOut()
+	{
+		return fadingOut;
+	}
+
+	public void setFadingOut(boolean fadingOut)
+	{
+		this.fadingOut = fadingOut;
+	}
+
+	public float getParallax()
+	{
+		return parallax;
+	}
+
+	public void setParallax(float parallax)
+	{
+		this.parallax = parallax;
+	}
+
+	public void setColor(float r, float g, float b)
+	{
+		this.rComp = r;
+		this.gComp = g;
+		this.bComp = b;
+	}
+
+	public float getRComp()
+	{
+		return rComp;
+	}
+
+	public float getGComp()
+	{
+		return gComp;
+	}
+
+	public float getBComp()
+	{
+		return bComp;
+	}
+
+	public float getTargetAlpha()
+	{
+		return targetAlpha;
+	}
+
+	public void setTargetAlpha(float targetAlpha)
+	{
+		this.targetAlpha = targetAlpha;
+	}
+
+	public float getGravityFactor()
+	{
+		return gravityFactor;
+	}
+
+	public void setGravityFactor(float gravityFactor)
+	{
+		this.gravityFactor = gravityFactor;
+	}
+
+	public float getWindFactor()
+	{
+		return windFactor;
+	}
+
+	public void setWindFactor(float windFactor)
+	{
+		this.windFactor = windFactor;
+	}
+
+	public float getGrowthFactor()
+	{
+		return this.growthFactor;
+	}
+
+	public void setGrowthFactor(float growthFactor)
+	{
+		this.growthFactor = growthFactor;
+	}
+
+	public float getInitialX()
+	{
+		return initialX;
+	}
+
+	public void setInitialX(float initialX)
+	{
+		this.initialX = initialX;
+	}
+
+	public float getInitialY()
+	{
+		return initialY;
+	}
+
+	public void setInitialY(float initialY)
+	{
+		this.initialY = initialY;
+	}
+}

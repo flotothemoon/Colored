@@ -1,0 +1,85 @@
+package com.unlogical.colored.story;
+
+import org.newdawn.slick.GameContainer;
+import org.newdawn.slick.Graphics;
+
+import com.unlogical.colored.entity.EntityLiving;
+import com.unlogical.colored.entity.key.EntityKey;
+import com.unlogical.colored.entity.player.EntityPlayer;
+import com.unlogical.colored.level.Level;
+import com.unlogical.colored.terrain.tile.TileDoor;
+import com.unlogical.colored.terrain.tile.TileSpawnpoint;
+import com.unlogical.colored.terrain.tile.cage.TileCage;
+import com.unlogical.colored.terrain.tile.logical.TileLever;
+import com.unlogical.colored.util.IDeepCopyable;
+
+public abstract class CustomStoryHandler implements IDeepCopyable<CustomStoryHandler>
+{
+	protected Level level;
+	
+	public CustomStoryHandler(Level level)
+	{
+		this.level = level;
+	}
+	
+	public void onLevelInit()
+	{
+		
+	}
+	
+	public void onLevelEntry(boolean viaDoor, TileDoor door, TileSpawnpoint spawnpoint)
+	{
+		
+	}
+	
+	public void onLevelExit(TileDoor door)
+	{
+
+	}
+	
+	public void onPlayerMoved(EntityPlayer player)
+	{
+		
+	}
+	
+	public void onLeverPulled(TileLever lever, EntityPlayer interactor)
+	{
+		
+	}
+	
+	public void onKeyPickup(EntityKey key, EntityLiving interactor)
+	{
+		
+	}
+	
+	public void onKeyUsage(EntityKey key, EntityLiving interactor)
+	{
+		
+	}
+	
+	public void onKeyDropped(EntityKey key, EntityLiving interactor)
+	{
+		
+	}
+	
+	public void onCageOpened(TileCage cage, int levelOpenedCages, int levelTotalCages)
+	{
+		
+	}
+	
+	public void update(GameContainer container, int delta)
+	{
+		
+	}
+	
+	public void render(GameContainer container, Graphics g)
+	{
+		
+	}
+	
+	@Override
+	public boolean shouldCopy()
+	{
+		return true;
+	}
+}

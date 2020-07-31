@@ -1,0 +1,1596 @@
+package com.unlogical.linked.terrain.tile;
+
+import java.util.Random;
+import java.util.Set;
+
+import org.newdawn.slick.Color;
+import org.newdawn.slick.GameContainer;
+import org.newdawn.slick.Graphics;
+import org.newdawn.slick.geom.Vector2f;
+
+import com.unlogical.linked.collision.Hitbox;
+import com.unlogical.linked.configuration.Resolutions;
+import com.unlogical.linked.level.Level;
+import com.unlogical.linked.level.LevelType;
+import com.unlogical.linked.particle.AttractorConfiguration;
+import com.unlogical.linked.particle.EmitterType;
+import com.unlogical.linked.particle.ParticleEmitter;
+import com.unlogical.linked.terrain.TerrainObject;
+import com.unlogical.linked.terrain.TileType;
+import com.unlogical.linked.terrain.property.TileProperty;
+import com.unlogical.linked.terrain.tile.cage.TileWoodenCage;
+import com.unlogical.linked.terrain.tile.cannon.TileCannon;
+import com.unlogical.linked.terrain.tile.logical.TileKeyGate;
+import com.unlogical.linked.terrain.tile.logical.TileLever;
+import com.unlogical.linked.terrain.tile.logical.TileLeverGate;
+import com.unlogical.linked.terrain.tile.platform.TileCloudPlatform;
+import com.unlogical.linked.terrain.tile.platform.TileMarioPlatform;
+import com.unlogical.linked.terrain.tile.platform.TilePlatform;
+import com.unlogical.linked.terrain.tile.properties.ITileBlockedFromAbove;
+import com.unlogical.linked.terrain.tile.properties.ITileInteractable;
+import com.unlogical.linked.terrain.tile.properties.ITileIntersectionNotifier;
+import com.unlogical.linked.terrain.tile.properties.ITileMirrorable;
+import com.unlogical.linked.terrain.tile.properties.ITileMoveable;
+import com.unlogical.linked.terrain.tile.properties.ITileReceiver;
+import com.unlogical.linked.terrain.tile.properties.ITileSender;
+import com.unlogical.linked.terrain.tile.properties.ITileTriggerable;
+import com.unlogical.linked.util.ColorHelper;
+import com.unlogical.linked.util.Dimension;
+import com.unlogical.linked.util.GameObject;
+import com.unlogical.linked.util.ICopyable;
+import com.unlogical.linked.util.IShareable;
+import com.unlogical.linked.util.LevelObject;
+import com.unlogical.linked.util.ScheduledEvent;
+import com.unlogical.linked.util.TimeStepHandler;
+
+public abstract strictfp class Tile extends TerrainObject implements ICopyable<Tile>, IShareable<Tile>
+{
+	public static final int MAX_BORDER_WIDTH = 15;
+	public static final int MIN_BORDER_WIDTH = 5;
+
+	public static final Color borderColor = new Color(1.0f, 0.84f, 0.0f, 0.41f);
+	public static final Color hoverColor = new Color(1.0f, 0.92f, 0.0f, 0.6f);
+	public static final Color blockedColor = new Color(1.0f, 0.6f, 0.0f, 0.15f);
+
+	protected int receivePort = -1;
+	protected int sendPort = -1;
+	protected int renderPriority = 1;
+
+	protected boolean automaticHitbox = true;
+	protected boolean intersectionNotifier;
+	protected boolean gravityActive;
+	protected boolean moving;
+	protected boolean blocksDimensionTravel;
+	protected boolean hasAttractableEmitters;
+	protected boolean timeEffected = true;
+	protected boolean sending;
+
+	private boolean triggered;
+	private boolean mirrorable;
+	private boolean leftConnectionLock;
+	private boolean rightConnectionLock;
+
+	private float latestDelta;
+
+	protected long age;
+
+	private Hitbox[] borders;
+
+	protected Tile mirroredTile;
+
+	private Tile leftConnectedTile;
+	private Tile rightConnectedTile;
+
+	public Tile(TileType type, String metadata, int innerType, float rotation, Vector2f position, Level level, Dimension dimension, TileProperty properties, boolean allowMirrors)
+	{
+		super(type, innerType, position, level, properties, dimension);
+
+		this.dimension = dimension;
+		this.metadata = metadata;
+
+		this.intersectionNotifier = this instanceof ITileIntersectionNotifier;
+
+		if (rotation != this.rotation)
+		{
+			this.setRotation(rotation);
+		}
+
+		this.readMetadata();
+
+		this.mirrorable = this instanceof ITileMirrorable;
+		this.dimensionUnique = mirrorable;
+
+		if (shouldCreateMirror(allowMirrors))
+		{
+			createMirror(level.getLevelType());
+		}
+
+		this.checkResized();
+	}
+
+	public void createMirror(LevelType levelType)
+	{
+		this.mirroredTile = Tile.createTile(this.type, this.metadata, innerType, 0.0f, position.copy(), level, Dimension.SHADOW, properties.copy(), true);
+		this.mirroredTile.setHidden(this.hidden);
+		this.mirroredTile.setWidth(this.hitbox.getRawWidth());
+		this.mirroredTile.setHeight(this.hitbox.getRawHeight());
+		this.mirroredTile.setRotation(this.rotation);
+		this.mirroredTile.mirroredTile = this;
+
+		level.addTile(this.mirroredTile);
+	}
+
+	public final boolean shouldCreateMirror(boolean allowMirrors)
+	{
+		return level.shouldCreateMirrors() && allowMirrors && this.dimension == Dimension.LIGHT && mirrorable && !shared;
+	}
+
+	@Override
+	public LevelObject getMirror()
+	{
+		return this.mirroredTile;
+	}
+
+	public void init()
+	{
+		checkResized();
+
+		initConnections();
+
+		if (this.hasMirror() && this.dimension == Dimension.LIGHT)
+		{
+			this.initMirror(this.mirroredTile, level.getType());
+		}
+	}
+
+	public void initConnections()
+	{
+		if (this.isBlocked())
+		{
+			updateHitbox();
+
+			this.hitbox.findTopLeftIndex();
+
+			this.hitbox.setConnectedLeft(false);
+			this.hitbox.setConnectedRight(false);
+
+			this.hitbox.setRoughLeft(false);
+			this.hitbox.setRoughRight(false);
+
+			float[] points = this.hitbox.getPoints();
+
+			// so.. so... sorry :(
+			for (Tile tile : level.getTiles())
+			{
+				if (this != tile && tile.isBlocked() && (this.inSameDimension(tile) || !tile.mirrorable || !this.mirrorable))
+				{
+					if (!(this.hitbox.getMaxX() < tile.hitbox.getMinX() || this.hitbox.getMinX() > tile.hitbox.getMaxX() || this.hitbox.getMaxY() < tile.getHitbox().getMinY() || this.hitbox.getMinY() > tile.getHitbox().getMaxY()))
+					{
+						float[] otherPoints = tile.getHitbox().getPoints();
+
+						for (int i = 0; i < points.length; i += 2)
+						{
+							for (int j = 0; j < tile.getHitbox().getPoints().length; j += 2)
+							{
+								if (points[i + 1] != this.hitbox.getMaxY() && (i == this.hitbox.getTopLeftIndex() || i == this.hitbox.getSecondPointIndex()) && otherPoints[j + 1] != tile.hitbox.getMaxY())
+								{
+									float horizontalDifference = points[i] - tile.getHitbox().getPoints()[j];
+
+									if (points[i + 1] == otherPoints[j + 1] || (isMoveable() || tile.isMoveable()) && Math.abs(points[i + 1] - otherPoints[j + 1]) < 1.0f)
+									{
+										if (this.hitbox.getCenterX() < tile.hitbox.getCenterX() && (horizontalDifference == 0.0f || ((isMoveable() || tile.isMoveable()) && horizontalDifference > 0.0f && horizontalDifference < 5.0f)))
+										{
+											float rightRotation = (float) (Math.toDegrees(Math.atan((otherPoints[tile.hitbox.nextPoint(j) + 1] - otherPoints[j + 1]) / (otherPoints[tile.hitbox.nextPoint(j)] - otherPoints[j]))));
+											float ownRotation = (float) (Math.toDegrees(Math.atan((points[i + 1] - points[this.hitbox.nextPoint(i, 3) + 1]) / (points[i] - points[this.hitbox.nextPoint(i, 3)]))));
+
+											if (Math.abs(rightRotation) < 45 && Math.abs(ownRotation) < 45)
+											{
+												this.hitbox.setConnectedRight(true);
+												this.hitbox.setHitboxRight(tile.hitbox);
+
+												this.hitbox.setTopLeftIndex(this.hitbox.previousPoint(i));
+
+												this.rightConnectedTile = tile;
+
+												float leftDifference = points[i + 1] - points[this.hitbox.nextPoint(i, 3) + 1];
+												float rightDifference = otherPoints[tile.hitbox.nextPoint(j) + 1] - otherPoints[j + 1];
+
+												if (leftDifference < 0 ^ rightDifference < 0 && leftDifference != 0.0f && rightDifference != 0.0f)
+												{
+													this.hitbox.setRoughRight(true);
+												}
+											}
+										}
+										else if (this.hitbox.getCenterX() > tile.hitbox.getCenterX() && (horizontalDifference == 0.0f || ((isMoveable() || tile.isMoveable()) && horizontalDifference < 0.0f && horizontalDifference > -5.0f)))
+										{
+											float leftRotation = (float) (Math.toDegrees(Math.atan((otherPoints[tile.hitbox.nextPoint(j, 3) + 1] - otherPoints[j + 1]) / (otherPoints[tile.hitbox.nextPoint(j, 3)] - otherPoints[j]))));
+											float ownRotation = (float) (Math.toDegrees(Math.atan((points[this.hitbox.nextPoint(i) + 1] - points[i + 1]) / (points[this.hitbox.nextPoint(i)] - points[i]))));
+
+											if (Math.abs(ownRotation) < 45 && Math.abs(leftRotation) < 45)
+											{
+												this.hitbox.setConnectedLeft(true);
+												this.hitbox.setHitboxLeft(tile.hitbox);
+
+												this.hitbox.setTopLeftIndex(i);
+
+												this.leftConnectedTile = tile;
+
+												float leftDifference = otherPoints[j + 1] - otherPoints[tile.hitbox.nextPoint(j, 3) + 1];
+												float rightDifference = points[tile.hitbox.nextPoint(i) + 1] - points[i + 1];
+
+												if (leftDifference < 0 ^ rightDifference < 0 && leftDifference != 0.f && rightDifference != 0.0f)
+												{
+													this.hitbox.setRoughLeft(true);
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	public static Tile createDefaultTile(TileType type, Vector2f position, Level level)
+	{
+		return Tile.createTile(type, "", 0, 0, position, level, Dimension.LIGHT, TileType.getProperty(type).copy(), true);
+	}
+
+	public Tile copy()
+	{
+		this.writeMetadata();
+
+		Tile copy = Tile.createTile(this.type, this.metadata, this.innerType, 0.0f, this.position.copy(), this.level, this.dimension, this.properties.copy(), false);
+
+		copy.updateInnerType();
+		copy.setWidth(this.hitbox.getRawWidth());
+		copy.setHeight(this.hitbox.getRawHeight());
+		copy.setRotation(this.rotation);
+		copy.setShared(this.shared);
+		copy.setTimeEffected(this.timeEffected);
+		copy.setBlocksDimensionTravel(this.blocksDimensionTravel);
+		copy.readMetadata();
+
+		return copy;
+	}
+
+	public void initMirror(Tile mirroredTile, LevelType levelType)
+	{
+
+	}
+
+	public void setTimeEffected(boolean timeEffected)
+	{
+		if (this.timeEffected ^ timeEffected)
+		{
+			this.timeEffected = timeEffected;
+
+			if (this.timeEffected)
+			{
+				if (this.isEmitterOnSurface())
+				{
+					this.removeEmitter(EmitterType.TIME_RESISTANT_SURFACE, this.dimension);
+					this.removeEmitter(EmitterType.TIME_RESISTANT_SURFACE, this.dimension.getOpposite());
+				}
+				else
+				{
+					this.removeEmitter(EmitterType.TIME_RESISTANT_AREA, this.dimension);
+					this.removeEmitter(EmitterType.TIME_RESISTANT_AREA, this.dimension.getOpposite());
+				}
+			}
+			else
+			{
+				if (this.isEmitterOnSurface())
+				{
+					this.addEmitter(EmitterType.TIME_RESISTANT_SURFACE, this.dimension, (int) (this.hitbox.getRawWidth()), (int) (this.hitbox.getRawHeight()));
+				}
+				else
+				{
+					this.addEmitter(EmitterType.TIME_RESISTANT_AREA, this.dimension, (int) (this.hitbox.getRawWidth()), (int) (this.hitbox.getRawHeight()));
+				}
+			}
+		}
+	}
+
+	@Override
+	public void onSharingChanged()
+	{
+		if (this.shared)
+		{
+			this.removeMirror();
+			this.addEmitter(EmitterType.SHARED, this.dimension, (int) (this.hitbox.getRawWidth()), (int) (this.hitbox.getRawHeight()));
+		}
+		else
+		{
+			this.createMirror(level.getLevelType());
+			this.mirroredTile.init();
+			this.initMirror(this.mirroredTile, level.getLevelType());
+			this.removeEmitter(EmitterType.SHARED, this.dimension);
+		}
+	}
+
+	public void setBlocksDimensionTravel(boolean blocksDimensionTravel)
+	{
+		if (this.blocksDimensionTravel == blocksDimensionTravel ? false : ((this.blocksDimensionTravel = blocksDimensionTravel) || true) && canBlockDimensionTravel())
+		{
+			if (this.blocksDimensionTravel)
+			{
+				if (this.isEmitterOnSurface())
+				{
+					this.addEmitter(EmitterType.BLOCKED_SURFACE, this.dimension, (int) (this.hitbox.getRawWidth()), (int) (this.hitbox.getRawHeight()));
+				}
+				else
+				{
+					this.addEmitter(EmitterType.BLOCKED_AREA, this.dimension, (int) (this.hitbox.getRawWidth()), (int) (this.hitbox.getRawHeight()));
+				}
+			}
+			else
+			{
+				if (this.isEmitterOnSurface())
+				{
+					this.removeEmitter(EmitterType.BLOCKED_SURFACE, this.dimension);
+					this.removeEmitter(EmitterType.BLOCKED_SURFACE, this.dimension.getOpposite());
+				}
+				else
+				{
+					this.removeEmitter(EmitterType.BLOCKED_AREA, this.dimension);
+					this.removeEmitter(EmitterType.BLOCKED_AREA, this.dimension.getOpposite());
+				}
+			}
+		}
+	}
+
+	protected boolean canBlockDimensionTravel()
+	{
+		return true;
+	}
+
+	@Override
+	protected ParticleEmitter addEmitter(EmitterType type, Dimension dimension, int width, int height, int maxParticles)
+	{
+		if (type.useAttractors)
+		{
+			hasAttractableEmitters = true;
+		}
+
+		ParticleEmitter emitter = super.addEmitter(type, dimension, width, height, maxParticles);
+
+		if (level.shouldCreateMirrors() && !this.mirrorable)
+		{
+			super.addEmitter(type, dimension.getOpposite(), width, height, maxParticles);
+		}
+
+		return emitter;
+	}
+
+	@Override
+	protected void removeEmitter(EmitterType type, Dimension dimension)
+	{
+		super.removeEmitter(type, dimension);
+
+		checkAttractableEmitters();
+	}
+
+	public void addAttractor(Hitbox hitbox, AttractorConfiguration configuration)
+	{
+		if (hasAttractableEmitters)
+		{
+			for (EmitterType type : particleEffects.keySet())
+			{
+				for (ParticleEmitter emitter : particleEffects.get(type))
+				{
+					if (emitter.getType().useAttractors)
+					{
+						emitter.addAttractor(hitbox, configuration);
+					}
+				}
+			}
+		}
+	}
+
+	public void removeAttractor(Hitbox hitbox)
+	{
+		if (hasAttractableEmitters)
+		{
+			for (EmitterType type : particleEffects.keySet())
+			{
+				for (ParticleEmitter emitter : particleEffects.get(type))
+				{
+					if (emitter.getType().useAttractors)
+					{
+						emitter.removeAttractor(hitbox);
+					}
+				}
+			}
+		}
+	}
+
+	protected void checkAttractableEmitters()
+	{
+		hasAttractableEmitters = false;
+
+		for (EmitterType type : particleEffects.keySet())
+		{
+			for (ParticleEmitter emitter : particleEffects.get(type))
+			{
+				if (emitter.getType().useAttractors)
+				{
+					hasAttractableEmitters = true;
+
+					return;
+				}
+			}
+		}
+	}
+
+	public boolean hasAttractableEmitters()
+	{
+		return hasAttractableEmitters;
+	}
+
+	public void tryMove(Vector2f distance)
+	{
+		if (distance.x > 0)
+		{
+			if (!collidedRight)
+			{
+				if (hitbox.canMoveRight(distance.x))
+				{
+					this.setX((position.x + distance.x));
+				}
+				else
+				{
+					this.setX((position.x + hitbox.getDistanceToBlockRight()));
+					distance.x = hitbox.getDistanceToBlockRight();
+				}
+			}
+		}
+		else if (distance.x < 0)
+		{
+			if (!collidedLeft)
+			{
+				if (hitbox.canMoveLeft(-distance.x))
+				{
+					this.setX((position.x + distance.x));
+				}
+				else
+				{
+					this.setX((position.x - hitbox.getDistanceToBlockLeft()));
+					distance.x = -hitbox.getDistanceToBlockLeft();
+				}
+			}
+		}
+
+		if (distance.y > 0)
+		{
+			if (!collidedBelow || (hitbox.isLeftBottom() ^ hitbox.isRightBottom()))
+			{
+				float distanceToBlockBelow = 0.0f;
+
+				if (distance.x > 0 && hitbox.getLeftAngle() != 0)
+				{
+					distanceToBlockBelow = hitbox.getDistanceToBlockBelowRight();
+				}
+				else if (distance.x < 0 && hitbox.getRightAngle() != 0)
+				{
+					distanceToBlockBelow = hitbox.getDistanceToBlockBelowLeft();
+				}
+				else
+				{
+					distanceToBlockBelow = hitbox.getDistanceToBlockBelow();
+				}
+
+				if (!(hitbox.isCheckedBelowLeft() || hitbox.isCheckedBelowRight()) || distance.y <= distanceToBlockBelow)
+				{
+					this.setY(position.y + distance.y);
+				}
+				else
+				{
+					this.setY((position.y + distanceToBlockBelow));
+
+					this.collidedBelow = true;
+					this.gravityActive = false;
+
+					distance.y = distanceToBlockBelow;
+				}
+			}
+		}
+		else if (distance.y < 0)
+		{
+			if (!collidedAbove)
+			{
+				if (hitbox.canMoveUp(-distance.y))
+				{
+					this.setY(this.position.y + distance.y);
+				}
+				else
+				{
+					this.setY((this.position.y - hitbox.getDistanceToBlockAbove()));
+					this.collidedAbove = true;
+
+					distance.y = -hitbox.getDistanceToBlockAbove();
+				}
+			}
+		}
+	}
+
+	public final void update(GameContainer container, float delta)
+	{
+		hitbox.resetCache();
+
+		this.latestDelta = delta;
+		this.age += delta;
+
+		collidedAbove = false;
+		collidedBelow = false;
+		collidedLeft = false;
+		collidedRight = false;
+
+		gravityActive = isGravityEffected();
+
+		if (collidesWithTerrain())
+		{
+			for (Tile tile : level.getTiles())
+			{
+				if (this != tile && tile != this.mirroredTile && isNearby(tile.getHitbox(), getAdditionalCheckDistance(tile.getVelocity())) && inSameDimension(tile))
+				{
+					if (isBlocked(tile, velocity))
+					{
+						if (stopOnCollisionWith(tile))
+						{
+							hitbox.checkCollision(tile.getHitbox(), getAdditionalCheckDistance(tile.getVelocity()), false);
+						}
+
+						if (this.hitbox.collides(tile.getHitbox(), false))
+						{
+							boolean beforeRight = this.collidedRight, beforeLeft = this.collidedLeft;
+							boolean beforeAbove = this.collidedAbove, beforeBelow = this.collidedBelow;
+
+							if (!(tile instanceof ITileBlockedFromAbove))
+							{
+								if (hitbox.collidedRight() && !(tile instanceof ITileMoveable && ((ITileMoveable) tile).isVerticallyMoveable() && tile.getHitbox().getMaxY() - this.hitbox.getMinY() < 1.0f))
+								{
+									collidedRight = true;
+								}
+
+								if (hitbox.collidedLeft() && !(tile instanceof ITileMoveable && ((ITileMoveable) tile).isVerticallyMoveable() && tile.getHitbox().getMaxY() - this.hitbox.getMinY() < 1.0f))
+								{
+									collidedLeft = true;
+								}
+
+								if (hitbox.collidedTop())
+								{
+									collidedAbove = true;
+								}
+							}
+
+							if (hitbox.collidedBottom())
+							{
+								collidedBelow = true;
+
+								gravityActive = false;
+							}
+
+							if (stopOnCollisionWith(tile))
+							{
+								if (collidedRight && velocity.x > 0.0f || collidedLeft && velocity.x < 0.0f)
+								{
+									velocity.x = 0.0f;
+								}
+
+								if (collidedAbove && velocity.y < 0.0f || collidedBelow && velocity.y > 0.0f)
+								{
+									velocity.y = 0.0f;
+								}
+							}
+							else
+							{
+								this.collidedLeft = beforeLeft;
+								this.collidedRight = beforeRight;
+								this.collidedAbove = beforeAbove;
+								this.collidedBelow = beforeBelow;
+							}
+						}
+					}
+				}
+			}
+		}
+
+		outOfMap = level.isOutOfMap(this.hitbox);
+
+		if (collidedBelow)
+		{
+			gravityActive = false;
+		}
+
+		if (gravityActive)
+		{
+			if (velocity.y < getMaxGravity())
+			{
+				velocity.y += getGravityFactor();
+			}
+			else
+			{
+				velocity.y = getMaxGravity();
+			}
+		}
+
+		if (Math.abs(velocity.x) < 0.0001f)
+		{
+			velocity.x = 0.0f;
+		}
+
+		if (Math.abs(velocity.y) < 0.0001f)
+		{
+			velocity.y = 0.0f;
+		}
+
+		oldVelocity.set(velocity.x, velocity.y);
+
+		onUpdate(delta, level.getRNG(this));
+
+		if (isAnimated())
+		{
+			updateAnimation(delta);
+		}
+
+		updateScheduledEvents();
+
+		if (level.getLevelType() == LevelType.FROZEN && shouldRecordRecentPositions())
+		{
+			updateFrameLimits(delta);
+		}
+
+		removeFinishedEmitters();
+		
+		if (this instanceof ITileMoveable)
+		{
+			movingDistance.set((((velocity.x + oldVelocity.x) / 2.0f) + additionalVelocity.x) * delta, (((velocity.y + oldVelocity.y) / 2.0f) + additionalVelocity.y) * delta);
+
+			float absBeforePositionX = position.x - level.getCameraOffset().x;
+			float absBeforePositionY = position.y - level.getCameraOffset().y;
+
+			applyFrameValues(delta, 0.0f, 0.0f);
+
+			if ((level.getType() != LevelType.TIME_TRAVEL || this.shared || this.dimension == Dimension.LIGHT) && shouldMove())
+			{
+				if (movingDistance.length() != 0.0f)
+				{
+					lockConnections();
+
+					tryMove(movingDistance);
+
+					if (movingDistance.length() != 0.0f)
+					{
+						updateConnections();
+					}
+				}
+			}
+
+			if ((level.getType() == LevelType.TIME_TRAVEL && this.dimension == Dimension.LIGHT) || (level.getLevelType() == LevelType.FROZEN && shouldRecordRecentPositions() && delta > 0.0f))
+			{
+				updateFrameRecords(delta, absBeforePositionX, absBeforePositionY);
+			}
+
+			if (movingDistance.length() > 0.0f)
+			{
+				moving = true;
+			}
+
+			if (moving && this.particleEffects != null)
+			{
+				for (Set<ParticleEmitter> emitterSet : this.particleEffects.values())
+				{
+					for (ParticleEmitter emitter : emitterSet)
+					{
+						emitter.moveParticles(movingDistance.x, movingDistance.y);
+					}
+				}
+			}
+
+			if (this.outOfMap)
+			{
+				level.removeTile(this);
+			}
+		}
+
+		if (automaticHitbox)
+		{
+			updateHitbox();
+		}
+
+		if (this.dimensionUnique && this.dimension == level.getForegroundDimension())
+		{
+			updateMirror(delta);
+		}
+	}
+
+	protected boolean stopOnCollisionWith(Tile tile)
+	{
+		return true;
+	}
+
+	@Override
+	protected void preDraw(Color color, Graphics g)
+	{
+		drawEmitters(false, g);
+	}
+
+	@Override
+	protected void customDraw(Graphics g)
+	{
+		drawEmitters(true, g);
+	}
+
+	@Override
+	protected Color getDrawColor(Dimension dimension, Color colorBuffer)
+	{
+		if (!this.hasMirror() || this.position.x != this.mirroredTile.position.x || this.position.y != this.mirroredTile.position.y || (this instanceof ITileMirrorable && !((ITileMirrorable) this).renderStatic()))
+		{
+			return level.getDimensionColor(dimension);
+		}
+		else
+		{
+			ColorHelper.copy(level.getDimensionColor(dimension), colorBuffer);
+
+			colorBuffer.a = level.getWrapperAlpha(dimension);
+
+			return colorBuffer;
+		}
+	}
+
+	public void changeRotationTo(float rotation)
+	{
+		lockConnections();
+		this.setRotation(rotation);
+		updateConnections();
+	}
+
+	protected void lockConnections()
+	{
+		leftConnectionLock = this.hitbox.isConnectedLeft();
+		rightConnectionLock = this.hitbox.isConnectedRight();
+	}
+
+	protected void updateConnections()
+	{
+		this.initConnections();
+
+		if (leftConnectionLock ^ this.hitbox.isConnectedLeft())
+		{
+			leftConnectedTile.initConnections();
+		}
+
+		if (rightConnectionLock ^ this.hitbox.isConnectedRight())
+		{
+			rightConnectedTile.initConnections();
+		}
+	}
+
+	@Override
+	protected void onScheduledEvent(ScheduledEvent event)
+	{
+		if (event.type == GameObject.ENABLE_RENDERING_EVENT)
+		{
+			this.enabled = true;
+		}
+	}
+
+	protected boolean shouldRecord()
+	{
+		return level.getType() == LevelType.TIME_TRAVEL && this.dimension == Dimension.LIGHT && !this.shared;
+	}
+
+	protected boolean isBlocked(TerrainObject tile, Vector2f myVelocity)
+	{
+		if (tile.isBlocked())
+		{
+			if (tile instanceof ITileBlockedFromAbove)
+			{
+				return myVelocity.y >= 0.0f;
+			}
+			else
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	private final void updateMirror(float delta)
+	{
+
+	}
+
+	public boolean blocksOnStanding()
+	{
+		return this.properties.isBlocked() && blocksDimensionTravel;
+	}
+
+	public boolean blocksOnClimbing()
+	{
+		return this.properties.isClimbable() && blocksDimensionTravel;
+	}
+
+	public boolean shouldRecordRecentPositions()
+	{
+		return true;
+	}
+
+	public boolean shouldDrawRecentPositions()
+	{
+		return true;
+	}
+
+	public boolean isEmitterOnSurface()
+	{
+		return this.properties.isBlocked();
+	}
+
+	public abstract boolean shouldUpdate();
+
+	protected boolean collidesWithTerrain()
+	{
+		return false;
+	}
+
+	public void onUpdate(float delta, Random rng)
+	{
+
+	}
+
+	protected boolean shouldUseFriction()
+	{
+		return false;
+	}
+
+	protected float getFrictionFactor()
+	{
+		return 0.7f;
+	}
+
+	protected boolean isGravityEffected()
+	{
+		return false;
+	}
+
+	protected float getGravityFactor()
+	{
+		return 0.015f;
+	}
+
+	protected float getMaxGravity()
+	{
+		return 0.6f;
+	}
+
+	public final void trigger(boolean triggered)
+	{
+		if (this instanceof ITileReceiver && triggered != this.triggered)
+		{
+			this.setTriggered(triggered);
+
+			if (triggered)
+			{
+				((ITileReceiver) this).onTrigger();
+			}
+			else
+			{
+				((ITileReceiver) this).onUntrigger();
+			}
+		}
+	}
+
+	public void trigger()
+	{
+		startSending(sendPort);
+	}
+
+	protected final void startSending(int sendPort)
+	{
+		if (sendPort >= 0 && sendPort <= ITileTriggerable.TOTAL_PORTS)
+		{
+			this.sending = true;
+
+			for (Tile tile : level.getTiles())
+			{
+				if (this.inSameDimension(tile) && tile.isSender() && tile.getSendPort() == sendPort)
+				{
+					((ITileSender) tile).onPortStateChanged(true);
+				}
+			}
+
+			for (Tile tile : level.getTiles())
+			{
+				if (this.inSameDimension(tile) && tile.isReceiver() && tile.getReceivePort() == sendPort)
+				{
+					tile.trigger(true);
+				}
+			}
+		}
+	}
+
+	protected final void startSending()
+	{
+		startSending(this.sendPort);
+	}
+
+	protected final void stopSending()
+	{
+		this.sending = false;
+
+		for (Tile tile : level.getTiles())
+		{
+			if (this.inSameDimension(tile) && tile.isSender() && tile.getSendPort() == sendPort)
+			{
+				((ITileSender) tile).onPortStateChanged(false);
+			}
+		}
+
+		for (Tile tile : level.getTiles())
+		{
+			if (this.inSameDimension(tile) && tile.isReceiver() && tile.getReceivePort() == sendPort)
+			{
+				tile.listen();
+			}
+		}
+	}
+
+	public void listen()
+	{
+		trigger(listen(receivePort));
+	}
+
+	protected boolean listen(int receivePort)
+	{
+		if (this instanceof ITileTriggerable)
+		{
+			if (receivePort >= 0 && receivePort <= ITileTriggerable.TOTAL_PORTS)
+			{
+				for (Tile tile : level.getTiles())
+				{
+					if (this.inSameDimension(tile) && tile instanceof ITileSender)
+					{
+						if (tile.isTriggering() && tile.getSendPort() == receivePort)
+						{
+							return true;
+						}
+					}
+				}
+			}
+		}
+
+		return false;
+	}
+
+	public int getPort()
+	{
+		return this instanceof ITileSender ? sendPort : receivePort;
+	}
+
+	public void setPort(int port)
+	{
+		if (this instanceof ITileSender)
+		{
+			this.sendPort = port;
+		}
+		else
+		{
+			this.receivePort = port;
+		}
+	}
+
+	protected boolean isNearby(Hitbox other, float additionalCheckDistance)
+	{
+		if (other.getMinX() > hitbox.getMaxX() + Hitbox.MIN_CHECK_DISTANCE + additionalCheckDistance || other.getMaxX() < hitbox.getMinX() - (Hitbox.MIN_CHECK_DISTANCE + additionalCheckDistance))
+		{
+			return false;
+		}
+
+		if (other.getMinY() > hitbox.getMaxY() + Hitbox.MIN_CHECK_DISTANCE + additionalCheckDistance || other.getMaxY() < hitbox.getMinY() - (Hitbox.MIN_CHECK_DISTANCE + additionalCheckDistance))
+		{
+			return false;
+		}
+
+		return true;
+	}
+
+	protected float getAdditionalCheckDistance(Vector2f otherVelocity)
+	{
+		return this.velocity.length() + otherVelocity.length() * 20;
+	}
+
+	public static Tile createTile(TileType type, String metadata, int innerType, float rotation, Vector2f position, Level level, Dimension dimension, TileProperty properties, boolean allowMirrors)
+	{
+		if (type == TileType.BASIC_TILE)
+		{
+			return new TileBase(type, metadata, innerType, rotation, position, level, dimension, properties, allowMirrors);
+		}
+		else if (type == TileType.SPAWNPOINT)
+		{
+			return new TileSpawnpoint(type, metadata, innerType, rotation, position, level, dimension, properties, allowMirrors);
+		}
+		else if (type == TileType.CAMERABLOCK)
+		{
+			return new TileCameraControl(type, metadata, innerType, rotation, position, level, dimension, properties, allowMirrors);
+		}
+		else if (type == TileType.BASIC_BLOCKEDABOVE)
+		{
+			return new TileBlockedAbove(type, metadata, innerType, rotation, position, level, dimension, properties, allowMirrors);
+		}
+		else if (type == TileType.GRID)
+		{
+			return new TileGrid(type, metadata, innerType, rotation, position, level, dimension, properties, allowMirrors);
+		}
+		else if (type == TileType.LADDER)
+		{
+			return new TileLadder(type, metadata, innerType, rotation, position, level, dimension, properties, allowMirrors);
+		}
+		else if (type == TileType.LEVER)
+		{
+			return new TileLever(type, metadata, innerType, rotation, position, level, dimension, properties, allowMirrors);
+		}
+		else if (type == TileType.CONVEYOR_BELT)
+		{
+			return new TileConveyorBelt(type, metadata, innerType, rotation, position, level, dimension, properties, allowMirrors);
+		}
+		else if (type == TileType.PLATFORM)
+		{
+			return new TilePlatform(type, metadata, innerType, rotation, position, level, dimension, properties, allowMirrors);
+		}
+		else if (type == TileType.CLOUDPLATFORM)
+		{
+			return new TileCloudPlatform(type, metadata, innerType, rotation, position, level, dimension, properties, allowMirrors);
+		}
+		else if (type == TileType.MARIOPLATFORM)
+		{
+			return new TileMarioPlatform(type, metadata, innerType, rotation, position, level, dimension, properties, allowMirrors);
+		}
+		else if (type == TileType.SPIKES)
+		{
+			return new TileSpike(type, metadata, innerType, rotation, position, level, dimension, properties, allowMirrors);
+		}
+		else if (type == TileType.KEYGATE)
+		{
+			return new TileKeyGate(type, metadata, innerType, rotation, position, level, dimension, properties, allowMirrors);
+		}
+		else if (type == TileType.LEVERGATE)
+		{
+			return new TileLeverGate(type, metadata, innerType, rotation, position, level, dimension, properties, allowMirrors);
+		}
+		else if (type == TileType.DOOR)
+		{
+			return new TileDoor(type, metadata, innerType, rotation, position, level, dimension, properties, allowMirrors);
+		}
+		else if (type == TileType.WOODEN_CAGE)
+		{
+			return new TileWoodenCage(type, metadata, innerType, rotation, position, level, dimension, properties, allowMirrors);
+		}
+		else if (type == TileType.CANNON)
+		{
+			return new TileCannon(type, metadata, innerType, rotation, position, level, dimension, properties, allowMirrors);
+		}
+		else if (type == TileType.LIGHT)
+		{
+			return new TileLight(type, metadata, innerType, rotation, position, level, dimension, properties, allowMirrors);
+		}
+
+		return null;
+	}
+
+	public void writeMetadata()
+	{
+
+	}
+
+	public void readMetadata()
+	{
+
+	}
+
+	public boolean hasBorders()
+	{
+		return this.borders != null;
+	}
+
+	public final void createBorders()
+	{
+		if (!this.hasBorders())
+		{
+			this.borders = new Hitbox[4];
+
+			this.borders[0] = new Hitbox(0.0f, 0.0f, 0.0f, 0.0f);
+			this.borders[1] = new Hitbox(0.0f, 0.0f, 0.0f, 0.0f);
+			this.borders[2] = new Hitbox(0.0f, 0.0f, 0.0f, 0.0f);
+			this.borders[3] = new Hitbox(0.0f, 0.0f, 0.0f, 0.0f);
+
+			this.updateBorders();
+		}
+	}
+
+	public void updateBorders()
+	{
+		if (!this.hasBorders())
+		{
+			this.createBorders();
+		}
+
+		float borderFactor = Math.min(this.properties.isHorizontalResizable() ? this.hitbox.getRawWidth() : Resolutions.TILE_SIZE * 3, this.properties.isVerticalResizable() ? this.hitbox.getRawHeight() : Resolutions.TILE_SIZE * 3) / (Resolutions.TILE_SIZE * 3);
+
+		if (borderFactor > 1.0f)
+		{
+			borderFactor = 1.0f;
+		}
+
+		float borderWidth = MIN_BORDER_WIDTH + (MAX_BORDER_WIDTH - MIN_BORDER_WIDTH) * borderFactor;
+
+		this.borders[0].set(this.position.x, this.position.y, this.hitbox.getRawWidth(), borderWidth);
+		this.borders[1].set(this.position.x + this.hitbox.getRawWidth() - borderWidth, this.position.y, borderWidth, this.hitbox.getRawHeight());
+		this.borders[2].set(this.position.x, this.position.y + this.hitbox.getRawHeight() - borderWidth, this.hitbox.getRawWidth(), borderWidth);
+		this.borders[3].set(this.position.x, this.position.y, borderWidth, this.hitbox.getRawHeight());
+
+		Hitbox.rotate(this.borders, getCenterOfRotationX(), getCenterOfRotationY(), this.rotation);
+	}
+
+	public void mouseDragged(int oldX, int oldY, int newX, int newY, float mouseXChange, float mouseYChange)
+	{
+		float minSize = Resolutions.TILE_SIZE / 2.0f;
+
+		Vector2f absMouseChange = new Vector2f(mouseXChange, mouseYChange);
+		absMouseChange.setTheta(absMouseChange.getTheta() - rotation);
+
+		mouseXChange = absMouseChange.x;
+		mouseYChange = absMouseChange.y;
+
+		float actRotation = this.rotation;
+
+		boolean rotateTop = this.properties.isVerticalResizable() && this.borders[0].contains(oldX, oldY) && (this.hitbox.getRawHeight() - mouseYChange >= minSize || mouseYChange < 0);
+		boolean rotateRight = this.properties.isHorizontalResizable() && this.borders[1].contains(oldX, oldY) && (this.hitbox.getRawWidth() - mouseXChange >= minSize || mouseXChange > 0);
+		boolean rotateBottom = this.properties.isVerticalResizable() && this.borders[2].contains(oldX, oldY) && (this.hitbox.getRawHeight() - mouseYChange >= minSize || mouseYChange > 0);
+		boolean rotateLeft = this.properties.isHorizontalResizable() && this.borders[3].contains(oldX, oldY) && (this.hitbox.getRawWidth() - mouseXChange >= minSize || mouseXChange < 0);
+
+		float[] points = this.hitbox.getPoints();
+
+		int pIndex = -1;
+
+		if (rotateTop)
+		{
+			if (rotateRight)
+			{
+				pIndex = 1;
+			}
+			else
+			{
+				pIndex = 0;
+			}
+		}
+		else if (rotateBottom)
+		{
+			if (rotateRight)
+			{
+				pIndex = 2;
+			}
+			else if (rotateLeft)
+			{
+				pIndex = 3;
+			}
+			else
+			{
+				pIndex = 3;
+			}
+		}
+		else if (rotateRight)
+		{
+			pIndex = 1;
+		}
+		else if (rotateLeft)
+		{
+			pIndex = 0;
+		}
+
+		if (pIndex >= 0)
+		{
+			pIndex = (pIndex + points.length / 4) % (points.length / 2);
+
+			Vector2f referencePos = new Vector2f(points[pIndex * 2], points[pIndex * 2 + 1]);
+
+			this.setRotation(0.0f);
+
+			if (rotateTop)
+			{
+				this.adjustY(mouseYChange);
+				this.adjustHeight(-mouseYChange);
+			}
+
+			if (rotateRight)
+			{
+				this.adjustWidth(mouseXChange);
+			}
+
+			if (rotateBottom)
+			{
+				this.adjustHeight(mouseYChange);
+			}
+
+			if (rotateLeft)
+			{
+				this.adjustX(mouseXChange);
+				this.adjustWidth(-mouseXChange);
+			}
+
+			this.setRotation(actRotation);
+
+			Vector2f newReferencePos = new Vector2f(points[pIndex * 2], points[pIndex * 2 + 1]);
+
+			newReferencePos.sub(referencePos);
+
+			this.adjustX(-newReferencePos.x);
+			this.adjustY(-newReferencePos.y);
+
+			this.updateBorders();
+		}
+	}
+
+	public void drawBorders(GameContainer container, Graphics g)
+	{
+		for (int i = 0; i < borders.length; i++)
+		{
+			Hitbox border = borders[i];
+
+			if ((properties.isHorizontalResizable() && (i % 2 == 1)) || (properties.isVerticalResizable() && (i % 2 == 0)))
+			{
+				if (border.contains(container.getInput().getMouseX(), container.getInput().getMouseY()))
+				{
+					g.setColor(hoverColor);
+				}
+				else
+				{
+					g.setColor(borderColor);
+				}
+
+				g.fill(border);
+			}
+		}
+	}
+
+	public void adjustWidth(float widthChange)
+	{
+		this.setWidth(this.hitbox.getWidth() + widthChange);
+		this.hitbox.update();
+	}
+
+	public void adjustHeight(float heightChange)
+	{
+		this.setHeight(this.hitbox.getHeight() + heightChange);
+		this.hitbox.update();
+	}
+
+	public void setWidth(float width)
+	{
+		this.hitbox.setWidth(width);
+
+		checkResized();
+	}
+
+	public void setHeight(float height)
+	{
+		this.hitbox.setHeight(height);
+
+		checkResized();
+	}
+
+	public void checkResized()
+	{
+		this.resized = !this.hasTextures || (((int) (this.hitbox.getRawHeight())) != this.image.getHeight()) || (((int) (this.hitbox.getRawWidth())) != this.image.getWidth());
+	}
+
+	public boolean bordersContain(int mouseX, int mouseY)
+	{
+		for (int i = 0; i < borders.length; i++)
+		{
+			if (borders[i].contains(mouseX, mouseY) && (i % 2 == 1 && properties.isHorizontalResizable() || i % 2 == 0 && properties.isVerticalResizable()))
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	@Override
+	public void removeMirror()
+	{
+		if (this.hasMirror())
+		{
+			this.level.removeTile(this.mirroredTile);
+			this.mirroredTile = null;
+		}
+	}
+
+	@Override
+	protected boolean shouldCreateParticles()
+	{
+		return !reSimulating || !(this instanceof ITileMoveable) || this.moving;
+	}
+
+	@Override
+	protected boolean shouldCreateReSimulationParticles()
+	{
+		return this.isMoveable();
+	}
+
+	@Override
+	protected boolean canChangeOnReSimulation()
+	{
+		return this.isChangeable();
+	}
+
+	@Override
+	public boolean shouldReSimulate()
+	{
+		return this.isChangeable();
+	}
+
+	public void disconnectLeft(Tile tile)
+	{
+		this.hitbox.setConnectedLeft(false);
+		this.hitbox.setHitboxLeft(null);
+
+		this.leftConnectedTile = null;
+	}
+
+	public void disconnectRight(Tile tile)
+	{
+		this.hitbox.setConnectedRight(false);
+		this.hitbox.setHitboxRight(null);
+
+		this.rightConnectedTile = null;
+	}
+
+	@Override
+	protected final void onRotationChanged()
+	{
+		if (this.particleEffects != null)
+		{
+			for (Set<ParticleEmitter> emitterSet : this.particleEffects.values())
+			{
+				for (ParticleEmitter emitter : emitterSet)
+				{
+					emitter.getWrapper().setRotation(this.rotation);
+				}
+			}
+		}
+	}
+
+	@Override
+	public void setLevel(Level level)
+	{
+		if (level != this.level)
+		{
+			if (this.particleEffects != null)
+			{
+				for (Set<ParticleEmitter> emitterSet : this.particleEffects.values())
+				{
+					for (ParticleEmitter emitter : emitterSet)
+					{
+						this.level.removeParticleEmitter(emitter);
+						level.addParticleEmitter(emitter);
+					}
+				}
+			}
+
+			this.level = level;
+		}
+	}
+
+	@Override
+	public boolean shouldUseOriginalTextures()
+	{
+		return mirrorable;
+	}
+
+	public void resetPositionToStart()
+	{
+		this.setX(this.positionRecordX[TimeStepHandler.nextFrameStart] + level.getCameraOffset().x);
+		this.setY(this.positionRecordY[TimeStepHandler.nextFrameStart] + level.getCameraOffset().y);
+	}
+
+	public boolean shouldRenderInGame()
+	{
+		return true;
+	}
+
+	public float onRotationOverflow(float newRotation)
+	{
+		return 90.0f * (newRotation < 0 ? -1 : 1);
+	}
+
+	public boolean shouldMove()
+	{
+		return true;
+	}
+
+	public boolean entitiesBounceHorizontally()
+	{
+		return true;
+	}
+
+	public boolean hasMirror()
+	{
+		return this.mirroredTile != null;
+	}
+
+	public boolean isDimensionUnique()
+	{
+		return this.dimensionUnique;
+	}
+
+	public Vector2f getVelocity()
+	{
+		return velocity;
+	}
+
+	public void setVelocity(Vector2f velocity)
+	{
+		this.velocity = velocity;
+	}
+
+	public boolean isInteractable()
+	{
+		return this instanceof ITileInteractable;
+	}
+
+	public String getMetadata()
+	{
+		return metadata;
+	}
+
+	public void setMetadata(String metadata)
+	{
+		this.metadata = metadata;
+	}
+
+	public boolean isMoveable()
+	{
+		return this instanceof ITileMoveable;
+	}
+
+	public int getRenderPriority()
+	{
+		return renderPriority;
+	}
+
+	public void setRenderPriority(int renderPriority)
+	{
+		this.renderPriority = renderPriority;
+	}
+
+	public boolean isMoving()
+	{
+		return moving;
+	}
+
+	public boolean isSender()
+	{
+		return this instanceof ITileSender;
+	}
+
+	public boolean isReceiver()
+	{
+		return this instanceof ITileReceiver;
+	}
+
+	public boolean isTriggered()
+	{
+		return triggered;
+	}
+
+	public boolean isTriggering()
+	{
+		return sending;
+	}
+
+	public int getReceivePort()
+	{
+		return receivePort;
+	}
+
+	public int getSendPort()
+	{
+		return sendPort;
+	}
+
+	public float getWidth()
+	{
+		return this.hitbox.getWidth();
+	}
+
+	public float getHeight()
+	{
+		return this.hitbox.getHeight();
+	}
+
+	public Tile getMirroredTile()
+	{
+		return mirroredTile;
+	}
+
+	public boolean isIntersectionNotifier()
+	{
+		return intersectionNotifier;
+	}
+
+	public void setTriggered(boolean triggered)
+	{
+		this.triggered = triggered;
+	}
+
+	public boolean isOutOfMap()
+	{
+		return outOfMap;
+	}
+
+	public boolean isChangeable()
+	{
+		return mirrorable && ((ITileMirrorable) this).isReallyChangeable();
+	}
+
+	public boolean isCollidedLeft()
+	{
+		return collidedLeft;
+	}
+
+	public boolean isCollidedRight()
+	{
+		return collidedRight;
+	}
+
+	public Tile getLeftConnectedTile()
+	{
+		return leftConnectedTile;
+	}
+
+	public Tile getRightConnectedTile()
+	{
+		return rightConnectedTile;
+	}
+
+	public float getCenterX()
+	{
+		return this.hitbox.getCenterX();
+	}
+
+	public float getCenterY()
+	{
+		return this.hitbox.getCenterY();
+	}
+
+	public boolean blocksDimensionTravel()
+	{
+		return this.blocksDimensionTravel;
+	}
+
+	public boolean isTimeEffected()
+	{
+		return this.timeEffected && !level.ignoresTimeEffects();
+	}
+
+	public float getLatestDelta()
+	{
+		return this.latestDelta;
+	}
+
+	public void setMirroredTile(Tile mirroredTile)
+	{
+		this.mirroredTile = mirroredTile;
+	}
+
+	public boolean isRawTimeEffected()
+	{
+		return this.timeEffected;
+	}
+}

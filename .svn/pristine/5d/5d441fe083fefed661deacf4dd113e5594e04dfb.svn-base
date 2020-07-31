@@ -1,0 +1,102 @@
+package com.unlogical.linked.gui.button;
+
+import org.newdawn.slick.Color;
+import org.newdawn.slick.Graphics;
+import org.newdawn.slick.Image;
+import org.newdawn.slick.geom.RoundedRectangle;
+
+import com.unlogical.linked.GameLauncher;
+import com.unlogical.linked.gui.GUIItem;
+import com.unlogical.linked.gui.menu.Menu;
+import com.unlogical.linked.mapeditor.MapEditor;
+
+
+
+
+public abstract class ToolButton extends GUIItem
+{
+	private boolean selected;
+	private boolean available = true;
+	private Color notAvailable = new Color(0.2f, 0.2f, 0.3f, 0.5f);
+	private Color availableColor = new Color(0.5f, 0.5f, 0.5f, 0.5f);
+
+	public ToolButton(String name, Image image, int numberOfItems, int xPos, int yPos)
+	{
+		super(name, image, numberOfItems, xPos, yPos);
+	}
+
+	@Override
+	public void updateBox()
+	{
+		this.itemBox = new RoundedRectangle(xPos, yPos, this.img.getWidth() + borderWidth * 2, this.img.getHeight() + borderWidth * 2, 4);
+	}
+
+	@Override
+	public void render(float alphaFactor, Graphics g)
+	{
+		if (active)
+		{
+			g.setFont(GameLauncher.getFont());
+			
+			g.setColor(availableColor);
+			if (hovered)
+			{
+				g.setColor(Color.lightGray);
+			}
+			else if (selected)
+			{
+				g.setColor(Color.gray);
+			}
+			
+			if (!available)
+			{
+				g.setColor(notAvailable);
+			}
+			
+			g.fill(itemBox);
+
+			g.drawImage(img, xPos + borderWidth, yPos + borderWidth);
+
+			if (showNameOnHover && hovered)
+			{
+				g.setColor(MapEditor.panelColor);
+				g.fill(textBox);
+				g.setColor(Menu.UNSELECTED_COLOR);
+				
+				if (selected)
+				{
+					g.setColor(Menu.SELECTION_COLOR);
+				}
+				
+				g.drawString(name, (int) (textBox.getX() + borderWidth / 2), (int) (textBox.getY() + borderWidth / 2));
+			}
+
+			customRender(g);
+		}
+	}
+
+	public boolean isAvailable()
+	{
+		return available;
+	}
+
+	public void setAvailable(boolean available)
+	{
+		this.available = available;
+	}
+
+	@Override
+	public boolean isSelected()
+	{
+		return selected;
+	}
+
+	@Override
+	public void setSelected(boolean selected)
+	{
+		this.selected = selected;
+	}
+
+	@Override
+	public abstract void onClick();
+}

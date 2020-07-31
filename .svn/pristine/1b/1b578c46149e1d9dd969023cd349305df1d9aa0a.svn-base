@@ -1,0 +1,220 @@
+package com.unlogical.linked.terrain.tile.logical;
+
+import java.util.Map;
+import java.util.Random;
+
+import org.newdawn.slick.Image;
+import org.newdawn.slick.geom.Vector2f;
+
+import com.unlogical.linked.entity.Entity;
+import com.unlogical.linked.level.Level;
+import com.unlogical.linked.level.LevelType;
+import com.unlogical.linked.particle.EmitterType;
+import com.unlogical.linked.terrain.TileType;
+import com.unlogical.linked.terrain.property.TileProperty;
+import com.unlogical.linked.terrain.tile.Tile;
+import com.unlogical.linked.terrain.tile.properties.ITileIntersectionNotifier;
+import com.unlogical.linked.util.Dimension;
+import com.unlogical.linked.util.LevelObject;
+import com.unlogical.linked.util.ScheduledEvent;
+
+public abstract class TileGate extends Tile implements ITileIntersectionNotifier
+{
+	private static String OPEN = "open";
+	private static String CLOSE = "close";
+
+	protected boolean closed = true;
+	protected boolean inverted;
+	private boolean tryClose;
+	private boolean forceClose;
+
+	protected boolean containsEntity;
+
+	protected TileGate(TileType type, String metadata, int innerType, float rotation, Vector2f position, Level level, Dimension dimension, TileProperty properties, boolean allowMirrors)
+	{
+		super(type, metadata, innerType, rotation, position, level, dimension, properties, allowMirrors);
+
+		this.closed = this.innerType != 2;
+		this.properties.setBlocked(closed);
+		this.inverted = !this.closed;
+	}
+
+	@Override
+	public LevelObject deepCopy(Map<Object, Object> copiedReferences)
+	{
+		TileGate copy = (TileGate) super.deepCopy(copiedReferences);
+
+		copy.closed = this.closed;
+		copy.inverted = this.inverted;
+		copy.tryClose = this.tryClose;
+		copy.forceClose = this.forceClose;
+		copy.containsEntity = this.containsEntity;
+
+		return copy;
+	}
+
+	@Override
+	public void initMirror(Tile mirroredTile, LevelType levelType)
+	{
+		super.initMirror(mirroredTile, levelType);
+
+		TileGate mirror = (TileGate) mirroredTile;
+
+		if (levelType == LevelType.REVERSAL)
+		{
+			if (this.closed)
+			{
+				mirror.closed = false;
+				mirror.properties.setBlocked(false);
+				mirror.setInnerType(2);
+			}
+			else
+			{
+				mirror.closed = true;
+				mirror.properties.setBlocked(true);
+				mirror.setInnerType(0);
+			}
+		}
+	}
+
+	@Override
+	public void onUpdate(float delta, Random rng)
+	{
+		if (tryClose && close(forceClose))
+		{
+			tryClose = false;
+		}
+		
+		if (level.getType() == LevelType.FROZEN && transitioning)
+		{
+			if (this.lastImage <= 5 && !this.isBlocked())
+			{				
+				this.properties.setBlocked(true);
+			}
+		}
+
+		containsEntity = false;
+	}
+
+	@Override
+	public void onEntityIntersection(Entity entity)
+	{
+		containsEntity = true;
+	}   
+
+	public void open(boolean forceOpen, boolean syncMirror)
+	{
+		if ((closed && !transitioning) || forceOpen)
+		{
+			if (shouldRecord())
+			{
+				scheduleMirroredEvent(new ScheduledEvent(OPEN));
+			}
+
+			this.transitionAnimation(1, 2, false, !forceOpen);
+			closed = false;
+
+			if (level.getType() != LevelType.FROZEN)
+			{
+				properties.setBlocked(false);
+			}
+
+			if (level.getLevelType() == LevelType.REVERSAL && this.hasMirror() && syncMirror)
+			{
+				((TileGate) this.mirroredTile).close(true);
+			}
+		}
+	}
+
+	protected boolean close(boolean forceClose)
+	{
+		if ((!closed && !transitioning) || forceClose)
+		{
+			if (containsEntity)
+			{
+				tryClose = true;
+				this.forceClose = forceClose;
+			}
+			else
+			{
+				closed = true;
+
+				if (level.getType() != LevelType.FROZEN)
+				{					
+					properties.setBlocked(true);
+				}
+
+				transitionAnimation(1, 0, true, !forceClose);
+
+				if (shouldRecord())
+				{
+					scheduleMirroredEvent(new ScheduledEvent(CLOSE));
+				}
+
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	@Override
+	protected void onTransitionFinished(int transitionInnerType, int finalInnerType)
+	{
+		if (level.getType() == LevelType.FROZEN)
+		{
+			properties.setBlocked(finalInnerType == 0);
+		}
+	}
+
+	@Override
+	protected void onScheduledEvent(ScheduledEvent event)
+	{
+		if (event.type == OPEN)
+		{
+			open(true, true);
+		}
+		else if (event.type == CLOSE)
+		{
+			close(true);
+		}
+	}
+
+	@Override
+	public void onReSimulation()
+	{
+		super.onReSimulation();
+
+		if (!this.shared)
+		{
+			this.setInnerType(this.mirroredTile.getInnerType());
+			this.currentImage = ((TileGate) this.mirroredTile).currentImage;
+			this.transitioning = ((TileGate) this.mirroredTile).transitioning;
+			this.reverseAnimation = ((TileGate) this.mirroredTile).reverseAnimation;
+			this.closed = ((TileGate) this.mirroredTile).closed;
+			this.properties.setBlocked(((TileGate) this.mirroredTile).properties.isBlocked());
+		}
+	}
+
+	@Override
+	protected Image getParticleImageFor(EmitterType type)
+	{
+		return this.availableImages[dimension.code()][0];
+	}
+
+	@Override
+	public boolean shouldUpdate()
+	{
+		return true;
+	}
+
+	public boolean isReallyChangeable()
+	{
+		return true;
+	}
+
+	public boolean renderStatic()
+	{
+		return false;
+	}
+}

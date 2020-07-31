@@ -1,0 +1,11 @@
+package com.unlogical.linked.level;
+
+import com.unlogical.linked.entity.Entity;
+
+public class EntityReference extends LevelObjectReference<Entity>
+{
+	public EntityReference(Entity object, Level level)
+	{
+		super(object, level);
+	}
+}

@@ -1,0 +1,82 @@
+ -- General -- 
+Generated on: 2016-06-20_17-47-18
+Build: 762 from 09:42 PM - 19/06/16
+GameState: MAP_EDITOR (previous: IN_LEVEL)
+Target FPS: 60
+Actual FPS: 61
+
+ -- Display -- 
+Target Width / Height: 1920 / 1080
+Actual Width / Height: 1920 / 1017 (windowed)
+
+ -- Environment -- 
+GPU: GeForce GTX 980 Ti/PCIe/SSE2 (NVIDIA Corporation)
+OpenGL Version: 4.5.0 NVIDIA 361.43
+Allocated Memory: 123MB
+Used Memory: 12MB
+"os.name": Windows 10
+"os.version": 10.0
+"os.arch": x86
+"java.version": 1.8.0_66
+"java.vendor": Oracle Corporation
+"sun.arch.data.model": 32
+
+ -- Level --
+ID: 21-01 (internal: 01)
+LevelType: REVERSAL
+Dimension: COLORED
+Location: ../worlds/maps/21-01
+
+ -- Stack Trace -- 
+java.lang.ArrayIndexOutOfBoundsException: 77
+com.unlogical.colored.filesystem.files.WrapperTextureHandler.write(WrapperTextureHandler.java:182)
+com.unlogical.colored.mapeditor.MapEditor.saveItAll(MapEditor.java:3085)
+com.unlogical.colored.mapeditor.MapEditor.update(MapEditor.java:2403)
+com.unlogical.colored.GameLauncher.update(GameLauncher.java:394)
+com.unlogical.colored.GameLauncher.render(GameLauncher.java:460)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication.mainLoop(LwjglApplication.java:218)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication$1.run(LwjglApplication.java:123)
+
+ -- Last 20 Log Entries -- 
+@Log    : SaveState 1.dat found and read successfully. (tid: 12)
+@Log    : SaveState 2.dat found and read successfully. (tid: 12)
+@Log    : Initializing story handler... (tid: 12)
+@Log    : Initializing credits screen... (tid: 12)
+@Log    : Resizing contents to current window size... (tid: 12)
+@Log    : Finished loading, took 613ms. (tid: 12)
+@Log    : Loading map ../worlds/maps/21-01 ... (tid: 12)
+@Log    : Loading map files took 143ms. (tid: 12)
+@Warning: Tried to load image(s) from path res/gui/icons/21_01, the resolved path res/gui/icons/21_01.png however does not exist. (tid: 12)
+@Warning: Couldn't load level icon for 21-01. (tid: 12)
+@Log    : Fetching lights for level "21-01" ... (tid: 12)
+@Log    : Lights fetched for level "21-01", 8 lights found. (tid: 12)
+@Log    : Pre-simulating particles for 45000.0ms (300 x 150.0ms)... (tid: 12)
+@Log    : Particle pre-simulation complete. Particles are now ahead of time by 45000.0ms. (tid: 12)
+@Log    : Active save was saved to disk. (tid: 12)
+@Log    : Loaded 21-01 (took 221ms). (tid: 12)
+@Log    : Fetching lights for level "21-01" ... (tid: 12)
+@Log    : Lights fetched for level "21-01", 8 lights found. (tid: 12)
+@Log    : Loaded map Another World (21-01, ../worlds/maps/21-01), took 35ms. (tid: 12)
+@Warning: Currently in session levelmng, cannot end update (tid: 12)
+
+ -- Last 20 Input Events -- 
+Touch up: 0 (pointer: 0) at x:1508 y: 524 (5015ms ago)
+Touch down: 0 (pointer: 0) at x:1283 y: 457 (4781ms ago)
+Touch up: 0 (pointer: 0) at x:1283 y: 457 (4732ms ago)
+Key down: Tab (61) (4215ms ago)
+Key up: Tab (61) (4115ms ago)
+Touch down: 0 (pointer: 0) at x:1344 y: 658 (3264ms ago)
+Touch up: 0 (pointer: 0) at x:1344 y: 658 (3015ms ago)
+Key down: L-Ctrl (129) (2482ms ago)
+Key down: D (32) (2382ms ago)
+Key up: D (32) (2215ms ago)
+Key up: L-Ctrl (129) (2181ms ago)
+Key down: A (29) (1632ms ago)
+Key up: A (29) (1515ms ago)
+Touch down: 0 (pointer: 0) at x:758 y: 506 (1249ms ago)
+Touch up: 0 (pointer: 0) at x:758 y: 506 (1215ms ago)
+Key down: A (29) (982ms ago)
+Key down: L-Ctrl (129) (882ms ago)
+Key up: A (29) (832ms ago)
+Key up: L-Ctrl (129) (749ms ago)
+Key down: Escape (131) (15ms ago)

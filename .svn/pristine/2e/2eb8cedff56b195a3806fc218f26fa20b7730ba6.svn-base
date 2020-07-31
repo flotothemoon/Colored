@@ -1,0 +1,1382 @@
+package com.unlogical.colored.entity.player;
+
+import static com.unlogical.colored.entity.EntityAction.CLIMBING;
+import static com.unlogical.colored.entity.EntityAction.CLIMBING_HORIZONTAL;
+import static com.unlogical.colored.entity.EntityAction.CUSTOM_ONCE0;
+import static com.unlogical.colored.entity.EntityAction.DEAD;
+import static com.unlogical.colored.entity.EntityAction.FALLING;
+import static com.unlogical.colored.entity.EntityAction.IDLE_DEFAULT;
+import static com.unlogical.colored.entity.EntityAction.JUMPING;
+import static com.unlogical.colored.entity.EntityAction.WALKING;
+
+import java.util.ArrayDeque;
+import java.util.Arrays;
+import java.util.Deque;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Random;
+import java.util.Set;
+
+import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.g2d.Batch;
+import com.badlogic.gdx.math.MathUtils;
+import com.badlogic.gdx.math.Vector2;
+import com.unlogical.colored.GameLauncher;
+import com.unlogical.colored.audio.AudioManager.SoundType;
+import com.unlogical.colored.entity.Entity;
+import com.unlogical.colored.entity.EntityAction;
+import com.unlogical.colored.entity.EntityLiving;
+import com.unlogical.colored.entity.EntityType;
+import com.unlogical.colored.entity.IEntityPickupable;
+import com.unlogical.colored.entity.goomba.EntityGoomba;
+import com.unlogical.colored.entity.key.EntityStickyKey;
+import com.unlogical.colored.entity.property.EntityProperties;
+import com.unlogical.colored.filesystem.FilePaths;
+import com.unlogical.colored.gui.HintProperties;
+import com.unlogical.colored.gui.ItemOverlay;
+import com.unlogical.colored.gui.panel.SanityPanel;
+import com.unlogical.colored.input.InputAction;
+import com.unlogical.colored.input.InputHandler;
+import com.unlogical.colored.level.Level;
+import com.unlogical.colored.level.LevelType;
+import com.unlogical.colored.levelmanaging.LevelManager;
+import com.unlogical.colored.levelmanaging.MapManager;
+import com.unlogical.colored.resources.font.Fonts;
+import com.unlogical.colored.resources.image.Images.HintIdentifier;
+import com.unlogical.colored.saving.CheckpointEvent;
+import com.unlogical.colored.story.BeginningStoryHandler;
+import com.unlogical.colored.story.EndingStoryHandler;
+import com.unlogical.colored.terrain.tile.Tile;
+import com.unlogical.colored.terrain.tile.TileBlockedAbove;
+import com.unlogical.colored.terrain.tile.TileCameraControl;
+import com.unlogical.colored.terrain.tile.TileDoor;
+import com.unlogical.colored.terrain.tile.TileMarker;
+import com.unlogical.colored.terrain.tile.TileWorldDoor;
+import com.unlogical.colored.terrain.tile.cage.TileCage;
+import com.unlogical.colored.terrain.tile.properties.ITileBlockedFromAbove;
+import com.unlogical.colored.terrain.tile.properties.ITileInteractable;
+import com.unlogical.colored.util.Dimension;
+import com.unlogical.colored.util.GameObject;
+import com.unlogical.colored.util.LevelObject;
+import com.unlogical.colored.util.ScheduledEvent;
+import com.unlogical.colored.util.TextInfo;
+
+public class EntityPlayer extends EntityLiving
+{
+	protected static final int ERASE_EVENT = 0;
+	protected static final int RE_SCHEDULE_EVENT = 1;
+	protected static final int DONT_ERASE_EVENT = 2;
+
+	protected static final String FOCUS_CHANGED = "focusChanged";
+
+	protected static final float TEXT_BOX_WIDTH = 300f;
+	protected static final float TEXT_BOX_HEIGHT = 100f;
+	protected static final float HINT_Y_OFFSET = -25.0f;
+
+	protected static final float[] handOffsets = new float[] { 40, 50, 10, 50 };
+	protected static final float CLIMBING_ACCELERATION_FACTOR = 1.1f;
+
+	private static float openingCageTime;
+
+	private static final Vector2 handOffset = new Vector2(27.0f, 30.0f);
+
+	protected static final Set<EntityAction> supportedActions = new HashSet<EntityAction>(Arrays.asList(IDLE_DEFAULT, WALKING, CLIMBING, CLIMBING_HORIZONTAL, JUMPING, FALLING, CUSTOM_ONCE0, DEAD));
+
+	private static final int SAFE_POINT_TIME = 150;
+	private static final int TRAVEL_DIMENSION_BLOCKER_TIME = 1200;
+	private static final int TIME_SINCE_LEFT_GROUND_GHOST_JUMP = 150;
+	private static final int TIME_SINCE_LEFT_GROUND_ON_GROUND = 150;
+	private static final int TIME_GOING_IN_SAME_DIRECTION_CHECKPOINT = 3000;
+
+	private static Vector2 absLastSafePoint = new Vector2();
+
+	private static boolean tryInteract;
+	private static boolean tryMoveUp;
+	private static boolean tryMoveDown;
+	private static boolean tryRevive;
+	private static boolean tryJump;
+	private static boolean requestsCheckpoint;
+	private static boolean openingCage;
+
+	private static CheckpointEvent requestedCheckpointTrigger;
+
+	private ItemOverlay overlay = new ItemOverlay(null, null, 0.0f, 0.0f, 0, 0, 0, 0);
+	private HintIdentifier overlayIdentifier;
+
+	private float safePointTimer;
+
+	protected float movedXVelocity;
+	protected float movedYVelocity;
+
+	protected boolean forcedClimbingStop;
+	protected boolean canTravelDimensions;
+	protected boolean bouncing;
+	private boolean talking;
+
+	private int travelDimensionCooldown;
+	private int timeGoingInSameDirection;
+	private int timeSinceLastCheckpoint;
+	private int timeSinceLeftGround;
+	private int currentTextDisplayTime;
+
+	private long timeOfDeath;
+
+	protected Vector2 spawnpoint;
+
+	protected Map<TileMarker, Boolean> markers = new HashMap<TileMarker, Boolean>();
+	protected Set<TileCameraControl> sectionsPassed = new HashSet<TileCameraControl>();
+
+	private Deque<TextInfo> queuedText = new ArrayDeque<TextInfo>();
+	private TextInfo currentText;
+
+	public EntityPlayer(EntityType type, Vector2 position, Level level, Dimension dimension, boolean allowMirrors)
+	{
+		super(type, position, level, dimension, allowMirrors);
+
+		if (this.dimension == Dimension.COLORED && this.hasMirror)
+		{
+			this.mirroredEntity.setEnabled(false);
+			((EntityPlayer) this.mirroredEntity).invincible = true;
+			this.mirroredEntity.setSkipMainUpdate(true);
+		}
+
+		this.passiveUpdate = true;
+
+		if (level != null)
+		{
+			this.spawnpoint = new Vector2(position.x - level.getCameraOffset().x, position.y - level.getCameraOffset().y);
+		}
+	}
+
+	@Override
+	public LevelObject deepCopy(Map<Object, Object> copiedReferences)
+	{
+		EntityPlayer copy = (EntityPlayer) super.deepCopy(copiedReferences);
+
+		copy.safePointTimer = this.safePointTimer;
+
+		copy.movedXVelocity = this.movedXVelocity;
+		copy.movedYVelocity = this.movedYVelocity;
+
+		copy.spawnpoint = this.spawnpoint.cpy();
+
+		copy.forcedClimbingStop = this.forcedClimbingStop;
+		copy.canTravelDimensions = this.canTravelDimensions;
+		copy.bouncing = this.bouncing;
+
+		copy.travelDimensionCooldown = this.travelDimensionCooldown;
+		copy.timeGoingInSameDirection = this.timeGoingInSameDirection;
+		copy.timeSinceLastCheckpoint = this.timeSinceLastCheckpoint;
+		copy.timeSinceLeftGround = this.timeSinceLeftGround;
+		copy.timeOfDeath = this.timeOfDeath;
+
+		copy.talking = this.talking;
+		copy.queuedText = new ArrayDeque<TextInfo>(this.queuedText);
+		copy.currentText = this.currentText;
+		copy.currentTextDisplayTime = this.currentTextDisplayTime;
+
+		for (TileMarker marker : this.markers.keySet())
+		{
+			copy.markers.put((TileMarker) Level.getCopy(marker, copiedReferences), this.markers.get(marker));
+		}
+
+		copy.sectionsPassed = Level.deepCopyCollection(this.sectionsPassed, new HashSet<TileCameraControl>(), copiedReferences);
+
+		return copy;
+	}
+
+	@Override
+	public void init()
+	{
+		super.init();
+
+		for (Tile tile : this.level.getTiles())
+		{
+			if (tile instanceof TileMarker)
+			{
+				this.markers.put((TileMarker) tile, ((TileMarker) tile).isHorizontalMarker() ? tile.getCenterX() < this.getCenterX() : tile.getCenterY() > this.getCenterY());
+			}
+		}
+	}
+
+	public void updateEntryDoorPosition(TileDoor door)
+	{
+		if (!(door instanceof TileWorldDoor))
+		{
+			this.initialising = true;
+			this.setX(door.getCenterX() - this.hitbox.getRawWidth() / 2.0f);
+
+			float originalY = this.position.y;
+
+			this.setY(door.getY() + door.getHeight() - this.hitbox.getHeight() - 20.0f);
+
+			this.update(0.0f);
+
+			this.setY(originalY);
+
+			this.initialising = false;
+
+			float distanceLeft = this.hitbox.getDistanceToBlockLeft();
+			float distanceRight = this.hitbox.getDistanceToBlockRight();
+
+			if (!this.hitbox.isCheckedLeft())
+			{
+				distanceLeft = Float.MAX_VALUE;
+			}
+
+			if (!this.hitbox.isCheckedRight())
+			{
+				distanceRight = Float.MAX_VALUE;
+			}
+
+			if (distanceLeft != distanceRight)
+			{
+				this.setX((distanceRight < distanceLeft ? door.getHitbox().getMinX() : door.getHitbox().getMaxX()) - Entity.getMainImage(EntityType.PLAYER).getRegionWidth() / 2);
+				this.setFocused(distanceRight < distanceLeft);
+			}
+
+			if (this.hasMirror)
+			{
+				this.mirroredEntity.setPosition(this.position.x, this.position.y);
+			}
+		}
+	}
+
+	public static void onDimensionChanging(EntityPlayer oldPlayer, EntityPlayer newPlayer, Dimension newDimension)
+	{
+		newPlayer.setEnabled(true);
+		newPlayer.setSkipMainUpdate(false);
+		newPlayer.setPosition(oldPlayer.position.x, oldPlayer.position.y);
+		newPlayer.setBlockedBelow(oldPlayer.isBlockedBelow());
+		newPlayer.setVelocity(oldPlayer.velocity.x, oldPlayer.velocity.y);
+		newPlayer.setFocused(oldPlayer.focused);
+		newPlayer.setRender(true);
+		newPlayer.invincible = false;
+		newPlayer.jumping = oldPlayer.jumping;
+		newPlayer.climbing = oldPlayer.climbing;
+		newPlayer.timeSinceLeftGround = oldPlayer.timeSinceLeftGround;
+
+		oldPlayer.synchronizeAnimation(newPlayer);
+
+		oldPlayer.velocity.x = 0.0f;
+		oldPlayer.velocity.y = 0.0f;
+		oldPlayer.invincible = true;
+		oldPlayer.setSkipMainUpdate(true);
+		oldPlayer.setEnabled(false);
+
+		if (oldPlayer.isHoldingEntity())
+		{
+			IEntityPickupable holdedEntity = oldPlayer.getHoldedEntity();
+
+			oldPlayer.dropHoldedEntity();
+
+			if (holdedEntity.isShared() || holdedEntity instanceof EntityStickyKey)
+			{
+				newPlayer.hold(holdedEntity);
+				holdedEntity.onPickup(newPlayer);
+			}
+		}
+	}
+
+	public static void onDimensionChanged(EntityPlayer oldPlayer, EntityPlayer newPlayer, Dimension newDimension)
+	{
+		oldPlayer.setRender(false);
+	}
+
+	public static void updateKeyRecords()
+	{
+		tryInteract = LevelManager.canPlayerInteract() && InputHandler.isKeyJustPressed(InputAction.INTERACT);
+		tryMoveUp = InputHandler.isKeyJustPressed(InputAction.MOVE_UP);
+		tryMoveDown = InputHandler.isKeyJustPressed(InputAction.MOVE_DOWN);
+		tryJump = InputHandler.isKeyJustPressed(InputAction.JUMP);
+	}
+
+	public static void updateCheckpointInteractors()
+	{
+		Level level = LevelManager.getLevel();
+		EntityPlayer player = level.getControllingPlayer();
+
+		requestedCheckpointTrigger = null;
+
+		if (tryInteract)
+		{
+			for (Tile tile : level.getInteractableTiles())
+			{
+				if (player.inSameDimension(tile) && ((ITileInteractable) tile).canInteract(player))
+				{
+					requestedCheckpointTrigger = CheckpointEvent.INTERACT;
+
+					break;
+				}
+			}
+		}
+
+		if (tryJump)
+		{
+			if (player.canJump())
+			{
+				requestedCheckpointTrigger = CheckpointEvent.JUMP;
+			}
+			else if (player.climbing)
+			{
+				requestedCheckpointTrigger = CheckpointEvent.CLIMB_STOP;
+			}
+		}
+
+		if (tryMoveUp)
+		{
+			if (player.onClimbable && !player.collidedAbove)
+			{
+				requestedCheckpointTrigger = CheckpointEvent.CLIMB_START;
+			}
+		}
+
+		if (tryMoveDown)
+		{
+			if (player.onClimbable && (!player.collidedBelow || player.tileBelow == null || player.tileBelow instanceof TileBlockedAbove))
+			{
+				requestedCheckpointTrigger = CheckpointEvent.CLIMB_START;
+			}
+		}
+
+		if (requestedCheckpointTrigger != null)
+		{
+			requestsCheckpoint = true;
+		}
+	}
+
+	public static void clearRecords()
+	{
+		tryJump = tryInteract = tryMoveUp = tryMoveDown = tryRevive = false;
+	}
+
+	@Override
+	public void revive()
+	{
+		super.revive();
+
+		this.setSkipMainUpdate(false);
+
+		this.safePointTimer = 0;
+
+		if (this.hasMirror && this.dimension == this.level.getForegroundDimension())
+		{
+			this.mirroredEntity.setPosition(this.position.x, this.position.y);
+			((EntityLiving) this.mirroredEntity).revive();
+
+			if (this.level.getType() != LevelType.TIME_TRAVEL)
+			{
+				this.mirroredEntity.setSkipMainUpdate(true);
+			}
+		}
+	}
+
+	@Override
+	public void onUpdate(float delta, Random rng)
+	{
+		float friction = 1.0f, beforeX = this.position.x,
+				beforeY = this.position.y;
+		boolean canPlayerInteract = !openingCage && !this.level.isSimulating() && !LevelManager.isFadingOut() && !SanityPanel.isRunningCheck() && !GameLauncher.getCheatPanel().isActive() && this.level.getStoryHandler().canPlayerDoAnything();
+		boolean beforeFocused = this.isFocused();
+
+		if (this.dimension == this.level.getForegroundDimension() || this.level.getType() == LevelType.NORMAL)
+		{
+			boolean forceClimbingStop = false;
+
+			this.tryMoveLeft = canPlayerInteract && InputHandler.isKeyPressed(InputAction.MOVE_LEFT);
+			this.tryMoveRight = canPlayerInteract && InputHandler.isKeyPressed(InputAction.MOVE_RIGHT);
+
+			this.timeSinceLastCheckpoint += delta;
+
+			if (canPlayerInteract)
+			{
+				if (this.onClimbable && this.onLadder && !this.climbing && !this.forcedClimbingStop && !(this.tryMoveRight || this.tryMoveLeft))
+				{
+					if (InputHandler.isKeyPressed(InputAction.MOVE_DOWN) && (!this.collidedBelow || this.onPassableTile) || InputHandler.isKeyPressed(InputAction.MOVE_UP))
+					{
+						if (this.hitbox.getCenterX() > this.climbedTile.getHitbox().getCenterX())
+						{
+							this.tryMoveLeft = true;
+						}
+						else
+						{
+							this.tryMoveRight = true;
+						}
+					}
+				}
+
+				if ((this.tryMoveLeft || this.tryMoveRight) && !(this.climbing && this.onLadder))
+				{
+					this.setFocused(!this.tryMoveRight);
+
+					float sign = this.tryMoveRight ? 1 : -1;
+
+					if (!this.bouncing)
+					{
+						this.velocity.x += this.properties.getAcceleration(delta) * (this.climbing ? CLIMBING_ACCELERATION_FACTOR : 1.0f) * sign;
+
+						if (this.velocity.x * -sign > 0)
+						{
+							friction = 0.016f * delta;
+						}
+					}
+
+					if (this.climbing && !this.climbedTile.contains(this.getMinX() + 25, this.hitbox.getCenterY()) && !this.climbedTile.contains(this.getMaxX() - 25, this.hitbox.getCenterY()))
+					{
+						this.climbing = false;
+						forceClimbingStop = true;
+					}
+				}
+
+				if (this.climbingOnGround && !this.collidedBelow)
+				{
+					this.climbingOnGround = false;
+				}
+
+				boolean canJump = this.canJump();
+
+				if (!this.jumping && tryJump && canJump)
+				{
+					this.velocity.y = -0.6f;
+					this.jumping = true;
+
+					this.level.getSoundManager().play(SoundType.JUMP, false);
+
+					this.changeCurrentAction(EntityAction.JUMPING, true);
+				}
+
+				if (this.forcedClimbingStop && (tryMoveUp || tryMoveDown || this.collidedBelow))
+				{
+					this.forcedClimbingStop = false;
+				}
+
+				boolean canClimb = this.canClimb() && !forceClimbingStop;
+
+				if ((InputHandler.isKeyPressed(InputAction.MOVE_DOWN) && (!this.collidedBelow || this.tileBelow instanceof ITileBlockedFromAbove) || InputHandler.isKeyPressed(InputAction.MOVE_UP) || tryMoveDown && !this.collidedBelow || tryMoveUp && !this.collidedAbove) && !this.climbing && canClimb)
+				{
+					if (!this.onLadder || Math.abs(this.hitbox.getCenterX() - this.climbedTile.getHitbox().getCenterX()) < 4.0f && !(InputHandler.isKeyPressed(InputAction.MOVE_LEFT) || InputHandler.isKeyPressed(InputAction.MOVE_RIGHT)))
+					{
+						this.onStartClimbing();
+
+						if (this.onLadder)
+						{
+							this.position.x = this.climbedTile.getHitbox().getCenterX() - this.hitbox.getWidth() / 2.0f;
+						}
+
+						if ((this.collidedBelow || this.closeBelow || this.lastBelow) && !tryMoveDown)
+						{
+							this.climbingOnGround = true;
+						}
+					}
+				}
+				else if (this.climbing && (!(InputHandler.isKeyPressed(InputAction.MOVE_DOWN) || InputHandler.isKeyPressed(InputAction.MOVE_UP)) || tryJump || !canClimb))
+				{
+					if (this.onLadder)
+					{
+						if (this.tryMoveRight)
+						{
+							this.velocity.x = 0.1f;
+						}
+						else if (this.tryMoveLeft)
+						{
+							this.velocity.x = -0.1f;
+						}
+					}
+
+					if (tryJump)
+					{
+						forceClimbingStop = true;
+					}
+
+					this.climbing = this.climbing && (!this.tryMoveRight && !this.tryMoveLeft || !this.onLadder) && !tryJump;
+				}
+
+				if (forceClimbingStop)
+				{
+					this.velocity.y *= 0.6f;
+					this.forcedClimbingStop = true;
+				}
+			}
+
+			if (this.climbing && canPlayerInteract)
+			{
+				boolean tryMoveUp = false;
+				boolean tryMoveDown = false;
+				float verticalFriction = 0.0f;
+
+				if (InputHandler.isKeyPressed(InputAction.MOVE_UP))
+				{
+					if (this.climbedTile.contains(this.hitbox.getCenterX(), this.hitbox.getMinY() + 15) || this.onLadder && this.climbedTile.contains(this.hitbox.getCenterX(), this.hitbox.getCenterY()))
+					{
+						tryMoveUp = true;
+						this.velocity.y -= this.properties.getAcceleration(delta) * CLIMBING_ACCELERATION_FACTOR;
+
+						if (this.velocity.y > 0.0f)
+						{
+							verticalFriction = 0.02f;
+						}
+					}
+					else if (this.onLadder && (InputHandler.isKeyPressed(InputAction.MOVE_LEFT) || InputHandler.isKeyPressed(InputAction.MOVE_RIGHT)))
+					{
+						this.climbing = false;
+						forceClimbingStop = true;
+					}
+				}
+
+				if (InputHandler.isKeyPressed(InputAction.MOVE_DOWN))
+				{
+					if (this.climbedTile.contains(this.hitbox.getCenterX(), this.hitbox.getMaxY() - 15) || this.onLadder && this.climbedTile.contains(this.hitbox.getCenterX(), this.hitbox.getCenterY()))
+					{
+						tryMoveDown = true;
+						this.velocity.y += this.properties.getAcceleration(delta) * CLIMBING_ACCELERATION_FACTOR;
+
+						if (this.velocity.y < 0.0f)
+						{
+							verticalFriction = 0.02f;
+						}
+					}
+				}
+
+				if (!(tryMoveUp || tryMoveDown))
+				{
+					verticalFriction = 0.0145f;
+				}
+
+				this.velocity.y *= 1.0f - verticalFriction * delta;
+
+				if (Math.abs(this.velocity.x) > this.properties.getMaxClimbSpeed())
+				{
+					this.velocity.x = this.velocity.x < 0 ? -this.properties.getMaxClimbSpeed() : this.properties.getMaxClimbSpeed();
+				}
+
+				if (Math.abs(this.velocity.y) > this.properties.getMaxClimbSpeed())
+				{
+					this.velocity.y = this.velocity.y < 0 ? -this.properties.getMaxClimbSpeed() : this.properties.getMaxClimbSpeed();
+				}
+
+				if (this.currentAction == EntityAction.CLIMBING)
+				{
+					if (!this.onLadder && (InputHandler.isKeyJustPressed(InputAction.MOVE_LEFT) || InputHandler.isKeyJustPressed(InputAction.MOVE_RIGHT)))
+					{
+						this.changeCurrentAction(EntityAction.CLIMBING_HORIZONTAL, false);
+					}
+				}
+				else if (this.currentAction == EntityAction.CLIMBING_HORIZONTAL)
+				{
+					if (!InputHandler.isKeyPressed(InputAction.MOVE_LEFT) && !InputHandler.isKeyPressed(InputAction.MOVE_RIGHT) && (tryMoveUp || tryMoveDown))
+					{
+						this.changeCurrentAction(EntityAction.CLIMBING, false);
+					}
+				}
+			}
+
+			if ((!(this.tryMoveRight || this.tryMoveLeft) || friction != 1.0f) && (this.collidedBelow || this.closeBelow || this.climbing) && !(this.hitbox.getLeftAngle() > 45 || -this.hitbox.getRightAngle() > 45))
+			{
+				if (friction == 1.0f)
+				{
+					friction = 1.0f - 0.0155f * delta;
+				}
+
+				this.velocity.x *= friction;
+			}
+
+			if (this.collidedBelow && (!this.hitbox.isOnCorner() || this.hitbox.isLeftBottom() ^ this.hitbox.isRightBottom()))
+			{
+				if (!this.hitbox.isLeftBottom() && !this.collidedLeft && !this.onLeftConnectedTile && this.hitbox.getDistanceToLeftEnd() < EDGE_MIN_STAND_LENGTH && (!this.hitbox.isCheckedLeft() || this.hitbox.getDistanceToBlockLeft() > EDGE_MIN_STAND_LENGTH))
+				{
+					this.collidedBelow = false;
+					this.gravityActive = true;
+					this.bouncing = true;
+
+					if (this.velocity.x > 0.0f)
+					{
+						this.velocity.x *= -1.15f;
+					}
+
+					this.velocity.x -= 0.0018f * delta;
+				}
+				else if (!this.hitbox.isRightBottom() && !this.collidedRight && !this.onRightConnectedTile && this.hitbox.getDistanceToRightEnd() < EDGE_MIN_STAND_LENGTH && (!this.hitbox.isCheckedRight() || this.hitbox.getDistanceToBlockRight() > EDGE_MIN_STAND_LENGTH))
+				{
+					this.collidedBelow = false;
+					this.bouncing = true;
+					this.gravityActive = true;
+
+					if (this.velocity.x < 0.0f)
+					{
+						this.velocity.x *= -1.15f;
+					}
+
+					this.velocity.x += 0.0018f * delta;
+				}
+			}
+
+			if (this.travelDimensionCooldown > 0)
+			{
+				this.travelDimensionCooldown -= delta;
+			}
+
+			this.canTravelDimensions = this.travelDimensionCooldown <= 0;
+
+			boolean onSafePoint = this.isOnGround() && !this.hitbox.isOnCorner() || this.climbing;
+
+			if (this.alive && onSafePoint)
+			{
+				this.safePointTimer += delta;
+
+				if (this.safePointTimer >= SAFE_POINT_TIME && !this.level.isTransitioning() && !this.level.getStoryHandler().isShattering())
+				{
+					bufferedVector.set(this.position);
+					bufferedVector.sub(this.level.getCameraOffset());
+					bufferedVector.x *= -1.0f;
+					bufferedVector.y *= -1.0f;
+					bufferedVector.add(absLastSafePoint);
+
+					if (bufferedVector.len() > 80 || this.timeSinceLastCheckpoint > 400)
+					{
+						requestCheckpoint(CheckpointEvent.SCHEDULE);
+
+						this.timeSinceLastCheckpoint = 0;
+
+						absLastSafePoint.set(this.position);
+						absLastSafePoint.sub(this.level.getCameraOffset());
+					}
+
+					this.safePointTimer = 0;
+				}
+			}
+			else
+			{
+				this.safePointTimer = 0;
+			}
+
+			if (this.justLanded())
+			{
+				requestCheckpoint(CheckpointEvent.LANDED);
+			}
+
+			if (this.position.x != beforeX || this.position.y != beforeY)
+			{
+				this.level.getStoryHandler().onPlayerMoved(this);
+			}
+
+			if (beforeFocused ^ this.isFocused())
+			{
+				this.scheduleMirroredEvent(new ScheduledEvent(FOCUS_CHANGED, (Boolean) this.isFocused()));
+
+				if (this.timeGoingInSameDirection >= TIME_GOING_IN_SAME_DIRECTION_CHECKPOINT)
+				{
+					requestCheckpoint(CheckpointEvent.TURN_AROUND_LONG);
+				}
+
+				this.timeGoingInSameDirection = 0;
+			}
+
+			this.timeGoingInSameDirection += delta;
+
+			if (super.isOnGround())
+			{
+				this.timeSinceLeftGround = -1;
+			}
+			else
+			{
+				this.timeSinceLeftGround += delta;
+
+				if (this.climbing && this.timeSinceLeftGround < TIME_SINCE_LEFT_GROUND_GHOST_JUMP)
+				{
+					this.timeSinceLeftGround = TIME_SINCE_LEFT_GROUND_GHOST_JUMP + 1;
+				}
+			}
+
+			this.updateMarkersAndZones(delta);
+		}
+		else if (this.hasMirror && this.shouldHandleAsShared())
+		{
+			this.setPosition(this.mirroredEntity.getPosition().x, this.mirroredEntity.getPosition().y);
+		}
+
+		if (openingCage)
+		{
+			openingCageTime -= delta;
+
+			if (openingCageTime < 0)
+			{
+				openingCage = false;
+			}
+		}
+
+		if (this.overlay != null)
+		{
+			this.overlay.update(delta);
+		}
+
+		if (this.bouncing)
+		{
+			this.velocity.x *= 1.0f - 0.002f * delta;
+
+			if (Math.abs(this.velocity.x) < this.properties.getMaxSpeed())
+			{
+				this.bouncing = false;
+			}
+		}
+		else if (!this.climbing)
+		{
+			if (this.velocity.x > this.properties.getMaxSpeed())
+			{
+				this.velocity.x = this.properties.getMaxSpeed();
+			}
+			else if (this.velocity.x < this.properties.getMaxSpeed() * -1)
+			{
+				this.velocity.x = this.properties.getMaxSpeed() * -1;
+			}
+		}
+
+		if (super.isOnGround())
+		{
+			if (this.jumping && this.velocity.y >= 0.0f)
+			{
+				this.jumping = false;
+			}
+		}
+
+		this.updateMarkersAndZones(delta);
+	}
+
+	@Override
+	protected void updateMirror(float delta)
+	{
+		if (this.shouldHandleAsShared())
+		{
+			this.synchronizeAnimation(this.mirroredEntity);
+		}
+	}
+
+	public void updateMarkersAndZones(float delta)
+	{
+		for (TileCameraControl camera : MapManager.getCameraControllers())
+		{
+			if (!camera.isVerticalController() && this.hitbox.getCenterX() > camera.getHitbox().getCenterX() && camera.getCenterX() > this.spawnpoint.x + this.level.getCameraOffset().x && !this.sectionsPassed.contains(camera))
+			{
+				this.sectionsPassed.add(camera);
+			}
+		}
+
+		int currentSection = this.sectionsPassed.size();
+
+		for (TileMarker marker : this.markers.keySet())
+		{
+			int result;
+
+			if (this.markers.get(marker) != null)
+			{
+				boolean markerCrossed = false;
+
+				if (marker.isHorizontalMarker() && marker.getHitbox().containsX(this.getCenterX()) && this.markers.get(marker) ^ this.hitbox.getCenterX() >= marker.getHitbox().getCenterX())
+				{
+					markerCrossed = true;
+				}
+				else if (marker.isVerticalMarker() && marker.getHitbox().containsY(this.getCenterY()) && this.markers.get(marker) ^ this.hitbox.getCenterY() <= marker.getHitbox().getCenterY())
+				{
+					markerCrossed = true;
+				}
+
+				if (markerCrossed && (result = this.onMarkerCrossed(marker, this.markers.get(marker), currentSection)) != RE_SCHEDULE_EVENT)
+				{
+					if (result == DONT_ERASE_EVENT)
+					{
+						this.markers.put(marker, this.hitbox.getCenterX() >= marker.getHitbox().getCenterX());
+					}
+					else
+					{
+						this.markers.put(marker, null);
+					}
+				}
+			}
+		}
+
+		this.updateControls(currentSection);
+	}
+
+	protected void updateControls(int currentSection)
+	{
+
+	}
+
+	protected int onMarkerCrossed(TileMarker marker, boolean fromLeft, int currentSection)
+	{
+		if (this.level.getStoryHandler().getCustomStoryHandler() instanceof EndingStoryHandler)
+		{
+			EntityScientist scientist = null;
+
+			for (Entity entity : this.level.getEntities())
+			{
+				if (entity instanceof EntityScientist)
+				{
+					scientist = (EntityScientist) entity;
+
+					break;
+				}
+			}
+
+			this.onTextMarkerCrossed(marker, scientist, this);
+		}
+
+		return ERASE_EVENT;
+	}
+
+	protected void onTextMarkerCrossed(TileMarker marker, EntityPlayer player, EntityPlayer scientist)
+	{
+		if (this.level.getStoryHandler().getCustomStoryHandler() instanceof BeginningStoryHandler || this.level.getStoryHandler().getCustomStoryHandler() instanceof EndingStoryHandler)
+		{
+			if (marker.getMarkerID() == 1)
+			{
+				scientist.say(new TextInfo("Wait! You got to listen!", 1.2f));
+				scientist.say(new TextInfo("There has to be darkness...", 0.8f));
+
+				player.say(new TextInfo("I saw you turning on that machine!"));
+				player.say(new TextInfo("It's all your fault!"));
+			}
+			else if (marker.getMarkerID() == 5)
+			{
+				scientist.say(new TextInfo("Everything should be dark..."));
+				scientist.say(new TextInfo("The color is just breaking everything!"));
+			}
+			else if (marker.getMarkerID() == 7)
+			{
+				scientist.say(new TextInfo("Everything will be dark..."));
+				scientist.say(new TextInfo("The machines will drain all color from this world..."));
+				scientist.say(new TextInfo("All the light, all the color - "));
+				scientist.say(new TextInfo("it all has to be locked up in these cages!"));
+			}
+			else if (marker.getMarkerID() == 22)
+			{
+				scientist.say(new TextInfo("Everything will break...", 0.7f));
+				scientist.say(new TextInfo(" - just tear apart -", 0.7f));
+				scientist.say(new TextInfo(" - into a million pieces...", 0.7f));
+				scientist.say(new TextInfo(" - and it's all your fault!", 0.7f));
+				scientist.say(new TextInfo("Or is it mine?", 0.7f));
+				scientist.say(new TextInfo("Doesn't matter, same thing anyway...", 0.7f));
+				scientist.say(new TextInfo("But more importantly, you will die.", 0.7f));
+				scientist.say(new TextInfo("Whose fault it is doesn't matter then...", 0.7f));
+			}
+			else if (marker.getMarkerID() == 26)
+			{
+				scientist.say(new TextInfo("It all worked so well ..."));
+				scientist.say(new TextInfo("You destroyed my plan! But you will see..."));
+				scientist.say(new TextInfo("- just like always..."));
+				scientist.say(new TextInfo("You know - "));
+				scientist.say(new TextInfo(" - you are more like me than you think."));
+				scientist.say(new TextInfo("You mark my words!"));
+			}
+			else if (marker.getMarkerID() == 31)
+			{
+				scientist.say(new TextInfo("No, no, no, you just don't understand!"));
+				scientist.say(new TextInfo("If you would just listen, it's for the -"));
+				scientist.say(new TextInfo("- the greater good!"));
+
+				player.say(new TextInfo("You!"));
+				player.say(new TextInfo("Stop this madness!"));
+			}
+		}
+	}
+
+	public void say(TextInfo text)
+	{
+		if (text.immediate || !this.talking)
+		{
+			this.sayText(text);
+		}
+		else
+		{
+			this.queuedText.addFirst(text);
+		}
+	}
+
+	private void sayText(TextInfo text)
+	{
+		this.currentText = text;
+		this.talking = true;
+		this.currentTextDisplayTime = (int) (text.text.length() * 70 * (1.0f / text.velocity));
+	}
+
+	protected void onStartClimbing()
+	{
+		this.climbing = true;
+		this.changeCurrentAction(EntityAction.CLIMBING, true);
+
+		this.resetVelocities();
+	}
+
+	@Override
+	protected void customDraw(Batch batch)
+	{
+		if (this.talking)
+		{
+			Fonts.drawFancy(this.currentText.text, Fonts.getDefaultFont(), Color.WHITE, Math.max(Math.min(this.getCenterX() - TEXT_BOX_WIDTH / 2, GameLauncher.getWidth() - TEXT_BOX_WIDTH), 0), this.getMinY() - 10 - TEXT_BOX_HEIGHT, TEXT_BOX_WIDTH, TEXT_BOX_HEIGHT, true, true, batch);
+
+			this.currentTextDisplayTime -= this.level.getDelta(this.dimension);
+
+			if (this.currentTextDisplayTime < 0)
+			{
+				if (this.queuedText.isEmpty())
+				{
+					this.talking = false;
+				}
+				else
+				{
+					this.sayText(this.queuedText.pollLast());
+				}
+			}
+		}
+	}
+
+	@Override
+	protected void onCloseMoveToBlockBelow(Tile tile, float distanceToBlockBelow)
+	{
+		if (tile.blocksOnStanding())
+		{
+			this.travelDimensionCooldown = TRAVEL_DIMENSION_BLOCKER_TIME;
+		}
+	}
+
+	@Override
+	protected void onScheduledEvent(ScheduledEvent event)
+	{
+		if (!this.shouldHandleAsShared())
+		{
+			super.onScheduledEvent(event);
+
+			if (event.type == FOCUS_CHANGED)
+			{
+				this.setFocused((Boolean) event.object);
+			}
+		}
+	}
+
+	@Override
+	protected void onPostMovement(float delta)
+	{
+		this.movedXVelocity = this.movingDistance.x / delta;
+		this.movedYVelocity = this.movingDistance.y / delta;
+	}
+
+	public void displayOverlay(Vector2 base, HintProperties properties, HintIdentifier identifier, boolean forceDisplay)
+	{
+		if (forceDisplay)
+		{
+			this.overlay.init(identifier, base, properties.getXOffset(), properties.getYOffset(), properties.getDisplayTime(), properties.getFadeInTime(), properties.getFadeOutTime(), 1.0f);
+			this.overlay.setFadingIn(false);
+			this.overlayIdentifier = identifier;
+		}
+		else if (this.overlayIdentifier == identifier || this.overlayIdentifier == null || this.overlay.getLifeTime() > this.overlay.getDisplayTime())
+		{
+			if (this.overlay.getLifeTime() > this.overlay.getDisplayTime())
+			{
+				this.overlay.setAlpha(properties.getStartAlpha());
+				this.overlay.setFadingIn(true);
+			}
+			else
+			{
+				this.overlay.setAlpha(1.0f);
+			}
+
+			this.overlay.setLifeTime(0);
+			this.overlay.setFadingOut(false);
+			this.overlay.setBase(base);
+			this.overlay.setIdentifier(identifier);
+			this.overlay.setXOffset(properties.getXOffset());
+			this.overlay.setYOffset(properties.getYOffset());
+			this.overlay.setFadeInTime(properties.getFadeInTime());
+			this.overlay.setFadeOutTime(properties.getFadeOutTime());
+			this.overlay.setDisplayTime(properties.getDisplayTime());
+			this.overlayIdentifier = identifier;
+		}
+
+		if (properties.shouldCenterOnHead())
+		{
+			this.overlay.setXOffset(this.hitbox.getWidth() / 2);
+			this.overlay.setYOffset(HINT_Y_OFFSET);
+		}
+	}
+
+	public void drawOverlay(Batch batch)
+	{
+		if (this.overlay != null)
+		{
+			this.overlay.draw(batch);
+		}
+	}
+
+	@Override
+	public void customOnDeath(LevelObject damageSource)
+	{
+		tryRevive = true;
+
+		this.velocity.set(0.0f, 0.0f);
+		this.timeOfDeath = System.currentTimeMillis();
+
+		this.level.getSoundManager().play(SoundType.DEATH, false);
+
+		this.changeCurrentAction(EntityAction.DEAD, false);
+		this.fallOnDeath(false);
+		this.setSkipMainUpdate(false);
+		this.maxGravity = this.maxGravity / 2.0f;
+		this.properties.setGravity(this.properties.getGravity(1.0f) / 2.0f);
+	}
+
+	@Override
+	public boolean isOnGround()
+	{
+		return super.isOnGround() || this.timeSinceLeftGround < TIME_SINCE_LEFT_GROUND_ON_GROUND;
+	}
+
+	@Override
+	public boolean checkAdditionalSuffocation()
+	{
+		return this.dimension != this.level.getForegroundDimension();
+	}
+
+	@Override
+	public boolean isRendered()
+	{
+		return super.isRendered() && this.level.getStoryHandler().shouldRenderPlayer(this);
+	}
+
+	protected boolean canClimb()
+	{
+		return this.onClimbable && this.climbedTile.contains(this.hitbox.getMaxX() - 25, this.hitbox.getCenterY()) && this.climbedTile.contains(this.hitbox.getMinX() + 25, this.hitbox.getCenterY()) && (this.onLadder || this.climbedTile.contains(this.hitbox.getCenterX(), this.hitbox.getMaxY() - 25) && this.climbedTile.contains(this.hitbox.getCenterX(), this.hitbox.getCenterY())) && !this.forcedClimbingStop;
+	}
+
+	protected boolean canJump()
+	{
+		return this.timeSinceLeftGround <= TIME_SINCE_LEFT_GROUND_GHOST_JUMP || this.collidedBelow || this.lastBelow || (this.closeBelow && !(this.hitbox.isRightBottom() && -this.hitbox.getRightAngle() > 45) && !(this.hitbox.isLeftBottom() && this.hitbox.getLeftAngle() > 45) || this.hitbox.isOnCorner()) && (!this.hitbox.isCheckedAbove() || this.hitbox.getDistanceToBlockAbove() > 8.0f) && !this.collidedAbove && !this.climbing;
+	}
+
+	public void onCageCleared(TileCage cage)
+	{
+		openingCage = true;
+		openingCageTime = this.properties.getImageDuration(EntityAction.CUSTOM_ONCE0) * this.availableImages.get(EntityAction.CUSTOM_ONCE0)[0].length;
+
+		this.changeCurrentAction(EntityAction.CUSTOM_ONCE0, true);
+	}
+
+	@Override
+	protected boolean canBeKilled(LevelObject damageSource)
+	{
+		return !this.level.isReSimulating();
+	}
+
+	@Override
+	protected void onBounceOff(Entity entity)
+	{
+		super.onBounceOff(entity);
+
+		this.level.playSound(SoundType.BOUNCE, MathUtils.clamp(-this.velocity.y + 0.3f, 1.0f, 2.0f), this);
+
+		if (entity instanceof EntityGoomba)
+		{
+			((EntityGoomba) entity).damage(1, this);
+		}
+
+		if (!this.climbing)
+		{
+			this.changeCurrentAction(EntityAction.JUMPING, true);
+		}
+	}
+
+	public Vector2 getDistanceFromSpawnpoint()
+	{
+		bufferedVector.set(this.spawnpoint);
+		bufferedVector.add(this.level.getCameraOffset());
+		bufferedVector.sub(this.position);
+
+		return bufferedVector;
+	}
+
+	@Override
+	public boolean shouldReSimulate()
+	{
+		return false;
+	}
+
+	@Override
+	protected float getAnimatedDelta(float delta, Vector2 velocity)
+	{
+		if (this.currentAction == EntityAction.CLIMBING)
+		{
+			return delta * (Math.max(Math.abs(velocity.x), Math.abs(velocity.y)) / this.properties.getMaxClimbSpeed());
+		}
+		else if (this.currentAction == EntityAction.FALLING)
+		{
+			return delta * Math.abs(velocity.y);
+		}
+		else if (this.currentAction == EntityAction.CUSTOM_ONCE0)
+		{
+			return delta;
+		}
+		else
+		{
+			return delta * (Math.abs(velocity.x) / this.properties.getMaxSpeed());
+		}
+	}
+
+	@Override
+	public boolean supportsAction(EntityAction action)
+	{
+		return supportedActions.contains(action);
+	}
+
+	@Override
+	public boolean inSameDimension(GameObject other)
+	{
+		return this.level.getType() == LevelType.SEPERATED && other instanceof EntityPlayer || super.inSameDimension(other);
+	}
+
+	@Override
+	protected Vector2 getHandOffset(boolean focused, EntityAction currentAction, int currentImage)
+	{
+		if (focused)
+		{
+			handOffset.x = handOffsets[2];
+		}
+		else
+		{
+			handOffset.x = handOffsets[0];
+		}
+
+		handOffset.y = handOffsets[1];
+
+		return handOffset;
+	}
+
+	@Override
+	public boolean checkEntitySuffocation()
+	{
+		return this.dimension != this.level.getForegroundDimension() && this.level.getType() != LevelType.NORMAL;
+	}
+
+	@Override
+	public boolean collidesWithEntities()
+	{
+		return this.alive;
+	}
+
+	@Override
+	public boolean checkEntityCollisions()
+	{
+		return this.alive;
+	}
+
+	@Override
+	public boolean collidesWithTerrain()
+	{
+		return this.alive;
+	}
+
+	@Override
+	protected boolean canBeHarmedBy(GameObject source)
+	{
+		return !openingCage;
+	}
+
+	@Override
+	protected boolean isGravityAffected()
+	{
+		return true;
+	}
+
+	@Override
+	protected boolean shouldDrawRecentPositions()
+	{
+		return false;
+	}
+
+	@Override
+	protected boolean canBeBouncedOff()
+	{
+		return true;
+	}
+
+	@Override
+	protected boolean shouldPositionBeFixed()
+	{
+		return !(this.dimension == Dimension.MONOCHROME && this.level.getForegroundDimension() == Dimension.COLORED);
+	}
+
+	@Override
+	protected float getAdditionalCheckDistance(Vector2 otherVelocity)
+	{
+		if (this.initialising)
+		{
+			return Math.max(this.level.getMapWidth(), this.level.getMapHeight());
+		}
+		else
+		{
+			return this.velocity.len() + otherVelocity.len() * 20;
+		}
+	}
+
+	private static void requestCheckpoint(CheckpointEvent trigger) // #triggered
+	{
+		requestsCheckpoint = true;
+
+		if (requestedCheckpointTrigger == null)
+		{
+			requestedCheckpointTrigger = trigger;
+		}
+	}
+
+	public static boolean requestsCheckpoint()
+	{
+		return requestsCheckpoint && requestedCheckpointTrigger != null;
+	}
+
+	public static void clearRequestCheckpoints()
+	{
+		requestsCheckpoint = false;
+	}
+
+	public static CheckpointEvent getRequestedCheckpointTrigger()
+	{
+		return requestedCheckpointTrigger;
+	}
+
+	public boolean canChangeDimensions()
+	{
+		return this.canTravelDimensions;
+	}
+
+	@Override
+	protected boolean canBeHarmedBy(Entity entity)
+	{
+		return true;
+	}
+
+	@Override
+	protected boolean canInteractWith(Entity entity)
+	{
+		return true;
+	}
+
+	@Override
+	protected boolean shouldUseFittingTextures()
+	{
+		return true;
+	}
+
+	@Override
+	protected boolean shouldShatter()
+	{
+		return this == this.level.getControllingPlayer() || !this.shouldHandleAsShared();
+	}
+
+	@Override
+	public boolean shouldBounceFromEntities()
+	{
+		return !this.invincible;
+	}
+
+	@Override
+	protected boolean notifyOnNearbyTerrain()
+	{
+		return true;
+	}
+
+	@Override
+	protected boolean shouldCreateParticlesOnDeath()
+	{
+		return false;
+	}
+
+	@Override
+	public String getTextureDirectory()
+	{
+		return FilePaths.PLAYER;
+	}
+
+	@Override
+	protected EntityProperties getEntityProperty()
+	{
+		return EntityProperties.PLAYER;
+	}
+
+	@Override
+	protected boolean canWalkSlopes()
+	{
+		return true;
+	}
+
+	@Override
+	public boolean isBlocked()
+	{
+		return true;
+	}
+
+	@Override
+	public boolean isTimeEffected()
+	{
+		return false;
+	}
+
+	@Override
+	public boolean shouldHandleAsShared()
+	{
+		return this.level.getStoryHandler().shouldPlayerBeHandledAsShared();
+	}
+
+	@Override
+	protected SoundType getDieSound()
+	{
+		return SoundType.DEATH;
+	}
+
+	public static boolean tryMoveUp()
+	{
+		return tryMoveUp;
+	}
+
+	public static boolean tryInteract()
+	{
+		return tryInteract;
+	}
+
+	public static boolean requestsRevival()
+	{
+		return tryRevive;
+	}
+
+	public ItemOverlay getOverlay()
+	{
+		return this.overlay;
+	}
+
+	public float getMovedXVelocity()
+	{
+		return this.movedXVelocity;
+	}
+
+	public float getMovedYVelocity()
+	{
+		return this.movedYVelocity;
+	}
+
+	public int getTimeSinceLastCheckpoint()
+	{
+		return this.timeSinceLastCheckpoint;
+	}
+
+	public long getTimeOfDeath()
+	{
+		return this.timeOfDeath;
+	}
+
+	public boolean isTalking()
+	{
+		return this.talking;
+	}
+
+	public Vector2 getSpawnpoint()
+	{
+		return this.spawnpoint;
+	}
+}

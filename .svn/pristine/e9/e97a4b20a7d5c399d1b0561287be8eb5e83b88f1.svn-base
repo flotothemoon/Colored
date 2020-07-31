@@ -1,0 +1,53 @@
+package com.unlogical.linked.entity.property;
+
+import java.util.HashMap;
+
+import com.unlogical.linked.entity.EntityAction;
+
+@SuppressWarnings("serial")
+public class SharedEntityProperties
+{
+	public static final EntityProperty PLAYER = new EntityProperty(0.0007f, 0.27f, 0.275f, 0.00175f, 0, 1, new HashMap<EntityAction, Integer>(){{
+		put(EntityAction.STANDING, 100);
+		put(EntityAction.WALKING, 100);
+		put(EntityAction.CLIMBING, 100);
+		put(EntityAction.FALLING, 100);
+		put(EntityAction.OPENING_CAGE, 250);
+	}});
+
+	public static final EntityProperty GOOMBA = new EntityProperty(0.0006f, 0.125f, 0.0f, 0.0016f, 1, 1, new HashMap<EntityAction, Integer>(){{
+		put(EntityAction.STANDING, 200);
+		put(EntityAction.WALKING, 200);
+		put(EntityAction.FALLING, 200);
+		put(EntityAction.DEAD, 200);
+	}});
+	
+	public static final EntityProperty BOSS = new EntityProperty(0.00025f, 0.15f, 0.0f, 0.0035f, 2, 5, new HashMap<EntityAction, Integer>(){{
+		put(EntityAction.STANDING, 200);
+		put(EntityAction.WALKING, 200);
+		put(EntityAction.DEAD, 200);
+	}});
+	
+	public static final EntityProperty TIME_SCALE_BOSS = new EntityProperty(0.0006f, 0.26f, 0.0f, 0.0035f, 2, 5, new HashMap<EntityAction, Integer>(){{
+		put(EntityAction.STANDING, 200);
+		put(EntityAction.WALKING, 200);
+		put(EntityAction.DEAD, 200);
+	}});
+	
+	public static final EntityProperty KEY = new EntityProperty(0.00014f, 0.08f, 0.0f, 0.0012f, 0, 1, new HashMap<EntityAction, Integer>(){{
+		put(EntityAction.STANDING, 100);
+		put(EntityAction.STANDING_V2, 100);
+	}});
+
+	public static final EntityProperty SHADOW_BALL = new EntityProperty(0.0f, 0.5f, 0.0f, 0.0011f, 1, 1, new HashMap<EntityAction, Integer>(){{
+		put(EntityAction.STANDING, 100);
+	}});
+
+	public static final EntityProperty ICE_SPIKES = new EntityProperty(0.0f, 0.0f, 0.0f, 0.0008f, 1, 1, new HashMap<EntityAction, Integer>(){{
+		put(EntityAction.STANDING, 100);
+	}});
+
+	public static final EntityProperty MINI_ICE_SPIKE =new EntityProperty(0.0f, 0.0f, 0.0f, 0.0009f, 1, 1, new HashMap<EntityAction, Integer>(){{
+		put(EntityAction.STANDING, 100);
+	}});
+}

@@ -1,0 +1,87 @@
+ -- General -- 
+Generated on: 2016-04-17_19-03-21
+Build: 691 from 11:37 PM - 16/04/16
+GameState: MAP_EDITOR_MENU (previous: MAP_EDITOR)
+Target FPS: 60
+Actual FPS: 61
+
+ -- Display -- 
+Target Width / Height: 1920 / 1080
+Actual Width / Height: 1920 / 1017 (windowed)
+
+ -- Environment -- 
+GPU: GeForce GTX 980 Ti/PCIe/SSE2 (NVIDIA Corporation)
+OpenGL Version: 4.5.0 NVIDIA 361.43
+Allocated Memory: 15MB
+Used Memory: 0MB
+"os.name": Windows 10
+"os.version": 10.0
+"os.arch": x86
+"java.version": 1.8.0_66
+"java.vendor": Oracle Corporation
+"sun.arch.data.model": 32
+
+ -- Level --
+ID: 23-03 (internal: 03)
+LevelType: FROZEN
+Dimension: LIGHT
+Location: ../worlds/maps/23-03
+
+ -- Stack Trace -- 
+java.lang.NullPointerException
+com.unlogical.colored.entity.Entity.<init>(Entity.java:154)
+com.unlogical.colored.entity.key.EntityKeyChain.<init>(EntityKeyChain.java:20)
+com.unlogical.colored.entity.Entity.createEntity(Entity.java:358)
+com.unlogical.colored.entity.boss.EntityReversalBoss.init(EntityReversalBoss.java:71)
+com.unlogical.colored.mapeditor.MapEditor.initMap(MapEditor.java:1073)
+com.unlogical.colored.gui.menu.MapEditorMenu.onSelect(MapEditorMenu.java:25)
+com.unlogical.colored.gui.menu.SelectionMenu.update(SelectionMenu.java:286)
+com.unlogical.colored.gui.menu.MenuHandler.update(MenuHandler.java:174)
+com.unlogical.colored.GameLauncher.update(GameLauncher.java:367)
+com.unlogical.colored.GameLauncher.render(GameLauncher.java:430)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication.mainLoop(LwjglApplication.java:218)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication$1.run(LwjglApplication.java:123)
+
+ -- Last 20 Log Entries -- 
+@Log: Finished loading, took 357ms. (8)
+@Log: Loading map ../worlds/maps/23-03 ... (8)
+@Log: Loading map files took 124ms. (8)
+@Log: Active save was saved to disk. (8)
+@Log: Level 23-03 cleared. (8)
+@Warning: Tried to load image(s) from path res/gui/icons/23_03, the resolved path res/gui/icons/23_03.png however does not exist. (8)
+@Warning: Couldn't load level icon for 23-03. (8)
+@Log: Fetching lights for level "23-03" ... (8)
+@Log: Lights fetched for level "23-03", 5 lights found. (8)
+@Log: Pre-simulating particles for 45000.0ms (300 x 150.0ms)... (8)
+@Log: Particle pre-simulation complete. Particles are now ahead of time by 45000.0ms. (8)
+@Log: Active save was saved to disk. (8)
+@Log: Loaded 23-03 (took 222ms). (8)
+@Log: Play sound CANNON_SHOOT_CREATURE at volume 0.0 and pitch 1.0 (once). (8)
+@Log: Play sound CANNON_SHOOT_CREATURE at volume 0.0 and pitch 1.0 (once). (8)
+@Log: Fetching lights for level "23-03" ... (8)
+@Log: Lights fetched for level "23-03", 5 lights found. (8)
+@Log: Loaded map Eternal Nothingness (23-03, ../worlds/maps/23-03), took 30ms. (8)
+@Log: Play sound MENU_CLICK at volume 0.0 and pitch 1.0 (once). (8)
+@Log: Play sound MENU_CLICK at volume 0.0 and pitch 1.0 (once). (8)
+
+ -- Last 20 Input Events -- 
+Mouse scrolled: 1 (2498ms ago)
+Mouse scrolled: 1 (2414ms ago)
+Mouse scrolled: 1 (2281ms ago)
+Mouse scrolled: 1 (1897ms ago)
+Mouse scrolled: 1 (1815ms ago)
+Mouse scrolled: 1 (1765ms ago)
+Mouse scrolled: 1 (1715ms ago)
+Mouse scrolled: 1 (1698ms ago)
+Mouse scrolled: 1 (1682ms ago)
+Mouse scrolled: 1 (1382ms ago)
+Mouse scrolled: 1 (1348ms ago)
+Mouse scrolled: 1 (1315ms ago)
+Mouse scrolled: -1 (1197ms ago)
+Mouse scrolled: -1 (1181ms ago)
+Mouse scrolled: -1 (1164ms ago)
+Mouse scrolled: -1 (1147ms ago)
+Mouse scrolled: 1 (617ms ago)
+Touch down: 0 (pointer: 0) at x:667 y: 427 (131ms ago)
+Touch up: 0 (pointer: 0) at x:667 y: 427 (79ms ago)
+Touch down: 0 (pointer: 0) at x:667 y: 427 (14ms ago)

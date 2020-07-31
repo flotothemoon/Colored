@@ -1,0 +1,70 @@
+ -- General -- 
+Generated on: 2016-02-27_19-51-14
+Build: 645 from 07:04 PM - 25/02/16
+GameState: MAP_EDITOR_MENU (previous: MAP_EDITOR)
+Target FPS: 60
+Actual FPS: 61
+
+ -- Display -- 
+Target Width / Height: 1920 / 1080
+Actual Width / Height: 1920 / 1017 (windowed)
+
+ -- Environment -- 
+GPU: GeForce GTX 980 Ti/PCIe/SSE2 (NVIDIA Corporation)
+OpenGL Version: 4.5.0 NVIDIA 361.43
+Allocated Memory: 15MB
+Used Memory: 0MB
+"os.name": Windows 10
+"os.version": 10.0
+"os.arch": x86
+"java.version": 1.8.0_66
+"java.vendor": Oracle Corporation
+"sun.arch.data.model": 32
+
+ -- Level --
+ID: 20-04 (internal: 04)
+LevelType: NORMAL
+Dimension: LIGHT
+Location: ../worlds/maps/20-04
+
+ -- Stack Trace -- 
+java.lang.NullPointerException
+com.unlogical.colored.resources.image.Images$ImageHandler.getHeight(Images.java:125)
+com.unlogical.colored.gui.button.Button.render(Button.java:201)
+com.unlogical.colored.gui.menu.SelectionMenu.render(SelectionMenu.java:433)
+com.unlogical.colored.gui.menu.MenuHandler.render(MenuHandler.java:215)
+com.unlogical.colored.GameLauncher.render(GameLauncher.java:473)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication.mainLoop(LwjglApplication.java:218)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication$1.run(LwjglApplication.java:123)
+
+ -- Last 20 Log Entries -- 
+@Log: SaveState 23.dat found and read successfully. (11)
+@Log: SaveState 25.dat found and read successfully. (11)
+@Log: SaveState 26.dat found and read successfully. (11)
+@Log: Initializing story handler... (11)
+@Log: Initializing credits screen... (11)
+@Log: Resizing contents to current window size... (11)
+@Log: Finished loading, took 308ms. (11)
+@Log: Loading map ../worlds/maps/20-04 ... (11)
+@Log: Loading map files took 187ms. (11)
+@Log: Fetching lights for level "20-04" ... (11)
+@Log: Lights fetched for level "20-04", 5 lights found. (11)
+@Log: Pre-simulating particles for 45000.0ms (300 x 150.0ms)... (11)
+@Log: Particle pre-simulation complete. Particles are now ahead of time by 45000.0ms. (11)
+@Log: Active save was saved to disk. (11)
+@Log: Loaded 20-04 (took 276ms). (11)
+@Log: Fetching lights for level "20-04" ... (11)
+@Log: Lights fetched for level "20-04", 5 lights found. (11)
+@Log: Loaded map One Step Ahead (20-04, ../worlds/maps/20-04), took 45ms. (11)
+@Log: Clicked "delete" and called its onClick(). (11)
+@Warning: Tried to load image(s) from path res/gui/cancel_keyboard.png, the resolved path res/gui/cancel_keyboard.png however does not exist. (11)
+
+ -- Last 8 Input Events -- 
+Touch up: 0 (pointer: 0) at x:352 y: 75 (4416ms ago)
+Key down: L-Ctrl (129) (3963ms ago)
+Key down: M (41) (2989ms ago)
+Key up: M (41) (2782ms ago)
+Key up: L-Ctrl (129) (2748ms ago)
+Key down: Escape (131) (2216ms ago)
+Key up: Escape (131) (2149ms ago)
+Touch down: 0 (pointer: 0) at x:1360 y: 309 (16ms ago)

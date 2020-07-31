@@ -1,0 +1,215 @@
+package com.unlogical.colored.gui;
+
+import org.newdawn.slick.Color;
+import org.newdawn.slick.GameContainer;
+import org.newdawn.slick.Graphics;
+import org.newdawn.slick.Input;
+import org.newdawn.slick.geom.Rectangle;
+
+import com.unlogical.colored.util.ColorHelper;
+
+
+
+public abstract class GUICheckbox
+{
+	private float xOffset;
+	private float yOffset;
+
+	private float width;
+	private float height;
+
+	private boolean checked;
+	
+	private boolean active = true;
+	private boolean allowChange = true;
+
+	private Rectangle checkbox;
+
+	private Color fillColor = new Color(0.0f, 0.0f, 0.0f, 0.5f);
+	private Color crossColor = Color.white;
+	private Color borderColor = Color.white;
+
+	public GUICheckbox(boolean checked, float xOffset, float yOffset, float width, float height)
+	{
+		this.checked = checked;
+
+		this.xOffset = xOffset;
+		this.yOffset = yOffset;
+		this.width = width;
+		this.height = height;
+
+		this.checkbox = new Rectangle(xOffset, yOffset, width, height);
+	}
+
+	public void toggleState()
+	{
+		this.checked = !checked;
+	}
+
+	public abstract void onChecked();
+
+	public abstract void onUnchecked();
+
+	public void update(GameContainer container, int delta)
+	{
+		crossColor = Color.white;
+
+		this.checkbox.setBounds(xOffset, yOffset, width, height);
+
+		if (allowChange && checkbox.contains(container.getInput().getMouseX(), container.getInput().getMouseY()))
+		{
+			if (container.getInput().isMousePressed(Input.MOUSE_LEFT_BUTTON))
+			{
+				toggleState();
+
+				if (checked)
+				{
+					onChecked();
+				}
+				else
+				{
+					onUnchecked();
+				}
+			}
+		}
+	}
+
+	public void render(GameContainer container, float alphaFactor, Graphics g)
+	{
+		ColorHelper.applyAlphaAndCopy(fillColor, alphaFactor, g);
+		g.fill(checkbox);
+
+		ColorHelper.applyAlphaAndCopy(borderColor, alphaFactor, g);
+		g.draw(checkbox);
+		
+		if (checked)
+		{
+			ColorHelper.applyAlphaAndCopy(crossColor, alphaFactor, g);
+			
+			g.drawLine(checkbox.getMinX(), checkbox.getMinY(), checkbox.getMaxX(), checkbox.getMaxY());
+			g.drawLine(checkbox.getMinX(), checkbox.getMaxY(), checkbox.getMaxX(), checkbox.getMinY());
+		}
+	}
+
+	public float getXOffset()
+	{
+		return xOffset;
+	}
+
+	public void setXOffset(float xOffset)
+	{
+		this.xOffset = xOffset;
+	}
+	
+	public void adjust(int xChange, int yChange)
+	{
+		adjustX(xChange);
+		adjustY(yChange);
+	}
+
+	public void adjustX(float xChange)
+	{
+		this.xOffset += xChange;
+	}
+
+	public float getYOffset()
+	{
+		return yOffset;
+	}
+
+	public void setYOffset(float yOffset)
+	{
+		this.yOffset = yOffset;
+	}
+
+	public void adjustY(float yChange)
+	{
+		this.yOffset += yChange;
+	}
+
+	public float getWidth()
+	{
+		return width;
+	}
+
+	public void setWidth(float width)
+	{
+		this.width = width;
+	}
+
+	public float getHeight()
+	{
+		return height;
+	}
+
+	public void setHeight(float height)
+	{
+		this.height = height;
+	}
+
+	public boolean isChecked()
+	{
+		return checked;
+	}
+
+	public boolean isActive()
+	{
+		return active;
+	}
+
+	public void setActive(boolean active)
+	{
+		this.active = active;
+	}
+
+	public boolean isAllowChange()
+	{
+		return allowChange;
+	}
+
+	public void setAllowChange(boolean allowChange)
+	{
+		this.allowChange = allowChange;
+	}
+
+	public Color getFillColor()
+	{
+		return fillColor;
+	}
+
+	public void setFillColor(Color fillColor)
+	{
+		this.fillColor = fillColor;
+	}
+
+	public Color getCrossColor()
+	{
+		return crossColor;
+	}
+
+	public void setCrossColor(Color crossColor)
+	{
+		this.crossColor = crossColor;
+	}
+
+	public Color getBorderColor()
+	{
+		return borderColor;
+	}
+
+	public void setBorderColor(Color borderColor)
+	{
+		this.borderColor = borderColor;
+	}
+
+	public void setChecked(boolean checked)
+	{
+		this.checked = checked;
+	}
+
+	public int getCenterY()
+	{
+		return (int) this.checkbox.getCenterY();
+	}
+	
+}

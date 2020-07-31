@@ -1,0 +1,172 @@
+package com.unlogical.linked.entity.boss;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Random;
+
+import org.newdawn.slick.GameContainer;
+import org.newdawn.slick.Graphics;
+import org.newdawn.slick.geom.Vector2f;
+
+import com.unlogical.linked.entity.Entity;
+import com.unlogical.linked.entity.EntityType;
+import com.unlogical.linked.entity.projectile.EntityIceSpike;
+import com.unlogical.linked.entity.property.EntityProperty;
+import com.unlogical.linked.entity.property.SharedEntityProperties;
+import com.unlogical.linked.level.Level;
+import com.unlogical.linked.resources.font.Fonts;
+import com.unlogical.linked.util.ColorHelper;
+import com.unlogical.linked.util.Dimension;
+import com.unlogical.linked.util.Renderer;
+import com.unlogical.linked.util.ShaderHandler;
+
+public class EntityTimeScaleBoss extends EntityBoss
+{
+	private static final int JUMP_WAIT_TIME = 7000;
+
+	private List<EntityIceSpike> spikes = new ArrayList<EntityIceSpike>();
+	private EntityIceSpike nextSpike;
+
+	private boolean lastJumping;
+	private int timeUntilJump;
+
+	public EntityTimeScaleBoss(EntityType type, Vector2f position, Level level, Dimension dimension, boolean allowMirrors)
+	{
+		super(type, position, level, dimension, allowMirrors);
+	}
+
+	@Override
+	public void init()
+	{
+		super.init();
+
+		spikes.clear();
+
+		for (Entity entity : level.getEntities())
+		{
+			if (entity instanceof EntityIceSpike && entity.getDimension() == Dimension.LIGHT)
+			{
+				spikes.add((EntityIceSpike) entity);
+			}
+		}
+
+		if (!spikes.isEmpty())
+		{
+			nextSpike = spikes.get(level.getRNG(this).nextInt(spikes.size()));
+		}
+	}
+
+	@Override
+	public void onUpdate(GameContainer container, float delta, Random rng)
+	{
+		super.onUpdate(container, delta, rng);
+		
+		if (Math.abs(distanceToPlayer.x) < 650.0f && Math.abs(distanceToPlayer.y) < 80)
+		{
+			if (!active)
+			{
+				active = true;
+
+				timeUntilJump = JUMP_WAIT_TIME;
+			}
+		}
+
+		if (active)
+		{
+			this.movingRight = nextSpike.getCenterX() > this.getCenterX();
+
+			if (!this.jumping)
+			{
+				this.velocity.x += this.properties.getAcceleration(delta) * (this.movingRight ? 1 : -1);
+
+				if (Math.abs(this.velocity.x) > this.properties.getMaxSpeed())
+				{
+					this.velocity.x = this.properties.getMaxSpeed() * Math.signum(this.velocity.x);
+				}
+			}
+
+			if (Math.abs(distanceToPlayer.x) < 280.0f && Math.abs(distanceToPlayer.y) < 80.0f)
+			{
+				timeUntilJump -= delta;
+			}
+				
+			if (timeUntilJump < 0)
+			{
+				this.resetVelocities();
+				this.velocity.y = -0.9f;
+				this.jumping = true;
+
+				timeUntilJump = JUMP_WAIT_TIME;
+			}
+
+			if (this.lastJumping && !this.jumping && !this.spikes.isEmpty())
+			{
+				nextSpike.fall();
+
+				int nextIndex = rng.nextInt(spikes.size());
+
+				if (spikes.get(nextIndex) == nextSpike)
+				{
+					nextIndex++;
+
+					if (nextIndex >= spikes.size())
+					{
+						nextIndex = 0;
+					}
+				}
+
+				nextSpike = spikes.get(nextIndex);
+			}
+		}
+
+		this.lastJumping = this.jumping;
+	}
+
+	@Override
+	public void onDeathUpdate(GameContainer container, float delta, Random rng)
+	{
+		super.onDeathUpdate(container, delta, rng);
+	}
+
+	@Override
+	public void draw(Graphics g)
+	{
+		super.draw(g);
+
+		if (alive)
+		{
+			ShaderHandler.disableLighting();
+
+			g.setFont(Fonts.getSmallFont());
+			g.setColor(customModifiyDrawColor(this.getDrawColor(this.dimension, ColorHelper.buffer)));
+
+			String drawString = "";
+
+			for (int i = 0; i < this.properties.getMaxHealth() - this.health; i++)
+			{
+				drawString += "X";
+			}
+
+			for (int i = 0; i < this.health; i++)
+			{
+				drawString += "O";
+			}
+
+			g.drawString(drawString, this.getCenterX() - g.getFont().getWidth(drawString) / 2.0f, this.getCenterY() - 58);
+
+			Renderer.bindTexture(null);
+		}
+	}
+
+	@Override
+	protected boolean shouldBounceOnGround()
+	{
+		return false;
+	}
+
+	@Override
+	protected EntityProperty getEntityProperty()
+	{
+		return SharedEntityProperties.TIME_SCALE_BOSS;
+	}
+}

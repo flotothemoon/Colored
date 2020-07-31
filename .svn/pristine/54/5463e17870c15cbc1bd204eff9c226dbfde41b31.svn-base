@@ -1,0 +1,261 @@
+package com.unlogical.linked.saving;
+
+import java.io.File;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import au.com.bytecode.opencsv.CSVReader;
+import au.com.bytecode.opencsv.CSVWriter;
+
+import com.unlogical.linked.debug.Debug;
+import com.unlogical.linked.filesystem.FilePaths;
+
+public class SaveState
+{	
+	private static final String LAST_ACCESS_TOKEN = "lastAccess";
+	
+	private static final String GROUP_START = "====";
+	private static final String GROUP_END = "==|==";
+	private static final String ITEM_START = "--";
+	private static final String ITEM_END = "-|-";
+
+	private File file;
+	private String saveID;
+	private long lastAccess;
+
+	public InformationPool globalInformation = new InformationPool();
+	public Map<String, InformationPool> perLevelInformation = new HashMap<String, InformationPool>();
+	public Map<String, InformationPool> perWorldInformation = new HashMap<String, InformationPool>();
+
+	public SaveState(String saveID) throws IOException
+	{
+		this.file = new File(FilePaths.SAVES + "/" + saveID + ".dat");
+		this.saveID = saveID;
+		
+		this.readAll();
+	}
+	
+	public SaveState(File file) throws IOException
+	{
+		this.file = file;
+		this.saveID = file.getName().substring(0, file.getName().lastIndexOf('.'));
+		
+		this.readAll();
+	}
+
+	private SaveState() throws IOException
+	{
+		String id = System.currentTimeMillis() + "";
+		
+		this.file = new File(FilePaths.SAVES + "/" + id + ".dat");
+		this.file.createNewFile();
+		this.saveID = id;
+	}
+	
+	public static SaveState createDefaultSave() throws IOException
+	{
+		SaveState save = new SaveState();
+		
+		save.globalInformation.put(LAST_ACCESS_TOKEN, System.currentTimeMillis());
+		save.lastAccess = System.currentTimeMillis();
+		
+		return save;
+	}
+	
+	public void readAll() throws IOException
+	{
+		CSVReader reader = new CSVReader(new FileReader(file));
+
+		globalInformation = (InformationPool) readGroup(reader).values().toArray()[0];
+		perLevelInformation = readGroup(reader);
+		perWorldInformation = readGroup(reader);
+						
+		this.lastAccess = Long.parseLong((String) globalInformation.get(LAST_ACCESS_TOKEN)[0]);
+	}
+
+	@SuppressWarnings("serial")
+	public void writeAll() throws IOException
+	{
+		CSVWriter writer = new CSVWriter(new FileWriter(file));
+
+		if (!file.exists())
+		{
+			Debug.log("Created " + file.getPath() + " to save for saveID " + saveID + ".");
+
+			file.createNewFile();
+		}
+
+		globalInformation.put(LAST_ACCESS_TOKEN, System.currentTimeMillis());
+		
+		writeGroup(new HashMap<String, InformationPool>()
+		{
+			{
+				put("global", globalInformation);
+			}
+		}, writer);
+		
+		writeGroup(perLevelInformation, writer);
+		writeGroup(perWorldInformation, writer);
+		
+		writer.close();
+	}
+	
+	private void writeGroup(Map<String, InformationPool> poolMap, CSVWriter writer) throws IOException
+	{
+		write(writer, GROUP_START);
+		
+		for (String key : poolMap.keySet())
+		{
+			InformationPool pool = poolMap.get(key);
+			
+			write(writer, ITEM_START, key);
+			
+			Map<Object, Object[]> map = pool.getStoredInformation();
+			
+			for (Object object : map.keySet())
+			{
+				String[] values;
+				Object[] objects = map.get(object);
+				
+				if (objects != null)
+				{
+					values = new String[map.get(object).length];
+					
+					for (int i = 0; i < values.length; i++)
+					{
+						values[i] = pool.write(objects[i]);
+					}
+				}
+				else
+				{
+					values = new String[]{};
+				}
+				
+				List<String> writtenValues = new ArrayList<String>(Arrays.asList(values));
+				
+				writtenValues.add(0, pool.write(object));
+				
+				write(writer, (String[]) writtenValues.toArray(values)); 
+			}
+			
+			write(writer, ITEM_END);
+		}
+		
+		write(writer, GROUP_END);
+	}
+	
+	private void write(CSVWriter writer, String... line)
+	{
+		writer.writeNext(line);
+	}
+
+	private Map<String, InformationPool> readGroup(CSVReader reader) throws IOException
+	{
+		Map<String, InformationPool> poolMap = new HashMap<String, InformationPool>();
+		InformationPool currentPool = null;
+
+		String[] line = null;
+		while ((line = reader.readNext()) != null)
+		{
+			if (line[0].equals(GROUP_END))
+			{
+				break;
+			}
+
+			if (!line[0].equals(GROUP_START))
+			{
+				if (line[0].equals(ITEM_START))
+				{
+					currentPool = new InformationPool();
+					poolMap.put(line[1], currentPool);
+				}
+				else if (!line[0].equals(ITEM_END))
+				{
+					Object[] readValues = new Object[line.length - 1];
+					
+					for (int i = 0; i < readValues.length; i++)
+					{
+						readValues[i] = currentPool.read(line[i + 1]);
+					}
+					
+					currentPool.put(line[0], readValues);
+				}
+			}
+		}
+
+		return poolMap;
+	}
+	
+	private Object[] stringinize(Object... values)
+	{
+		String[] result = new String[values.length];
+		
+		for (int i = 0; i < values.length; i++)
+		{
+			result[i] = values[i].toString();
+		}
+		
+		return result;
+	}
+	
+	public void writeGlobal(Object key, Object... values)
+	{
+		globalInformation.put(key, stringinize(values));
+	}
+	
+	public void writeLevel(String levelID, Object key, Object... values)
+	{
+		if (perLevelInformation.get(levelID) == null)
+		{
+			perLevelInformation.put(levelID, new InformationPool());
+		}
+				
+		perLevelInformation.get(levelID).put(key, stringinize(values));
+	}
+	
+	public void writeWorld(String worldID, Object key, Object... values)
+	{
+		if (perWorldInformation.get(worldID) == null)
+		{
+			perWorldInformation.put(worldID, new InformationPool());
+		}
+		
+		perWorldInformation.get(worldID).put(key, stringinize(values));
+	}
+	
+	public Object[] readGlobal(Object key)
+	{
+		return globalInformation.get(key);
+	}
+	
+	public Object[] readLevel(String levelID, Object key)
+	{
+		if (perLevelInformation.get(levelID) == null)
+		{
+			return null;
+		}
+		
+		return perLevelInformation.get(levelID).get(key);
+	}
+	
+	public Object[] readWorld(String worldID, Object key)
+	{
+		if (perWorldInformation.get(worldID) == null)
+		{
+			return null;
+		}
+		
+		return perWorldInformation.get(worldID).get(key);
+	}
+	
+	public long getLastAccess()
+	{
+		return lastAccess;
+	}
+}

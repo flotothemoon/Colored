@@ -1,0 +1,173 @@
+package com.unlogical.colored.story;
+
+import java.util.Map;
+
+import org.newdawn.slick.GameContainer;
+import org.newdawn.slick.Graphics;
+
+import com.unlogical.colored.entity.EntityLiving;
+import com.unlogical.colored.entity.key.EntityKey;
+import com.unlogical.colored.entity.player.EntityPlayer;
+import com.unlogical.colored.level.Level;
+import com.unlogical.colored.saving.InformationPool;
+import com.unlogical.colored.saving.SaveHandler;
+import com.unlogical.colored.terrain.tile.TileDoor;
+import com.unlogical.colored.terrain.tile.cage.TileCage;
+import com.unlogical.colored.terrain.tile.logical.TileLever;
+import com.unlogical.colored.util.IDeepCopyable;
+
+public abstract class CustomStoryHandler implements IDeepCopyable<CustomStoryHandler>
+{
+	protected Level level;
+
+	public CustomStoryHandler(Level level)
+	{
+		this.level = level;
+	}
+
+	public static CustomStoryHandler getHandlerFor(Level level)
+	{
+		if (level.getID() != null)
+		{
+			if (level.getID().equals("20-01"))
+			{
+				InformationPool data = SaveHandler.getActiveSave().perLevelInformation.get("25-01");
+				Object[] clearedData = data != null ? data.get(Level.LEVEL_CLEARED_TOKEN) : null;
+
+				if (clearedData != null && Boolean.parseBoolean((String) clearedData[0]))
+				{
+					return new EndingStoryHandler(level);
+				}
+				else
+				{
+					return new BeginningStoryHandler(level);
+				}
+			}
+			else if (level.getID().equals("25-01"))
+			{
+				return new ColoredLevelStoryHandler(level);
+			}
+		}
+
+		return getDefaultCustomStoryHandler(level);
+	}
+
+	private static CustomStoryHandler getDefaultCustomStoryHandler(Level level)
+	{
+		return new CustomStoryHandler(level)
+		{
+			@Override
+			public CustomStoryHandler deepCopy(Map<Object, Object> copiedReferences)
+			{
+				return this;
+			}
+
+			@Override
+			public boolean shouldCopy()
+			{
+				return false;
+			}
+		};
+	}
+
+	public void onPreLevelInit()
+	{
+	}
+
+	public void onLevelInit()
+	{
+	}
+
+	public void onLevelEntry(boolean viaDoor)
+	{
+	}
+
+	public void onLevelExit(TileDoor door)
+	{
+	}
+
+	public void onPlayerMoved(EntityPlayer player)
+	{
+	}
+
+	public void onLeverPulled(TileLever lever, EntityPlayer interactor, boolean realInput)
+	{
+	}
+
+	public void onKeyPickup(EntityKey key, EntityLiving interactor)
+	{
+	}
+
+	public void onKeyUsage(EntityKey key, EntityLiving interactor)
+	{
+	}
+
+	public void onKeyDropped(EntityKey key)
+	{
+	}
+
+	public void onCageOpened(TileCage cage, int levelOpenedCages, int levelTotalCages, boolean fromSave)
+	{
+	}
+
+	public boolean canPlayerDoAnything()
+	{
+		return true;
+	}
+
+	public boolean canPlayerTravelDimensions()
+	{
+		return true;
+	}
+
+	public boolean shouldShatterWorldLikeMad()
+	{
+		return false;
+	}
+
+	public boolean shouldPlayerBeHandledAsShared()
+	{
+		return true;
+	}
+
+	public boolean shouldWorldBeConsideredForShattering()
+	{
+		return true;
+	}
+
+	public boolean shouldLeveldBeConsideredForShattering()
+	{
+		return true;
+	}
+
+	public boolean shouldTotalBeConsideredForShattering()
+	{
+		return true;
+	}
+	
+	public boolean canLeverBePulled(TileLever lever, EntityPlayer interactor)
+	{
+		return true;
+	}
+
+	public float getShatteringMultiplier()
+	{
+		return 1.0f;
+	}
+
+	public void update(GameContainer container, int delta)
+	{
+
+	}
+
+	public void render(GameContainer container, Graphics g)
+	{
+
+	}
+
+	@Override
+	public boolean shouldCopy()
+	{
+		return true;
+	}
+}

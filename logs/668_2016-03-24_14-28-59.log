@@ -1,0 +1,64 @@
+ -- General -- 
+Generated on: 2016-03-24_14-28-59
+Build: 668 from 02:08 PM - 24/03/16
+GameState: IN_LEVEL (previous: LOADING)
+Target FPS: 60
+Actual FPS: 10
+
+ -- Display -- 
+Target Width / Height: 1920 / 1080
+Actual Width / Height: 1920 / 1053 (windowed)
+
+ -- Environment -- 
+GPU: GeForce GTX 980 Ti/PCIe/SSE2 (NVIDIA Corporation)
+OpenGL Version: 4.5.0 NVIDIA 361.43
+Allocated Memory: 15MB
+Used Memory: 0MB
+"os.name": Windows 10
+"os.version": 10.0
+"os.arch": x86
+"java.version": 1.8.0_66
+"java.vendor": Oracle Corporation
+"sun.arch.data.model": 32
+
+ -- Level --
+ID: 20-05 (internal: 05)
+LevelType: NORMAL
+Dimension: LIGHT
+Location: ../worlds/maps/20-05
+
+ -- Stack Trace -- 
+java.lang.ClassCastException: java.lang.String cannot be cast to java.lang.Boolean
+com.unlogical.colored.terrain.tile.TileDoor.preDraw(TileDoor.java:113)
+com.unlogical.colored.terrain.TerrainObject.drawTextured(TerrainObject.java:261)
+com.unlogical.colored.terrain.TerrainObject.draw(TerrainObject.java:211)
+com.unlogical.colored.levelmanaging.MapManager.renderBehindAllEntities(MapManager.java:873)
+com.unlogical.colored.levelmanaging.LevelManager.renderGeometry(LevelManager.java:1173)
+com.unlogical.colored.levelmanaging.LevelManager.render(LevelManager.java:1132)
+com.unlogical.colored.GameLauncher.render(GameLauncher.java:464)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication.mainLoop(LwjglApplication.java:218)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication$1.run(LwjglApplication.java:123)
+
+ -- Last 20 Log Entries -- 
+@Log: Found world hub for world 23 at 23-09. (8)
+@Log: Found world hub for world 24 at 24-10. (8)
+@Log: Initializing map editor... (8)
+@Log: Initialising levelrenderer... (8)
+@Log: Initializing menus... (8)
+@Log: SaveState 1.dat found and read successfully. (8)
+@Log: Initializing story handler... (8)
+@Log: Initializing credits screen... (8)
+@Log: Resizing contents to current window size... (8)
+@Log: Finished loading, took 333ms. (8)
+@Log: Loading map ../worlds/maps/20-05 ... (8)
+@Log: Loading map files took 7ms. (8)
+@Warning: Tried to load image(s) from path res/gui/icons/20-05, the resolved path res/gui/icons/20-05.png however does not exist. (8)
+@Warning: Couldn't load level icon for 20-05. (8)
+@Log: Fetching lights for level "20-05" ... (8)
+@Log: Lights fetched for level "20-05", 1 light found. (8)
+@Log: Pre-simulating particles for 45000.0ms (300 x 150.0ms)... (8)
+@Log: Particle pre-simulation complete. Particles are now ahead of time by 45000.0ms. (8)
+@Log: Active save was saved to disk. (8)
+@Log: Loaded 20-05 (took 14ms). (8)
+
+ -- Last 0 Input Events -- 

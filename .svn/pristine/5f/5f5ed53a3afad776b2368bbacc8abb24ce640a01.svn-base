@@ -1,0 +1,40 @@
+package com.unlogical.colored.filesystem;
+
+public final class FilePaths
+{
+	public static final String[] FOLDERS = { "dev", "dev/logs", "worlds", "worlds/maps", "res", "res/textures", "res/sounds", "res/music", "res/textures/entities", "res/wrapper", "res/templates",  "res/textures/blocks", "res/textures/misc", "res/textures/entities/mobs", "res/textures/entities/other", "res/textures/entities/boss", "res/light", "res/textures/blocks/animations", "res/textures", "saves", "temp", "res/font", "deleted" };
+
+	public static final String TEMP = "temp";
+	public static final String TEXTURES = "res/textures";
+	public static final String DEV = "dev";
+	public static final String BUILD_INFO = "dev/buildinfo.dat";
+	public static final String OPTIONS_YML = "dev/options.yml";
+	public static final String PLAYER = TEXTURES + "/entities";
+	public static final String ENTITIES = TEXTURES + "/entities";
+	public static final String GAME_LOG = "dev/logs/gameLog.log";
+	public static final String MAPS = "worlds/maps";
+	public static final String WRAPPERS = "res/wrapper";
+	public static final String MUSIC = "res/music";
+	public static final String TILE_TEXTURES = TEXTURES + "/blocks";
+	public static final String TILE_ANIMATIONS_POSTFIX = "/animations";
+	public static final String PARTICLES = "res/particle";
+	public static final String EMITTER_TEMPLATES = "res/templates";
+	public static final String EMITTER_TEMPLATES_FILE = "res/templates/templates.cfg";
+	public static final String DEFAULT_WORLDS = "worlds/default";
+	public static final String ENTITY_BOSS = TEXTURES + "/entities/boss";
+	public static final String ENTITY_MOB = TEXTURES + "/entities/mobs";
+	public static final String ENTITY_OTHER = TEXTURES + "/entities/other";
+	public static final String PROJECTILES = TEXTURES + "/entities/projectiles";
+	public static final String SCREENSHOTS = "screenshots";
+	public static final String SOUNDS = "res/sounds";
+	public static final String GUI = "res/gui";
+	public static final String CURSOR = "res/gui/cursor";
+	public static final String WORLDS = "worlds";
+	public static final String CUSTOM_WORLDS = WORLDS + "/custom";
+	public static final String WORLD_TEXTURES = TEXTURES + "/world";
+	public static final String SHADERS = "res/shaders";
+	public static final String DELETED = "deleted";
+	public static final String SAVES = "saves";
+	public static final String LAUNCH_ARGS = "dev/launch.arg";
+	public static final String FONTS = "res/font";
+}

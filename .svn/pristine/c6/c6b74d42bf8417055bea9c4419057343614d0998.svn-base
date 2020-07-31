@@ -1,0 +1,70 @@
+package com.unlogical.colored.util;
+
+import java.util.Map;
+
+import com.unlogical.colored.level.Level;
+
+public class ScheduledEvent implements IDeepCopyable<ScheduledEvent>
+{
+	public final Object type;
+	public Object object;
+	public final boolean inputBased;
+	
+	public ScheduledEvent(final Object eventType)
+	{
+		this.type = eventType;
+		this.object = null;
+		this.inputBased = false;
+	}
+	
+	public ScheduledEvent(final Object eventType, final boolean inputBased)
+	{
+		this.type = eventType;
+		this.object = null;
+		this.inputBased = inputBased;
+	}
+
+	public ScheduledEvent(final Object eventType, final Object eventObject)
+	{
+		this.type = eventType;
+		this.object = eventObject;
+		this.inputBased = false;
+	}
+
+	public ScheduledEvent(final Object eventType, final Object eventObject, final boolean inputBased)
+	{
+		this.type = eventType;
+		this.object = eventObject;
+		this.inputBased = inputBased;
+	}
+	
+	
+	@Override
+	public ScheduledEvent deepCopy(Map<Object, Object> copiedReferences)
+	{
+		ScheduledEvent copy = new ScheduledEvent(type, null, inputBased);
+		
+		Level.putCopy(this, copy, copiedReferences);
+
+		copy.object = Level.getCopy(this.object, copiedReferences);
+		
+		return copy;
+	}
+
+	public ScheduledEvent shallowCopy()
+	{
+		return new ScheduledEvent(type, object, inputBased);
+	}
+	
+	@Override
+	public boolean shouldCopy()
+	{
+		return object instanceof IDeepCopyable;
+	}
+	
+	@Override
+	public String toString()
+	{
+		return "[ScheduledEvent type:" + type + (object == null ? "" : " object:" + object) + (inputBased ? " inputBased" : "") + "]";
+	}
+}

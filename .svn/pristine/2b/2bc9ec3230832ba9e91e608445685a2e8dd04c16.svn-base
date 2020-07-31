@@ -1,0 +1,526 @@
+package com.unlogical.colored.terrain.tile.cannon;
+
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Deque;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.Set;
+
+import com.badlogic.gdx.math.Vector2;
+import com.unlogical.colored.debug.Debug;
+import com.unlogical.colored.entity.Entity;
+import com.unlogical.colored.entity.EntityType;
+import com.unlogical.colored.level.Level;
+import com.unlogical.colored.level.LevelType;
+import com.unlogical.colored.particle.EmitterType;
+import com.unlogical.colored.terrain.TileType;
+import com.unlogical.colored.terrain.property.TileProperty;
+import com.unlogical.colored.terrain.tile.Tile;
+import com.unlogical.colored.terrain.tile.properties.ITileMirrorable;
+import com.unlogical.colored.terrain.tile.properties.ITileRotationListener;
+import com.unlogical.colored.util.Dimension;
+import com.unlogical.colored.util.GameObject;
+import com.unlogical.colored.util.LevelObject;
+
+public class TileCannon extends Tile implements ITileRotationListener, ITileMirrorable
+{
+	private static final int BEFORE_SHOOT_ALERT_TIME = 1000;
+	private static final int REPEATED_SHOOTING_COOLDOWN = 1337;
+
+	private TileCannonBehaviour behaviour;
+	private Deque<ICannonBall> instanceQueue;
+	private Set<ICannonBall> latestInstances = new HashSet<ICannonBall>();
+	private Deque<ICannonBall> resimulationOriginalInstances = new ArrayDeque<ICannonBall>();
+	private List<Integer> queuedActualShootEvents = new ArrayList<>();
+	private String ballType;
+
+	private float shootSpeed;
+	private float cannonRotation;
+	private float intervalCooldown;
+
+	private int interval;
+	private int minCount;
+	private int ballIndex;
+
+	private boolean validCannonBall;
+	private boolean isEntity;
+
+	public TileCannon(TileType type, String metadata, int innerType, float rotation, Vector2 position, Level level, Dimension dimension, TileProperty properties, boolean allowMirrors)
+	{
+		super(type, metadata, innerType, rotation, position, level, dimension, properties, allowMirrors);
+
+		this.updateCannonRotation(rotation);
+
+		if (level.getLevelType() == LevelType.TIME_TRAVEL)
+		{
+			this.instanceQueue = new ArrayDeque<ICannonBall>();
+		}
+	}
+
+	@Override
+	public LevelObject deepCopy(Map<Object, Object> copiedReferences)
+	{
+		TileCannon copy = (TileCannon) super.deepCopy(copiedReferences);
+
+		if (this.instanceQueue != null)
+		{
+			copy.instanceQueue = new ArrayDeque<ICannonBall>();
+			copy.instanceQueue = Level.deepCopyCollection(this.instanceQueue, copy.instanceQueue, copiedReferences);
+		}
+
+		copy.latestInstances = Level.deepCopyCollection(this.latestInstances, copy.latestInstances, copiedReferences);
+		copy.intervalCooldown = this.intervalCooldown;
+		copy.cannonRotation = this.cannonRotation;
+
+		return copy;
+	}
+
+	public boolean validateCannonBall()
+	{
+		try
+		{
+			Entity entity = null;
+			Tile tile = null;
+
+			this.validCannonBall = (this.isEntity ? (entity = Entity.createEntity(EntityType.values()[this.ballIndex], new Vector2(), this.level, Dimension.COLORED, false)) : (tile = Tile.createTile(TileType.values()[this.ballIndex], "", 0, 0.0f, new Vector2(), this.level, Dimension.COLORED, TileType.values()[this.ballIndex].getProperties().copy(), true))) instanceof ICannonBall;
+
+			if (this.isEntity)
+			{
+				entity.removeMirror();
+			}
+			else
+			{
+				tile.removeMirror();
+			}
+		}
+		catch (Exception e)
+		{
+			this.validCannonBall = false;
+		}
+
+		return this.validCannonBall;
+	}
+
+	@Override
+	public void onUpdate(float delta, Random rng)
+	{
+		if (this.validCannonBall && (this.dimension == Dimension.COLORED || this.level.getType() != LevelType.REVERSAL))
+		{
+			if (this.intervalCooldown >= 0)
+			{
+				this.intervalCooldown -= delta;
+			}
+
+			if (this.behaviour == TileCannonBehaviour.INTERVAL)
+			{
+				if (this.intervalCooldown < 0)
+				{
+					this.queueShoot();
+
+					this.intervalCooldown = this.interval;
+				}
+			}
+
+			Iterator<ICannonBall> iterator = this.latestInstances.iterator();
+
+			while (iterator.hasNext())
+			{
+				ICannonBall cannonBall = iterator.next();
+
+				if (cannonBall.isDead() || cannonBall.isOutOfMap() || cannonBall.isRemoved())
+				{
+					iterator.remove();
+				}
+			}
+
+			if (this.behaviour == TileCannonBehaviour.MIN_COUNT)
+			{
+				if (this.latestInstances.size() < this.minCount && this.intervalCooldown < 0)
+				{
+					this.queueShoot();
+
+					this.intervalCooldown = REPEATED_SHOOTING_COOLDOWN;
+				}
+			}
+		}
+
+		for (int i = 0; i < this.queuedActualShootEvents.size(); i++)
+		{
+			int value = this.queuedActualShootEvents.get(i);
+
+			this.queuedActualShootEvents.remove(i);
+
+			if (value > 0)
+			{
+				this.queuedActualShootEvents.add(i, (int) (value - delta));
+			}
+			else
+			{
+				this.shoot();
+			}
+		}
+	}
+
+	@Override
+	public void onReSimulation()
+	{
+		super.onReSimulation();
+
+		if (!this.shared)
+		{
+			this.intervalCooldown = ((TileCannon) this.mirroredTile).intervalCooldown;
+			this.resimulationOriginalInstances.clear();
+			this.resimulationOriginalInstances.addAll(this.instanceQueue);
+			this.instanceQueue.clear();
+			this.latestInstances.clear();
+
+			for (ICannonBall instance : ((TileCannon) this.mirroredTile).latestInstances)
+			{
+				this.latestInstances.add(instance.getMirroredBall());
+			}
+		}
+	}
+
+	@Override
+	public void onPostReSimulation(GameObject changedObject, Vector2 oldPosition)
+	{
+		super.onPostReSimulation(changedObject, oldPosition);
+	}
+
+	public void queueShoot()
+	{
+		EmitterType type;
+		float velocityFactor;
+
+		if (this.isEntity)
+		{
+			if (EntityType.values()[this.ballIndex] == EntityType.GOOMBA)
+			{
+				type = EmitterType.CREATURE_PRESHOOT;
+				velocityFactor = 10.0f;
+			}
+			else
+			{
+				type = EmitterType.BALL_PRESHOOT;
+				velocityFactor = 4.0f;
+			}
+		}
+		else
+		{
+			type = EmitterType.CLOUD_PRESHOOT;
+			velocityFactor = 1.0f;
+		}
+
+		int emitterRotation = (int) this.rotation - 90;
+
+		if (this.innerType == 1)
+		{
+			emitterRotation -= 180;
+		}
+
+		type.velocityX.mul(this.shootSpeed * velocityFactor);
+		type.velocityY.mul(this.shootSpeed * velocityFactor);
+
+		this.addEmitter(type, this.dimension, null, (int) this.hitbox.getRawWidth(), (int) this.hitbox.getRawHeight(), type.maxParticles, true, emitterRotation);
+
+		type.velocityX.mul(1.0f / (velocityFactor * this.shootSpeed));
+		type.velocityY.mul(1.0f / (velocityFactor * this.shootSpeed));
+
+		this.queuedActualShootEvents.add(BEFORE_SHOOT_ALERT_TIME);
+	}
+
+	public void shoot()
+	{
+		ICannonBall instance = this.shootCannonBall();
+
+		this.latestInstances.add(instance);
+
+		if (instance.getOnShotSound() != null)
+		{
+			this.level.playSound(instance.getOnShotSound(), 1.0f, this);
+		}
+
+		if (this.level.getLevelType() == LevelType.TIME_TRAVEL)
+		{
+			if (this.dimension == Dimension.COLORED)
+			{
+				this.instanceQueue.addFirst(instance);
+
+				if (this.reSimulating)
+				{
+					((LevelObject) instance).addInputBasedScheduledEvents((LevelObject) this.resimulationOriginalInstances.pollFirst());
+				}
+			}
+			else
+			{
+				LevelObject latestInstance = (LevelObject) ((TileCannon) this.mirroredTile).instanceQueue.pollLast();
+
+				if (latestInstance == null)
+				{
+					Debug.warn("DAMNIT latest instance is null in tile cannon for some reason...");
+				}
+
+				if (instance instanceof Entity)
+				{
+					((Entity) instance).setMirroredEntity((Entity) latestInstance);
+				}
+				else
+				{
+					((Tile) instance).setMirroredTile((Tile) latestInstance);
+				}
+			}
+		}
+
+		if (this.behaviour == TileCannonBehaviour.MIN_COUNT && instance.getDimension() == Dimension.COLORED && this.level.getType() != LevelType.REVERSAL)
+		{
+			instance.removeMirror();
+		}
+	}
+
+	public ICannonBall shootCannonBall()
+	{
+		ICannonBall cannonBall = this.createCannonBall();
+
+		cannonBall.onShoot(this, this.cannonRotation, this.shootSpeed);
+		((LevelObject) cannonBall).setPersistent(false);
+
+		return cannonBall;
+	}
+
+	public ICannonBall createCannonBall()
+	{
+		if (!this.validCannonBall)
+		{
+			return null;
+		}
+
+		ICannonBall cannonBall;
+
+		if (this.isEntity)
+		{
+			Entity entity = Entity.createEntity(EntityType.values()[this.ballIndex], this.position.cpy(), this.level, this.dimension, this.level.getLevelType() == LevelType.REVERSAL);
+			cannonBall = (ICannonBall) entity;
+
+			this.level.addEntity(entity);
+
+			entity.setPosition(cannonBall.getStartPosition(this, this.cannonRotation).cpy());
+			entity.setVelocity(cannonBall.getStartVelocity(this, this.cannonRotation, this.shootSpeed).cpy());
+			entity.setShared(this.shared);
+			entity.setTimeEffected(this.timeEffected);
+		}
+		else
+		{
+			Tile tile = Tile.createTile(TileType.values()[this.ballIndex], "", 0, 0.0f, this.position.cpy(), this.level, this.dimension, TileType.values()[this.ballIndex].getProperties().copy(), this.level.getLevelType() == LevelType.REVERSAL);
+			cannonBall = (ICannonBall) tile;
+
+			this.level.addTile(tile);
+
+			tile.setPosition(cannonBall.getStartPosition(this, this.cannonRotation).cpy());
+			tile.setVelocity(cannonBall.getStartVelocity(this, this.cannonRotation, this.shootSpeed).cpy());
+			tile.setShared(this.shared);
+			tile.setBlocksDimensionTravel(this.blocksDimensionTravel);
+			tile.setTimeEffected(this.timeEffected);
+
+			if (tile.hasMirror())
+			{
+				tile.getMirroredTile().setBlocksDimensionTravel(this.blocksDimensionTravel);
+				tile.getMirroredTile().setTimeEffected(this.timeEffected);
+			}
+		}
+
+		if (this.level.isReSimulating())
+		{
+			((LevelObject) cannonBall).onSpawnedReSimulation();
+		}
+
+		return cannonBall;
+	}
+
+	@Override
+	public void writeMetadata()
+	{
+		this.metadata = this.ballType + ":" + this.shootSpeed + ":" + this.behaviour.ordinal() + ":" + this.interval + ":" + this.minCount;
+	}
+
+	@Override
+	public void readMetadata()
+	{
+		try
+		{
+			String[] data = this.metadata.split(":");
+
+			this.ballType = data[0];
+			this.shootSpeed = Float.parseFloat(data[1]);
+			this.behaviour = TileCannonBehaviour.values()[Integer.parseInt(data[2])];
+			this.interval = Integer.parseInt(data[3]);
+			this.minCount = Integer.parseInt(data[4]);
+		}
+		catch (Exception e)
+		{
+			this.ballType = EntityType.GOOMBA.getTypeName();
+			this.behaviour = TileCannonBehaviour.INTERVAL;
+			this.shootSpeed = 0.5f;
+			this.interval = 5000;
+			this.minCount = 1;
+		}
+
+		this.updateBallType();
+		this.validateCannonBall();
+	}
+
+	@Override
+	public boolean shouldUpdate()
+	{
+		return true;
+	}
+
+	@Override
+	public boolean isReallyChangeable()
+	{
+		return true;
+	}
+
+	@Override
+	public boolean isEmitterOnSurface()
+	{
+		return false;
+	}
+
+	private void updateBallType()
+	{
+		for (EntityType type : EntityType.values())
+		{
+			if (this.ballType.equalsIgnoreCase(type.getTypeName()))
+			{
+				this.isEntity = true;
+				this.ballIndex = type.ordinal();
+
+				return;
+			}
+		}
+
+		for (TileType type : TileType.values())
+		{
+			if (this.ballType.equalsIgnoreCase(type.getTileName()))
+			{
+				this.isEntity = false;
+				this.ballIndex = type.ordinal();
+
+				return;
+			}
+		}
+	}
+
+	private void updateCannonRotation(float newRotation)
+	{
+		this.cannonRotation = newRotation;
+
+		if (this.innerType == 1)
+		{
+			this.cannonRotation += 180;
+		}
+	}
+
+	public static enum TileCannonBehaviour
+	{
+		INTERVAL, MIN_COUNT;
+
+		public TileCannonBehaviour next()
+		{
+			return values()[this.ordinal() + 1 >= values().length ? 0 : this.ordinal() + 1];
+		}
+	}
+
+	public void setBallType(String ballType)
+	{
+		this.ballType = ballType;
+
+		this.updateBallType();
+	}
+
+	@Override
+	public float onRotationOverflow(float newRotation)
+	{
+		this.setInnerType(this.innerType == 0 ? 1 : 0);
+
+		return newRotation > 0 ? -90 : 90;
+	}
+
+	@Override
+	public void onRotationUpdate(float rotationDifference, float newRotation)
+	{
+		this.updateCannonRotation(newRotation);
+	}
+
+	@Override
+	public boolean renderStatic()
+	{
+		return true;
+	}
+
+	@Override
+	public boolean isCycleObject()
+	{
+		return !this.isEntity;
+	}
+
+	public TileCannonBehaviour getBehaviour()
+	{
+		return this.behaviour;
+	}
+
+	public void setBehaviour(TileCannonBehaviour behaviour)
+	{
+		this.behaviour = behaviour;
+	}
+
+	public float getShootSpeed()
+	{
+		return this.shootSpeed;
+	}
+
+	public void setShootSpeed(float shootSpeed)
+	{
+		this.shootSpeed = shootSpeed;
+	}
+
+	public int getInterval()
+	{
+		return this.interval;
+	}
+
+	public void setInterval(int interval)
+	{
+		this.interval = interval;
+	}
+
+	public boolean isValidCannonBall()
+	{
+		return this.validCannonBall;
+	}
+
+	public String getBallType()
+	{
+		return this.ballType;
+	}
+
+	public void setMinCount(int minCount)
+	{
+		this.minCount = minCount;
+	}
+
+	public int getMinCount()
+	{
+		return this.minCount;
+	}
+
+	@Override
+	public boolean isTimeEffected()
+	{
+		return true;
+	}
+}

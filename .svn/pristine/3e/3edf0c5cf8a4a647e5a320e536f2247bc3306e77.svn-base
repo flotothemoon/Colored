@@ -1,0 +1,430 @@
+package com.unlogical.colored.gui.colorpicker;
+
+import static com.unlogical.colored.util.ColorTransformer.toHSVColor;
+import static com.unlogical.colored.util.ColorTransformer.toRGBColor;
+
+import java.awt.HeadlessException;
+import java.awt.Toolkit;
+import java.awt.datatransfer.DataFlavor;
+import java.awt.datatransfer.StringSelection;
+import java.awt.datatransfer.UnsupportedFlavorException;
+import java.io.IOException;
+
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Input;
+import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.g2d.Batch;
+import com.badlogic.gdx.graphics.g2d.TextureRegion;
+import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
+import com.badlogic.gdx.graphics.glutils.ShapeRenderer.ShapeType;
+import com.badlogic.gdx.math.Rectangle;
+import com.unlogical.colored.debug.Debug;
+import com.unlogical.colored.filesystem.FileManager;
+import com.unlogical.colored.gui.InputChangeListener;
+import com.unlogical.colored.gui.UserInputLine;
+import com.unlogical.colored.gui.button.Button;
+import com.unlogical.colored.gui.panel.GUIPanel;
+import com.unlogical.colored.input.InputHandler;
+import com.unlogical.colored.mapeditor.MapEditor;
+import com.unlogical.colored.util.ColorHelper;
+import com.unlogical.colored.util.Renderer;
+
+public class ColorPicker extends GUIPanel
+{
+	private TextureRegion saturationTexture;
+	private TextureRegion hueTexture;
+	private TextureRegion hueSlider;
+	private TextureRegion svSelector;
+
+	private Color previousColor;
+
+	private Color selectorColor = new Color(1.0f, 1.0f, 1.0f, 1.0f);
+
+	private Color hueColor;
+	private Color selectedColor;
+
+	private Rectangle previousColorBox;
+	private Rectangle selectedColorBox;
+
+	private Rectangle hueBox;
+	private Rectangle saturationBox;
+
+	private UserInputLine hexValue;
+
+	private int saturationXOffset = 25;
+	private int saturationYOffset = 25;
+
+	private int selectorX;
+	private int selectorY;
+	private int sliderY;
+
+	private float[] hsvValues = { 0f, 1f, 1f };
+	private float hueValue = 1f;
+
+	private float lastMouseX;
+	private float lastMouseY;
+
+	private boolean inSaturationBox;
+	private boolean inSlider;
+
+	private ColorPickerListener listener;
+
+	private Button revertButton;
+	private Button closeButton;
+
+	public ColorPicker(String title, float xOffset, float yOffset, float width, float height)
+	{
+		super(title, xOffset, yOffset, width, height);
+
+		this.fillColor = new Color(MapEditor.panelColor);
+
+		try
+		{
+			saturationTexture = new TextureRegion(new Texture(FileManager.getFile(FileManager.globaliseFile("res/gui/svPane.png"))));
+			hueTexture = new TextureRegion(new Texture(FileManager.getFile(FileManager.globaliseFile("res/gui/huePane.png"))));
+			hueSlider = new TextureRegion(new Texture(FileManager.getFile(FileManager.globaliseFile("res/gui/hueSlider.png"))));
+			svSelector = new TextureRegion(new Texture(FileManager.getFile(FileManager.globaliseFile("res/gui/svSelector.png"))));
+			
+			saturationTexture.flip(false, true);
+			hueTexture.flip(false, true);
+			hueSlider.flip(false, true);
+			svSelector.flip(false, true);
+		}
+		catch (Exception e)
+		{
+			throw new RuntimeException("Unable to load color picker images: " + e, e);
+		}
+
+		saturationXOffset += xOffset;
+		saturationYOffset += yOffset;
+
+		int halfWidth = (saturationTexture.getRegionWidth() + hueTexture.getRegionWidth() + 5) / 2;
+
+		selectedColorBox = new Rectangle(saturationXOffset + halfWidth, saturationYOffset + saturationTexture.getRegionHeight() + 5, halfWidth, 40);
+		previousColorBox = new Rectangle(saturationXOffset, saturationYOffset + saturationTexture.getRegionHeight() + 5, halfWidth, 40);
+
+		hueBox = new Rectangle(saturationXOffset + saturationTexture.getRegionWidth() + 5, saturationYOffset, hueTexture.getRegionWidth(), hueTexture.getRegionHeight());
+		saturationBox = new Rectangle(saturationXOffset, saturationYOffset, saturationTexture.getRegionWidth(), saturationTexture.getRegionHeight());
+
+		hexValue = new UserInputLine((int) saturationBox.getX(), (int) (saturationBox.getY() + saturationBox.getHeight()) + 45, (int) previousColorBox.getWidth() * 2, 40);
+		hexValue.addInputChangedListener(new InputChangeListener()
+		{
+			@Override
+			public void onInputChanged()
+			{
+				if (hexValue.getInput().length() == 6)
+				{
+					setHexValue(hexValue.getInput());
+				}
+			}
+		});
+		hexValue.setMaxChars(6);
+		hexValue.setAllowedChars("aAbBcCdDeEfF0123456789");
+		hexValue.setActive(true);
+
+		revertButton = new Button("Revert", (int) (previousColorBox.getX()), (int) (saturationBox.getY() + saturationBox.getHeight() + 45 + hexValue.getHeight()), (int) previousColorBox.getWidth(), 40)
+		{
+			@Override
+			public void onClick()
+			{
+				listener.colorChanged(previousColor);
+				init(previousColor);
+			}
+		};
+
+		closeButton = new Button("Close", (int) (selectedColorBox.getX()), (int) (saturationBox.getY() + saturationBox.getHeight() + 45 + hexValue.getHeight()), (int) previousColorBox.getWidth(), 40)
+		{
+			@Override
+			public void onClick()
+			{
+				Debug.log("New color is " + selectorColor.r + ", " + selectedColor.g + ", " + selectedColor.b + ".");
+				disable();
+			}
+		};
+
+		this.setWidth(halfWidth * 2 + 50);
+		this.setHeight(closeButton.getY() + closeButton.getHeight() - hueBox.getY() + 50);
+	}
+
+	protected void setHexValue(String hex)
+	{
+		hex = hex.toLowerCase();
+
+		float r = Integer.decode("0x" + hex.substring(0, 2)) / 255.0f;
+		float g = Integer.decode("0x" + hex.substring(2, 4)) / 255.0f;
+		float b = Integer.decode("0x" + hex.substring(4, 6)) / 255.0f;
+
+		selectedColor.r = r;
+		selectedColor.g = g;
+		selectedColor.b = b;
+
+		listener.colorChanged(selectedColor);
+
+		updateHSV(selectedColor);
+
+		selectedColor.r = r;
+		selectedColor.g = g;
+		selectedColor.b = b;
+	}
+
+	private void updateHexValue()
+	{
+		int r, g, b;
+
+		r = Math.round(selectedColor.r * 255);
+		g = Math.round(selectedColor.g * 255);
+		b = Math.round(selectedColor.b * 255);
+
+		String hex = hexify(r, 2) + hexify(g, 2) + hexify(b, 2);
+		hex = hex.toUpperCase();
+
+		hexValue.setInput(hex);
+	}
+
+	private String hexify(int value, int length)
+	{
+		String hex = Integer.toHexString(value);
+		if (hex.length() != length)
+		{
+			for (int i = 0; i < length - hex.length(); i++)
+			{
+				hex = "0" + hex;
+			}
+		}
+
+		return hex;
+	}
+
+	public void init(Color color)
+	{
+		previousColor = new Color(color);
+
+		hueColor = new Color(previousColor);
+
+		selectedColor = new Color(previousColor);
+
+		updateHSV(previousColor);
+
+		updateHexValue();
+	}
+
+	private void updateHSV(Color color)
+	{
+		float[] prevHSV = toHSVColor(color, new float[3]);
+
+		float hue = prevHSV[0] / 360.0f;
+
+		sliderY = (int) ((1.0f - hue) * (hueTexture.getRegionHeight()));
+
+		sliderY = sliderY == 0 ? 1 : sliderY;
+
+		hue = 1.0f - (sliderY / (float) hueTexture.getRegionHeight());
+
+		hsvValues[0] = hueValue = hue * 360.0f;
+		hsvValues[1] = hsvValues[2] = 1.0f;
+
+		toRGBColor(hsvValues, hueColor);
+
+		selectorX = (int) (prevHSV[1] * saturationTexture.getRegionWidth());
+		selectorY = (int) ((1.0f - prevHSV[2]) * saturationTexture.getRegionHeight());
+
+		float saturation = (selectorX / (float) saturationTexture.getRegionWidth());
+		float val = 1.0f - (selectorY / (float) saturationTexture.getRegionHeight());
+
+		hsvValues[0] = hueValue;
+		hsvValues[1] = saturation;
+		hsvValues[2] = val;
+
+		toRGBColor(hsvValues, selectedColor);
+	}
+
+	public void addColorPickerListener(ColorPickerListener listener)
+	{
+		this.listener = listener;
+	}
+
+	@Override
+	protected void customUpdate(int delta)
+	{
+		int mouseX = InputHandler.getCurrentInputX();
+		int mouseY = InputHandler.getCurrentInputY();
+
+		if (Gdx.input.isKeyPressed(Input.Keys.ALT_LEFT))
+		{			
+			if (Gdx.input.isKeyJustPressed(Input.Keys.C))
+			{
+				Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(hexValue.getInput()), null);
+			}
+			else if (Gdx.input.isKeyJustPressed(Input.Keys.V))
+			{				
+				String selection = null;
+				
+				try
+				{
+					selection = (String) Toolkit.getDefaultToolkit().getSystemClipboard().getContents(this).getTransferData(DataFlavor.stringFlavor);
+
+					if (selection.length() == 6)
+					{
+						setHexValue(selection);
+					}
+					else
+					{
+						Debug.log("String from clipboard too long (" + selection.length() + " characters).");
+					}
+				}
+				catch (HeadlessException | UnsupportedFlavorException | IOException e)
+				{
+					Debug.warn("Could not read string from clipboard: " + e, e);
+				}
+			}
+		}
+
+		if (!inSlider && !inSaturationBox && Gdx.input.isButtonPressed(Input.Buttons.LEFT))
+		{
+			if (hueBox.contains(mouseX, mouseY))
+			{
+				inSlider = true;
+				lastMouseX = -1;
+			}
+			else if (saturationBox.contains(mouseX, mouseY))
+			{
+				inSaturationBox = true;
+				lastMouseX = -1;
+			}
+		}
+		else if (!Gdx.input.isButtonPressed(Input.Buttons.LEFT))
+		{
+			inSlider = false;
+			inSaturationBox = false;
+		}
+
+		if (mouseX != lastMouseX || mouseY != lastMouseY)
+		{
+			if (inSlider)
+			{
+				sliderY = (int) Math.max(0.0f, Math.min(hueBox.getHeight(), mouseY - hueBox.getY()));
+
+				float hue = 1 - (sliderY / (float) hueTexture.getRegionHeight());
+
+				hsvValues[0] = hueValue = hue * 360.0f;
+				hsvValues[1] = hsvValues[2] = 1.0f;
+
+				toRGBColor(hsvValues, hueColor);
+
+				float saturation = (selectorX / (float) saturationTexture.getRegionWidth());
+				float val = 1.0f - (selectorY / (float) saturationTexture.getRegionHeight());
+
+				hsvValues[0] = hueValue;
+				hsvValues[1] = saturation;
+				hsvValues[2] = val;
+
+				toRGBColor(hsvValues, selectedColor);
+
+				listener.colorChanged(selectedColor);
+			}
+			else if (inSaturationBox)
+			{
+				selectorX = (int) Math.max(0.0f, Math.min(saturationBox.getWidth(), mouseX - saturationBox.getX()));
+				selectorY = (int) Math.max(0.0f, Math.min(saturationBox.getHeight(), mouseY - saturationBox.getY()));
+
+				float saturation = (selectorX / (float) saturationTexture.getRegionWidth());
+				float val = 1.0f - (selectorY / (float) saturationTexture.getRegionHeight());
+
+				hsvValues[0] = hueValue;
+				hsvValues[1] = saturation;
+				hsvValues[2] = val;
+
+				toRGBColor(hsvValues, selectedColor);
+
+				listener.colorChanged(selectedColor);
+			}
+		}
+
+		lastMouseX = mouseX;
+		lastMouseY = mouseY;
+
+		selectorColor.r = 1.0f - selectedColor.r;
+		selectorColor.g = 1.0f - selectedColor.g;
+		selectorColor.b = 1.0f - selectedColor.b;
+
+		if (!hexValue.isFocused())
+		{
+			updateHexValue();
+		}
+
+		hexValue.update(delta);
+		hexValue.setInput(hexValue.getInput().toUpperCase());
+
+		revertButton.update(delta);
+		closeButton.update(delta);
+	}
+
+	@Override
+	protected void customRender(float alphaFactor, Batch batch)
+	{
+		ShapeRenderer sr = Renderer.useShapeRenderer();
+		
+		sr.set(ShapeType.Filled);
+		
+		sr.setColor(hueColor);
+		sr.rect(saturationXOffset, saturationYOffset, saturationTexture.getRegionWidth(), saturationTexture.getRegionHeight());
+		
+		sr.setColor(selectedColor);
+		sr.rect(selectedColorBox.getX(), selectedColorBox.getY(), selectedColorBox.getWidth(), selectedColorBox.getHeight());
+
+		sr.setColor(previousColor);
+		sr.rect(previousColorBox.getX(), previousColorBox.getY(), previousColorBox.getWidth(), previousColorBox.getHeight());
+		
+		sr.set(ShapeType.Line);
+		
+		ColorHelper.applyAlphaAndCopy(Color.BLACK, alphaFactor, sr);
+		sr.rect(selectedColorBox.getX(), selectedColorBox.getY(), selectedColorBox.getWidth(), selectedColorBox.getHeight());
+		sr.rect(previousColorBox.getX(), previousColorBox.getY(), previousColorBox.getWidth(), previousColorBox.getHeight());
+		sr.rect(hueBox.getX(), hueBox.getY(), hueBox.getWidth(), hueBox.getHeight());
+		sr.rect(saturationBox.getX(), saturationBox.getY(), saturationBox.getWidth(), saturationBox.getHeight());
+
+		Renderer.useSpriteBatch();
+		
+		batch.draw(saturationTexture, saturationXOffset, saturationYOffset);
+		batch.draw(hueTexture, saturationXOffset + 5 + saturationTexture.getRegionWidth(), saturationYOffset);
+
+		batch.setColor(selectorColor);
+		batch.draw(svSelector, saturationBox.getX() + selectorX - svSelector.getRegionWidth() / 2, saturationBox.getY() + selectorY - svSelector.getRegionHeight() / 2);
+		batch.draw(hueSlider, (hueBox.getX() + hueBox.getWidth() / 2) - hueSlider.getRegionWidth() / 2, hueBox.getY() + sliderY - hueSlider.getRegionHeight() / 2);
+
+		hexValue.render(alphaFactor, batch);
+
+		revertButton.render(alphaFactor, batch);
+		closeButton.render(alphaFactor, batch);
+	}
+
+	@Override
+	public void onPositionUpdate(int xChange, int yChange)
+	{
+		saturationXOffset += xChange;
+		saturationYOffset += yChange;
+
+		selectedColorBox.setX(selectedColorBox.getX() + xChange);
+		selectedColorBox.setY(selectedColorBox.getY() + yChange);
+
+		previousColorBox.setX(previousColorBox.getX() + xChange);
+		previousColorBox.setY(previousColorBox.getY() + yChange);
+
+		hueBox.setX(hueBox.getX() + xChange);
+		hueBox.setY(hueBox.getY() + yChange);
+
+		saturationBox.setX(saturationBox.getX() + xChange);
+		saturationBox.setY(saturationBox.getY() + yChange);
+
+		hexValue.adjust(xChange, yChange);
+
+		revertButton.adjust(xChange, yChange);
+		closeButton.adjust(xChange, yChange);
+	}
+
+	public boolean shouldLockInput()
+	{
+		return this.hexValue.isFocused();
+	}
+}

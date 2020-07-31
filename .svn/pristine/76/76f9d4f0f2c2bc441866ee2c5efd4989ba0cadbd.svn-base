@@ -1,0 +1,304 @@
+package com.unlogical.colored.saving;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import com.unlogical.colored.debug.Debug;
+import com.unlogical.colored.filesystem.FileHandle;
+import com.unlogical.colored.filesystem.FileManager;
+import com.unlogical.colored.filesystem.FilePaths;
+
+import au.com.bytecode.opencsv.CSVReader;
+import au.com.bytecode.opencsv.CSVWriter;
+
+public class SaveState
+{
+	public static final String LAST_ACCESS_TOKEN = "lastAccess";
+	public static final String LAST_VISITED_LEVEL = "lastLevelID";
+	public static final String LAST_ENTRY_DOOR = "lastEntryDoor";
+
+	private static final String GROUP_START = "====";
+	private static final String GROUP_END = "==|==";
+	private static final String ITEM_START = "--";
+	private static final String ITEM_END = "-|-";
+
+	private FileHandle file;
+	private int saveID;
+	private long lastAccess;
+
+	public InformationPool globalInformation = new InformationPool();
+	public Map<String, InformationPool> perLevelInformation = new HashMap<String, InformationPool>();
+	public Map<String, InformationPool> perWorldInformation = new HashMap<String, InformationPool>();
+
+	public SaveState(int saveID) throws IOException
+	{
+		this.file = FileManager.getFile(FileManager.globaliseFile(FilePaths.SAVES + "/" + saveID + ".dat"));
+		this.saveID = saveID;
+
+		this.readAll();
+	}
+
+	public SaveState(FileHandle file) throws IOException
+	{
+		this.file = file;
+		this.saveID = Integer.parseInt(file.getName().substring(0, file.getName().lastIndexOf('.')));
+
+		this.readAll();
+	}
+
+	private SaveState() throws IOException
+	{
+		int id = SaveHandler.getHighestID() + 1;
+
+		this.file = FileManager.getOrCreateFile(FileManager.globaliseFile(FilePaths.SAVES) + "/" + id + ".dat");
+		this.saveID = id;
+	}
+
+	public static SaveState createSave() throws IOException
+	{
+		SaveState save = new SaveState();
+
+		save.globalInformation.put(LAST_ACCESS_TOKEN, System.currentTimeMillis());
+		save.lastAccess = System.currentTimeMillis();
+
+		return save;
+	}
+	
+	public void remove()
+	{
+		try
+		{
+			FileManager.deleteFile(file);
+		}
+		catch (IOException e)
+		{
+			Debug.warn("Unable to remove save state " + this + ": " + e, e);
+		}
+	}
+
+	public void readAll() throws IOException
+	{
+		InputStream in;
+		CSVReader reader = new CSVReader(new InputStreamReader(in = file.createInputStream()));
+
+		globalInformation = (InformationPool) readGroup(reader).values().toArray()[0];
+		perLevelInformation = readGroup(reader);
+		perWorldInformation = readGroup(reader);
+
+		this.lastAccess = Long.parseLong((String) globalInformation.get(LAST_ACCESS_TOKEN)[0]);
+
+		reader.close();
+		in.close();
+	}
+
+	@SuppressWarnings("serial")
+	public void writeAll() throws IOException
+	{
+		CSVWriter writer = new CSVWriter(new OutputStreamWriter(file.createOutputStream()));
+
+		globalInformation.put(LAST_ACCESS_TOKEN, System.currentTimeMillis());
+		
+		writeGroup(new HashMap<String, InformationPool>()
+		{
+			{
+				put("global", globalInformation);
+			}
+		}, writer);
+
+		writeGroup(perLevelInformation, writer);
+		writeGroup(perWorldInformation, writer);
+
+		writer.close();
+		file.closeOutputStream();
+	}
+
+	private void writeGroup(Map<String, InformationPool> poolMap, CSVWriter writer) throws IOException
+	{
+		write(writer, GROUP_START);
+
+		for (String key : poolMap.keySet())
+		{
+			InformationPool pool = poolMap.get(key);
+
+			write(writer, ITEM_START, key);
+
+			Map<Object, Object[]> map = pool.getStoredInformation();
+
+			for (Object object : map.keySet())
+			{
+				String[] values;
+				Object[] objects = map.get(object);
+
+				if (objects != null)
+				{
+					values = new String[map.get(object).length];
+
+					for (int i = 0; i < values.length; i++)
+					{
+						values[i] = pool.write(objects[i]);
+					}
+				}
+				else
+				{
+					values = new String[] {};
+				}
+
+				List<String> writtenValues = new ArrayList<String>(Arrays.asList(values));
+
+				writtenValues.add(0, pool.write(object));
+
+				write(writer, writtenValues.toArray(values));
+			}
+
+			write(writer, ITEM_END);
+		}
+
+		write(writer, GROUP_END);
+	}
+
+	private void write(CSVWriter writer, String... line)
+	{
+		writer.writeNext(line);
+	}
+
+	private Map<String, InformationPool> readGroup(CSVReader reader) throws IOException
+	{
+		Map<String, InformationPool> poolMap = new HashMap<String, InformationPool>();
+		InformationPool currentPool = null;
+
+		String[] line = null;
+		while ((line = reader.readNext()) != null)
+		{
+			if (line[0].equals(GROUP_END))
+			{
+				break;
+			}
+
+			if (!line[0].equals(GROUP_START))
+			{
+				if (line[0].equals(ITEM_START))
+				{
+					currentPool = new InformationPool();
+					poolMap.put(line[1], currentPool);
+				}
+				else if (!line[0].equals(ITEM_END))
+				{
+					Object[] readValues = new Object[line.length - 1];
+
+					for (int i = 0; i < readValues.length; i++)
+					{
+						readValues[i] = currentPool.read(line[i + 1]);
+					}
+
+					currentPool.put(line[0], readValues);
+				}
+			}
+		}
+
+		return poolMap;
+	}
+
+	private Object[] stringinize(Object... values)
+	{
+		String[] result = new String[values.length];
+
+		for (int i = 0; i < values.length; i++)
+		{
+			result[i] = values[i].toString();
+		}
+
+		return result;
+	}
+
+	public void writeGlobal(Object key, Object... values)
+	{
+		globalInformation.put(key, stringinize(values));
+	}
+
+	public void writeLevel(String levelID, Object key, Object... values)
+	{
+		if (perLevelInformation.get(levelID) == null)
+		{
+			perLevelInformation.put(levelID, new InformationPool());
+		}
+
+		perLevelInformation.get(levelID).put(key, stringinize(values));
+	}
+
+	public void writeWorld(String worldID, Object key, Object... values)
+	{
+		if (perWorldInformation.get(worldID) == null)
+		{
+			perWorldInformation.put(worldID, new InformationPool());
+		}
+
+		perWorldInformation.get(worldID).put(key, stringinize(values));
+	}
+
+	public Object[] readGlobal(Object key)
+	{
+		return globalInformation.get(key);
+	}
+
+	public Object[] readLevel(String levelID, Object key)
+	{
+		if (perLevelInformation.get(levelID) == null)
+		{
+			return null;
+		}
+
+		return perLevelInformation.get(levelID).get(key);
+	}
+
+	public Object[] readWorld(String worldID, Object key)
+	{
+		if (perWorldInformation.get(worldID) == null)
+		{
+			return null;
+		}
+
+		return perWorldInformation.get(worldID).get(key);
+	}
+
+	public void removeGlobal(Object key)
+	{
+		globalInformation.remove(key);
+	}
+
+	public void removeLevel(String levelID, Object key)
+	{
+		if (perLevelInformation.get(levelID) == null)
+		{
+			return;
+		}
+
+		perLevelInformation.get(levelID).remove(key);
+	}
+
+	public void removeWorld(String worldID, Object key)
+	{
+		if (perWorldInformation.get(worldID) == null)
+		{
+			return;
+		}
+
+		perWorldInformation.get(worldID).remove(key);
+	}
+
+	public long getLastAccess()
+	{
+		return lastAccess;
+	}
+
+	public int getSaveID()
+	{
+		return saveID;
+	}
+}

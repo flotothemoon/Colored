@@ -1,0 +1,39 @@
+package com.unlogical.colored.gui.menu;
+
+import com.unlogical.colored.GameLauncher;
+import com.unlogical.colored.util.GameStatus;
+
+public class MainMenu extends Menu
+{
+	public MainMenu(float yOffset, float offset)
+	{
+		super(MenuOptions.MAIN, 0.0f, yOffset, 0.0f, offset, true);
+	}
+
+	@Override
+	public void onSelect(int selection)
+	{
+		switch (selection)
+		{
+			case 0:
+				GameLauncher.goToLastVisitedLevel();
+				break;
+			case 1:
+				GameLauncher.setStatus(GameStatus.MAP_EDITOR_MENU);
+				break;
+			case 2:
+				SettingsMenu.setLastGameStatus(GameStatus.MAIN_MENU);
+				GameLauncher.setStatus(GameStatus.SETTINGS_MENU);
+				break;
+			case 3:
+				GameLauncher.exit();
+				break;
+		}
+	}
+
+	@Override
+	protected boolean isAvailable(int option)
+	{
+		return option != 1 || GameLauncher.isDeveloperMode();
+	}
+}

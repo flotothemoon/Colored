@@ -1,0 +1,452 @@
+package com.unlogical.colored.terrain.tile.cage;
+
+import java.util.List;
+import java.util.Random;
+
+import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.math.Vector2;
+import com.unlogical.colored.GameLauncher;
+import com.unlogical.colored.level.Level;
+import com.unlogical.colored.particle.EmitterType;
+import com.unlogical.colored.particle.ParticleEmitter;
+import com.unlogical.colored.particle.ParticleEmitterImpl;
+import com.unlogical.colored.story.EndingStoryHandler;
+import com.unlogical.colored.terrain.TileType;
+import com.unlogical.colored.terrain.property.TileProperty;
+import com.unlogical.colored.terrain.tile.Tile;
+import com.unlogical.colored.util.ColorHelper;
+import com.unlogical.colored.util.Dimension;
+import com.unlogical.colored.util.ILightSource;
+import com.unlogical.colored.util.IZDistortion;
+import com.unlogical.colored.util.LightType;
+import com.unlogical.colored.util.ShaderHandler;
+import com.unlogical.colored.util.Transitions;
+import com.unlogical.colored.util.ZDistortion;
+
+public abstract class TileCage extends Tile implements IZDistortion, ILightSource
+{
+	private static final Color lightColor = new Color(1.0f, 1.0f, 0.4f, 1.0f);
+
+	private static final float OPENED_CAGE_AMBIENT_LIGHT_INTENSITY = 0.05f;
+	private static final int CLEAR_CAGE_TIME = 13370;
+	private static final int CLEAR_CAGE_RAYS = 5;
+
+	private ZDistortion distortion;
+	private List<ILightSource> clearLightSources;
+
+	private int cageID;
+	private int clearingCageTime;
+	private float clearingCageFactor;
+
+	private boolean brightnessChanging;
+	private boolean opened;
+	private boolean completelyCleared;
+
+	private float intensityOffset;
+	private float intensityFactor = 0.5f;
+	private float brightnessChangeFactor;
+
+	private ParticleEmitter transitionEmitter;
+	private ParticleEmitter closedEmitter;
+
+	protected TileCage(TileType type, String metadata, int innerType, float rotation, Vector2 position, Level level, Dimension dimension, TileProperty properties, boolean allowMirrors)
+	{
+		super(type, metadata, innerType, rotation, position, level, dimension, properties, allowMirrors);
+
+		this.distortion = new ZDistortion()
+		{
+			@Override
+			public float getZDistortion(float x, float y)
+			{
+				return 0.0f;
+			}
+		};
+
+		if (this.dimension == Dimension.LIGHT && !this.shared)
+		{
+			this.setShared(true);
+		}
+	}
+
+	@Override
+	public boolean shouldCopy()
+	{
+		return false;
+	}
+
+	@Override
+	public boolean shouldReSimulate()
+	{
+		return false;
+	}
+
+	@Override
+	public void init()
+	{
+		super.init();
+
+		if (this.level.shouldInverseCages())
+		{
+			this.innerType = 2;
+		}
+		else
+		{
+			this.innerType = 0;
+		}
+
+		this.opened = this.innerType == 2;
+
+		if (this.level.isPlayMode())
+		{
+			if (this.level.readFromLevelSave(this.type + "" + this.cageID) != null && !(this.level.getStoryHandler().getCustomStoryHandler() instanceof EndingStoryHandler))
+			{
+				this.opened = Boolean.parseBoolean((String) this.level.readFromLevelSave(this.type + "" + this.cageID)[0]);
+				this.setInnerType(this.opened ? 2 : 0);
+
+				if (this.isCleared())
+				{
+					this.level.onCageCleared(this, true);
+				}
+			}
+		}
+
+		if (this.opened)
+		{
+
+		}
+		else
+		{
+			this.closedEmitter = this.resumeOrAddEmitter(EmitterType.LIGHT_CAGE_CLOSED, this.dimension);
+		}
+	}
+
+	@Override
+	public void onUpdate(float delta, Random rng)
+	{
+		if (this.brightnessChanging)
+		{
+			this.intensityFactor = OPENED_CAGE_AMBIENT_LIGHT_INTENSITY * this.brightnessChangeFactor + (1.0f - this.level.getBrightnessTransitionFactor()) * 0.5f;
+		}
+		else if (!this.completelyCleared)
+		{
+			this.intensityOffset = (float) Math.sin(Math.toRadians(this.age / 5.0f)) / 6.0f;
+		}
+
+		if (this.level.shouldInverseCages() && this.transitionEmitter != null && this.transitionEmitter.hasActiveParticles())
+		{
+			// if (level.getRNG(this).nextFloat() > 0.05f)
+			{
+				((ParticleEmitterImpl) this.transitionEmitter).radialPull(this.getActualCenterX(), this.getActualCenterY() + 20, 0.000005f * delta, this.level.getRNG(this), 0.98f);
+			}
+		}
+
+		if (this.clearingCageTime > 0)
+		{
+			this.clearingCageTime -= delta;
+
+			this.clearingCageFactor = Transitions.getFactor((float) Math.pow(1.0f - (float) this.clearingCageTime / CLEAR_CAGE_TIME, 0.5f));
+		}
+		else if (this.clearLightSources != null)
+		{
+			for (ILightSource source : this.clearLightSources)
+			{
+				ShaderHandler.removeLight(source);
+			}
+
+			this.clearLightSources = null;
+		}
+	}
+
+	public void clear()
+	{
+		if (!this.isCleared())
+		{
+			if (this.level.shouldInverseCages())
+			{
+				this.transitionEmitter = this.addEmitter(EmitterType.LIGHT_CAGE_CLOSING, this.dimension, new Vector2(0.0f, 0.0f), GameLauncher.TARGET_WIDTH, GameLauncher.TARGET_HEIGHT, EmitterType.LIGHT_CAGE_CLOSING.maxParticles, false, 0);
+			}
+			else
+			{
+				this.transitionEmitter = this.addEmitter(EmitterType.LIGHT_CAGE_OPENING, this.dimension);
+			}
+
+			this.clearingCageTime = CLEAR_CAGE_TIME;
+			this.brightnessChanging = true;
+			this.completelyCleared = false;
+			this.opened = !this.level.shouldInverseCages();
+
+			if (this.closedEmitter != null)
+			{
+				this.stopAndRemoveEmitter(this.closedEmitter);
+			}
+
+			if (this.level.shouldInverseCages())
+			{
+				this.transitionAnimation(1, 0, true, true);
+			}
+			else
+			{
+				this.transitionAnimation(1, 2, false, true);
+			}
+
+			if (this.clearLightSources != null)
+			{
+				for (ILightSource source : this.clearLightSources)
+				{
+					ShaderHandler.removeLight(source);
+				}
+			}
+
+			for (int i = 0; i < CLEAR_CAGE_RAYS; i++)
+			{
+				ShaderHandler.addLight(new ClearRayLightSource((float) i / CLEAR_CAGE_RAYS));
+			}
+
+			this.level.writeToLevelSave(this.type + "" + this.cageID, this.opened);
+
+			if (!this.level.isBonusLevel())
+			{
+				Object[] levelData = this.level.readFromLevelSave(Level.LEVEL_CLEARED_CAGE_COUNT);
+				Object[] worldData = this.level.readFromWorldSave(Level.WORLD_CLEARED_CAGE_COUNT);
+				int openedLevelCount = levelData != null ? Integer.parseInt((String) levelData[0]) : 0;
+				int openedWorldCount = worldData != null ? Integer.parseInt((String) worldData[0]) : 0;
+
+				this.level.writeToLevelSave(Level.LEVEL_CLEARED_CAGE_COUNT, openedLevelCount + 1);
+				this.level.writeToWorldSave(Level.WORLD_CLEARED_CAGE_COUNT, openedWorldCount + 1);
+				this.level.saveToActiveSave();
+			}
+
+			this.brightnessChangeFactor = this.level.onCageCleared(this, false);
+		}
+	}
+
+	@Override
+	protected void onTransitionFinished(int transitionInnerType, int finalInnerType)
+	{
+		if (finalInnerType == 0 || finalInnerType == 2)
+		{
+			this.completelyCleared = true;
+		}
+	}
+
+	public void onBrightnessChangeFinished()
+	{
+		this.intensityFactor = OPENED_CAGE_AMBIENT_LIGHT_INTENSITY * this.brightnessChangeFactor;
+
+		if (this.transitionEmitter != null)
+		{
+			this.stopAndRemoveEmitter(this.transitionEmitter);
+		}
+
+		this.brightnessChanging = false;
+	}
+
+	@Override
+	public void onCreated()
+	{
+		int maxID = 0;
+
+		for (Tile door : this.level.getTiles())
+		{
+			if (door.getDimension() == Dimension.LIGHT && door instanceof TileCage)
+			{
+				if (((TileCage) door).getCageID() > maxID)
+				{
+					maxID = ((TileCage) door).getCageID();
+				}
+			}
+		}
+
+		this.cageID = maxID + 1;
+	}
+
+	@Override
+	public void readMetadata()
+	{
+		try
+		{
+			this.cageID = Integer.parseInt(this.metadata);
+		}
+		catch (Exception e)
+		{
+			this.cageID = 0;
+		}
+	}
+
+	private float getActualCenterX()
+	{
+		return this.getCenterX();
+	}
+
+	private float getActualCenterY()
+	{
+		return this.getCenterY() + 15;
+	}
+
+	@Override
+	public void writeMetadata()
+	{
+		this.metadata = this.cageID + "";
+	}
+
+	@Override
+	public Color getColor()
+	{
+		return lightColor;
+	}
+
+	@Override
+	public float getPositionX()
+	{
+		return this.getActualCenterX();
+	}
+
+	@Override
+	public float getPositionY()
+	{
+		return this.getActualCenterY();
+	}
+
+	@Override
+	public float getIntensity()
+	{
+		return this.intensityFactor * (1.2f + this.intensityOffset);
+	}
+
+	@Override
+	public LightType getLightType()
+	{
+		return LightType.CONE;
+	}
+
+	@Override
+	public int getDistance()
+	{
+		return (int) (300 + 50 * this.intensityOffset);
+	}
+
+	@Override
+	public int getSpotDirection()
+	{
+		return 0;
+	}
+
+	@Override
+	public int getAngle()
+	{
+		return 360;
+	}
+
+	@Override
+	public ZDistortion getZDistortion()
+	{
+		return this.distortion;
+	}
+
+	@Override
+	public boolean shouldUpdate()
+	{
+		return true;
+	}
+
+	@Override
+	public List<ILightSource> getConnectedLights()
+	{
+		return null;
+	}
+
+	public boolean isReallyChangeable()
+	{
+		return true;
+	}
+
+	public int getCageID()
+	{
+		return this.cageID;
+	}
+
+	public void setCageID(int cageID)
+	{
+		this.cageID = cageID;
+	}
+
+	public boolean isCleared()
+	{
+		return this.opened ^ this.level.shouldInverseCages();
+	}
+
+	public boolean renderStatic()
+	{
+		return true;
+	}
+
+	private class ClearRayLightSource implements ILightSource
+	{
+		private float offset;
+
+		public ClearRayLightSource(float offset)
+		{
+			this.offset = offset;
+		}
+
+		@Override
+		public int getSpotDirection()
+		{
+			return (int) ((TileCage.this.clearingCageFactor / 2.0f + this.offset) * 360);
+		}
+
+		@Override
+		public float getPositionY()
+		{
+			return TileCage.this.getActualCenterY();
+		}
+
+		@Override
+		public float getPositionX()
+		{
+			return TileCage.this.getActualCenterX();
+		}
+
+		@Override
+		public LightType getLightType()
+		{
+			return LightType.CONE;
+		}
+
+		@Override
+		public Level getLevel()
+		{
+			return TileCage.this.level;
+		}
+
+		@Override
+		public float getIntensity()
+		{
+			return 1;
+		}
+
+		@Override
+		public int getDistance()
+		{
+			return (int) (TileCage.this.clearingCageFactor * 2000);
+		}
+
+		@Override
+		public Color getColor()
+		{
+			return ColorHelper.applyAlphaAndCopy(lightColor, Math.min(1.0f, TileCage.this.clearingCageFactor * (1.0f - TileCage.this.clearingCageFactor) * 2.0f));
+		}
+
+		@Override
+		public int getAngle()
+		{
+			return (int) (10 + TileCage.this.clearingCageFactor * 20);
+		}
+
+		@Override
+		public List<ILightSource> getConnectedLights()
+		{
+			return null;
+		}
+	}
+}

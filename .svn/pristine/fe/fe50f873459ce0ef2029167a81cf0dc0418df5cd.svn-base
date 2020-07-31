@@ -1,0 +1,371 @@
+package com.unlogical.colored.gui.panel;
+
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Input;
+import com.badlogic.gdx.InputAdapter;
+import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.g2d.Batch;
+import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
+import com.badlogic.gdx.graphics.glutils.ShapeRenderer.ShapeType;
+import com.badlogic.gdx.math.Rectangle;
+import com.badlogic.gdx.math.Vector2;
+import com.unlogical.colored.GameLauncher;
+import com.unlogical.colored.configuration.Resolutions;
+import com.unlogical.colored.input.InputHandler;
+import com.unlogical.colored.resources.font.Fonts;
+import com.unlogical.colored.util.ColorHelper;
+import com.unlogical.colored.util.Renderer;
+import com.unlogical.colored.util.ShaderHandler;
+
+public abstract class GUIPanel extends InputAdapter
+{
+	private static final int TITLE_BAR_HEIGHT = 25;
+
+	protected float xOffset;
+	protected float yOffset;
+
+	protected float height;
+	protected float width;
+
+	private Rectangle closeBox;
+	private Rectangle titleBar;
+	protected Rectangle contentBox;
+
+	private boolean shown = true;
+	private boolean active;
+	private boolean hoveringClose;
+	protected boolean movingMode;
+	protected boolean showCancelButton;
+
+	protected Color fillColor = new Color(1.0f, 1.0f, 1.0f, 0.7f);
+	protected Color titleColor = Color.DARK_GRAY;
+	protected Color borderColor = Color.BLACK;
+	protected Color fillCloseColor = titleColor;
+	protected Color borderCloseColor = Color.LIGHT_GRAY;
+
+	protected String title;
+
+	public GUIPanel(String title, float xOffset, float yOffset, float width, float height)
+	{
+		this.title = title;
+		this.xOffset = xOffset;
+		this.yOffset = yOffset;
+		this.width = width;
+		this.height = height;
+
+		this.titleBar = new Rectangle(xOffset, yOffset - TITLE_BAR_HEIGHT, width, TITLE_BAR_HEIGHT);
+		this.contentBox = new Rectangle(xOffset, yOffset, width, height);
+		this.closeBox = new Rectangle(xOffset + width - Resolutions.SELECTION_MENU_SCROLLBAR_WIDTH, yOffset - TITLE_BAR_HEIGHT, Resolutions.SELECTION_MENU_SCROLLBAR_WIDTH - 4, TITLE_BAR_HEIGHT - 4);
+		
+		InputHandler.addInputProcessor(this);
+	}
+
+	public final void update(int delta)
+	{
+		if (active)
+		{			
+			closeBox.setX(xOffset + width - Resolutions.SELECTION_MENU_SCROLLBAR_WIDTH + 2);
+			closeBox.setY(yOffset - TITLE_BAR_HEIGHT + 2);
+
+			contentBox.setX(xOffset);
+			contentBox.setY(yOffset);
+
+			titleBar.setX(xOffset);
+			titleBar.setY(yOffset - TITLE_BAR_HEIGHT);
+
+			hoveringClose = closeBox.contains(InputHandler.getCurrentInputX(), InputHandler.getCurrentInputY());
+
+			if (titleBar.contains(InputHandler.getCurrentInputX(), InputHandler.getCurrentInputY()))
+			{
+				if (Gdx.input.isButtonPressed(Input.Buttons.LEFT))
+				{
+					movingMode = true;
+				}
+			}
+			else if (!Gdx.input.isButtonPressed(Input.Buttons.LEFT))
+			{
+				movingMode = false;
+			}
+
+			customUpdate(delta);
+
+			if (hoveringClose)
+			{
+				fillCloseColor = Color.LIGHT_GRAY;
+				borderCloseColor = titleColor;
+
+				if (Gdx.input.isButtonPressed(Input.Buttons.LEFT))
+				{
+					onClose();
+				}
+			}
+			else
+			{
+				fillCloseColor = titleColor;
+				borderCloseColor = Color.LIGHT_GRAY;
+			}
+		}
+	}
+
+	protected void onClose()
+	{
+		setActive(false);
+	}
+
+	protected void customUpdate(int delta)
+	{
+	}
+
+	public final void render(float alphaFactor, Batch batch)
+	{
+		if (active && shown)
+		{			
+			ShaderHandler.disableLighting();
+			
+			ShapeRenderer sr = Renderer.useShapeRenderer();
+			
+			ColorHelper.applyAlphaAndCopy(titleColor, 1.0f, sr);
+			sr.set(ShapeType.Filled);
+			sr.rect(titleBar.x, titleBar.y, titleBar.width, titleBar.height);
+						
+			alphaFactor *= 0.8f;
+
+			ColorHelper.applyAlphaAndCopy(fillColor, alphaFactor, sr);
+			sr.rect(contentBox.x, contentBox.y, contentBox.width, contentBox.height);
+
+			Renderer.setFont(Fonts.getSmallFont());
+			Renderer.useSpriteBatch();			
+			Renderer.drawString(title, getCenterX() - Renderer.getWidth(title) / 2, titleBar.y + titleBar.height / 2 - Renderer.getLineHeight() / 2, batch);
+						
+			sr = Renderer.useShapeRenderer();
+			
+			ColorHelper.applyAlphaAndCopy(borderColor, alphaFactor, sr);
+			sr.set(ShapeType.Line);
+			sr.rect(titleBar.x, titleBar.y, titleBar.width, titleBar.height);
+			sr.rect(contentBox.x, contentBox.y, contentBox.width, contentBox.height);
+
+			ColorHelper.applyAlphaAndCopy(fillCloseColor, alphaFactor, sr);
+			sr.set(ShapeType.Filled);
+			sr.rect(closeBox.x, closeBox.y, closeBox.width, closeBox.height);
+
+			ColorHelper.applyAlphaAndCopy(borderCloseColor, alphaFactor, sr);
+			sr.set(ShapeType.Line);
+			sr.rect(closeBox.x, closeBox.y, closeBox.width, closeBox.height);
+			sr.line(closeBox.getX() + 1, closeBox.getY() + 1, closeBox.x + closeBox.width - 1, closeBox.y + closeBox.height - 1);
+			sr.line(closeBox.getX() + 1, closeBox.y + closeBox.height - 1, closeBox.x + closeBox.width - 1, closeBox.y + 1);
+
+			customRender(alphaFactor, batch);		
+			
+			ShaderHandler.enableLighting();
+		}
+	}
+
+	protected void customRender(float alphaFactor, Batch batch)
+	{
+	}
+	
+	@Override
+	public boolean touchDragged(int newx, int newy, int pointer)
+	{
+		if (movingMode && active)
+		{
+			Vector2 pos = Renderer.unproject(newx, newy);
+			
+			newx = (int) pos.x;
+			newy = (int) pos.y;
+						
+			int yChange = newy - InputHandler.getLastInputY();
+			int xChange = newx - InputHandler.getLastInputX();
+			
+			if (xOffset + xChange > 0 && xOffset + width + xChange < GameLauncher.getWidth())
+			{
+				xOffset += newx - InputHandler.getLastInputX();
+			}
+			else
+			{
+				xChange = 0;
+			}
+						
+			if (yOffset + yChange - TITLE_BAR_HEIGHT > 0 && yOffset + yChange + height - TITLE_BAR_HEIGHT < GameLauncher.getHeight())
+			{
+				yOffset += yChange;
+			}
+			else
+			{
+				yChange = 0;
+			}
+
+			onPositionUpdate(xChange, yChange);
+		}
+		
+		return false;
+	}
+
+	public void setPosition(int x, int y)
+	{
+		int beforeX = (int) this.xOffset;
+		int beforeY = (int) this.yOffset;
+		
+		this.xOffset = x;
+		this.yOffset = y;
+		
+		onPositionUpdate(x - beforeX, y - beforeY);
+	}
+	
+	public void adjust(int xChange, int yChange)
+	{
+		xOffset += xChange;
+		yOffset += yChange;
+	}
+
+	public void onPositionUpdate(int xChange, int yChange)
+	{
+
+	}
+
+	protected void onCancelButtonPressed()
+	{
+
+	}
+
+	public void setHeight(float height)
+	{
+		this.height = height;
+
+		this.titleBar = new Rectangle(xOffset, yOffset - TITLE_BAR_HEIGHT, width, TITLE_BAR_HEIGHT);
+		this.contentBox = new Rectangle(xOffset, yOffset, width, height - TITLE_BAR_HEIGHT);
+	}
+
+	public void setWidth(float width)
+	{
+		this.width = width;
+
+		this.titleBar = new Rectangle(xOffset, yOffset - TITLE_BAR_HEIGHT, width, TITLE_BAR_HEIGHT);
+		this.contentBox = new Rectangle(xOffset, yOffset, width, height - TITLE_BAR_HEIGHT);
+	}
+
+	public void enable()
+	{
+		active = true;
+	}
+
+	public void disable()
+	{
+		active = false;
+	}
+
+	public void show()
+	{
+		shown = true;
+	}
+
+	public void hide()
+	{
+		shown = false;
+	}
+
+	public boolean contains(float mouseX, float mouseY)
+	{
+		return active && shown && ((titleBar.contains(mouseX, mouseY - 3) || contentBox.contains(mouseX, mouseY)) || subContains(mouseX, mouseY));
+	}
+
+	protected boolean subContains(float mouseX, float mouseY)
+	{
+		return false;
+	}
+
+	public float getXOffset()
+	{
+		return xOffset;
+	}
+
+	public void setXOffset(float xOffset)
+	{
+		this.xOffset = xOffset;
+	}
+
+	public float getCenterX()
+	{
+		return titleBar.getX() + titleBar.width / 2;
+	}
+
+	public float getYOffset()
+	{
+		return yOffset;
+	}
+
+	public void setYOffset(float yOffset)
+	{
+		this.yOffset = yOffset;
+	}
+
+	public String getTitle()
+	{
+		return title;
+	}
+
+	public void setTitle(String title)
+	{
+		this.title = title;
+	}
+
+	public float getHeight()
+	{
+		return height;
+	}
+
+	public float getWidth()
+	{
+		return width;
+	}
+
+	public boolean isActive()
+	{
+		return active;
+	}
+
+	public void setActive(boolean active)
+	{
+		this.active = active;
+	}
+
+	public Color getFillColor()
+	{
+		return fillColor;
+	}
+
+	public void setFillColor(Color fillColor)
+	{
+		this.fillColor = fillColor;
+	}
+
+	public Color getTitleColor()
+	{
+		return titleColor;
+	}
+
+	public void setTitleColor(Color titleColor)
+	{
+		this.titleColor = titleColor;
+	}
+
+	public Color getBorderColor()
+	{
+		return borderColor;
+	}
+
+	public void setBorderColor(Color borderColor)
+	{
+		this.borderColor = borderColor;
+	}
+
+	public boolean isShown()
+	{
+		return shown;
+	}
+
+	public void setShown(boolean shown)
+	{
+		this.shown = shown;
+	}
+}

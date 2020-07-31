@@ -1,0 +1,188 @@
+package com.unlogical.colored.gui;
+
+import static com.unlogical.colored.util.ColorHelper.copyAndAdd;
+
+import org.newdawn.slick.Color;
+import org.newdawn.slick.GameContainer;
+import org.newdawn.slick.Graphics;
+import org.newdawn.slick.Input;
+import org.newdawn.slick.geom.Rectangle;
+
+import com.unlogical.colored.GameLauncher;
+import com.unlogical.colored.gui.selection.MapSelectionMenu;
+import com.unlogical.colored.util.ColorHelper;
+import com.unlogical.colored.util.Renderer;
+
+public abstract class Slider<T>
+{
+	private boolean active;
+	private boolean showSelectionFactor;
+	private boolean movingMode;
+
+	private float xPos;
+	private float yPos;
+	private float width;
+	private float height;
+
+	private float selectedRange;
+
+	private Color additionalColor = new Color(0.0f, 0.0f, 0.0f);
+
+	private Color selectionColor = new Color(1.0f, 1.0f, 1.0f, MapSelectionMenu.SELECTION_ALPHA);
+	private Color fillColor = new Color(0.2f, 0.2f, 0.2f, MapSelectionMenu.FILL_ALPHA);
+
+	private Rectangle selectedSlider;
+	private Rectangle fullSlider;
+
+	private T reference;
+
+	public Slider(float xPos, float yPos, float width, float height, float initialSelection, boolean showSelectionFactor, T reference)
+	{
+		this.xPos = xPos;
+		this.yPos = yPos;
+		this.width = width;
+		this.height = height;
+		this.selectedRange = initialSelection;
+		this.showSelectionFactor = showSelectionFactor;
+		this.reference = reference;
+
+		createSlider();
+	}
+
+	private void createSlider()
+	{
+		this.fullSlider = new Rectangle(xPos, yPos, width, height);
+		this.selectedSlider = new Rectangle(xPos, yPos, width * selectedRange, height);
+	}
+
+	public void update(GameContainer container, int delta)
+	{
+		if (active)
+		{
+			if (fullSlider.contains(container.getInput().getMouseX(), container.getInput().getMouseY()))
+			{
+				if (container.getInput().isMouseButtonDown(Input.MOUSE_LEFT_BUTTON))
+				{
+					movingMode = true;
+				}
+			}
+			else if (!container.getInput().isMouseButtonDown(Input.MOUSE_LEFT_BUTTON))
+			{
+				movingMode = false;
+			}
+
+			if (movingMode)
+			{
+				if (container.getInput().isMouseButtonDown(Input.MOUSE_LEFT_BUTTON))
+				{
+					selectedRange = (container.getInput().getMouseX() - fullSlider.getMinX()) / width;
+
+					if (selectedRange < 0.0f)
+					{
+						selectedRange = 0.0f;
+					}
+					else if (selectedRange > 1.0f)
+					{
+						selectedRange = 1.0f;
+					}
+
+					selectedSlider.setWidth(selectedRange * width);
+
+					onFactorChanged(selectedRange, reference);
+
+					selectionColor.r = selectionColor.r;
+					;
+					selectionColor.g = selectionColor.g;
+					selectionColor.b = selectionColor.b;
+				}
+			}
+		}
+	}
+
+	protected abstract void onFactorChanged(float selectedRange, T reference);
+
+	public void render(GameContainer container, Graphics g)
+	{
+		if (active)
+		{
+			g.setColor(fillColor);
+			g.fill(fullSlider);
+
+			copyAndAdd(selectionColor, ColorHelper.buffer, additionalColor);
+
+			g.setColor(ColorHelper.buffer);
+			g.fill(selectedSlider);
+
+			if (showSelectionFactor)
+			{
+				g.setColor(Color.white);
+				g.setFont(GameLauncher.getFont());
+
+				String factor = Math.round(selectedRange * 100) + "%";
+				g.drawString(factor, fullSlider.getCenterX() - g.getFont().getWidth(factor) / 2, fullSlider.getMinY() - g.getFont().getLineHeight() - 5);
+			
+				Renderer.clearBind();
+			}
+		}
+	}
+
+	public Color getSelectedColor()
+	{
+		return this.selectionColor;
+	}
+
+	public Color getAdditionalColor()
+	{
+		return this.additionalColor;
+	}
+
+	public boolean isActive()
+	{
+		return active;
+	}
+
+	public void setActive(boolean active)
+	{
+		this.active = active;
+	}
+
+	public float getSelectedRange()
+	{
+		return selectedRange;
+	}
+
+	public void setSelectedRange(float selectedRange)
+	{
+		this.selectedRange = selectedRange;
+		this.selectedSlider.setWidth(width * selectedRange);
+	}
+
+	public void adjust(int xChange, int yChange)
+	{
+		xPos += xChange;
+		yPos += yChange;
+		
+		this.selectedSlider.setLocation(selectedSlider.getX() + xChange, selectedSlider.getY() + yChange);
+		this.fullSlider.setLocation(fullSlider.getX() + xChange, fullSlider.getY() + yChange);
+	}
+
+	public int getHeight()
+	{
+		return (int) this.height;
+	}
+
+	public int getCenterY()
+	{
+		return (int) this.fullSlider.getCenterY();
+	}
+	
+	public float getX()
+	{
+		return this.xPos;
+	}
+	
+	public float getY()
+	{
+		return this.yPos;
+	}
+}

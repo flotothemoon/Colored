@@ -1,0 +1,15 @@
+package com.unlogical.linked.gui.menu;
+
+import com.unlogical.linked.GameLauncher;
+
+public final class MenuOptions
+{
+	public static final String[] MAIN = { "Play", "Editor", "Settings", "Quit " + GameLauncher.GAME_NAME };
+	public static final String[] PAUSE = { "Continue", "Restart Level", "Exit Current World", "Settings", "Back to Main Menu" };
+	public static final String[] PLAY = { "Story Mode", "Custom Maps", "Back" };
+	public static final String[] MAPEDITOR = { "New Map", "Load Map", "Back" };
+	public static final String[] CUSTOM_MAP_DEATHSCREEN = { "Respawn", "Back" };
+	public static final String[] CUSTOM_MAP_FINISH_SCREEN = { "Retry", "Back" };
+	public static final String[] EDITOR = { "Map Editor", "World Editor", "Back" };
+	public static final String[] SETTINGS = { "Move Right", "Move Left", "Move Up", "Move Down", "Jump", "Toggle Perspective", "Pause"};
+}

@@ -1,0 +1,298 @@
+package com.unlogical.linked.gui.panel;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
+import org.newdawn.slick.Color;
+import org.newdawn.slick.GameContainer;
+import org.newdawn.slick.Graphics;
+
+import com.unlogical.linked.GameLauncher;
+import com.unlogical.linked.gui.button.Button;
+import com.unlogical.linked.level.Level;
+import com.unlogical.linked.levelrendering.LevelRenderer;
+import com.unlogical.linked.mapeditor.MapEditor;
+import com.unlogical.linked.resources.font.Fonts;
+import com.unlogical.linked.util.ColorHelper;
+import com.unlogical.linked.util.GameStatus;
+
+public class SanityPanel extends GUIPanel
+{
+	private static final int LOAD_PER_LEVEL_CHECK_TIME = 50;
+	private static final int UPDATE_AND_RENDER_PER_LEVEL_CHECK_TIME = 200;
+	private static final int EXTENSIVE_PER_LEVEL_CHECK_TIME = 2000;
+	
+	private static boolean runningCheck;
+
+	private int perLevelCheckTime = LOAD_PER_LEVEL_CHECK_TIME;
+	private int levelTime = 0;
+	private int totalTime;
+	private boolean finishedCheck;
+
+	private GameStatus beforeStatus;
+	private String beforeLevelID;
+
+	private Button startLoadTestButton;
+	private Button startUpdateRenderTestButton;
+	private Button startExtensiveTestButton;
+	private String currentLevel;
+	private List<String> levelIDs = new ArrayList<String>();
+
+	private List<LoggedError> loggedErrors = new ArrayList<LoggedError>();
+
+	public SanityPanel(float xOffset, float yOffset, float width, float height)
+	{
+		super("Start Sanity Check", xOffset, yOffset, width, height);
+
+		this.fillColor = new Color(MapEditor.panelColor);
+
+		int lineHeight = 30;
+
+		startLoadTestButton = new Button("Load-Test", (int) xOffset, (int) (yOffset + height - lineHeight - 25), (int) (width / 3.0f), lineHeight)
+		{
+			@Override
+			public void onClick()
+			{
+				if (SanityPanel.this.isShown() && SanityPanel.this.isActive())
+				{
+					startTest(LOAD_PER_LEVEL_CHECK_TIME);
+				}
+			}
+		};
+		startLoadTestButton.setActive(true);
+
+		startUpdateRenderTestButton = new Button("Render-Test", (int) (xOffset + width / 3.0f), (int) (yOffset + height - lineHeight - 25), (int) (width / 3.0f), lineHeight)
+		{
+			@Override
+			public void onClick()
+			{
+				if (SanityPanel.this.isShown() && SanityPanel.this.isActive())
+				{
+					startTest(UPDATE_AND_RENDER_PER_LEVEL_CHECK_TIME);
+				}
+			}
+		};
+		startUpdateRenderTestButton.setActive(true);
+		
+		startExtensiveTestButton = new Button("Extensive Test", (int) (xOffset + 2.0f * width / 3.0f), (int) (yOffset + height - lineHeight - 25), (int) (width / 3.0f), lineHeight)
+		{
+			@Override
+			public void onClick()
+			{
+				if (SanityPanel.this.isShown() && SanityPanel.this.isActive())
+				{
+					startTest(EXTENSIVE_PER_LEVEL_CHECK_TIME);
+				}
+			}
+		};
+		startExtensiveTestButton.setActive(true);
+		
+		this.setHeight(height);
+	}
+
+	private void startTest(int perLevelTime)
+	{
+		if (!runningCheck)
+		{
+			this.perLevelCheckTime = perLevelTime;
+			
+			levelTime = 0;
+			totalTime = 0;
+
+			levelIDs.clear();
+			levelIDs.addAll(Level.getAllLevelIDs());
+
+			Collections.sort(levelIDs);
+
+			if (GameLauncher.getStatus() == GameStatus.MAP_EDITOR)
+			{
+				MapEditor.saveItAll();
+			}
+
+			beforeStatus = GameLauncher.getStatus();
+			beforeLevelID = GameLauncher.getLevelContext() != null ? GameLauncher.getLevelContext().getID() : null;
+
+			GameLauncher.setStatus(GameStatus.IN_LEVEL);
+
+			LevelRenderer.initMap(Level.getMapPathByID(levelIDs.get(0)), 0, false);
+
+			currentLevel = LevelRenderer.getLevel().getID();
+
+			startLoadTestButton.setActive(false);
+			startUpdateRenderTestButton.setActive(false);
+			startExtensiveTestButton.setActive(false);
+
+			this.setTitle("Running Sanity Check...");
+
+			loggedErrors.clear();
+
+			runningCheck = true;
+		}
+	}
+
+	public void onError(Exception e)
+	{
+		loggedErrors.add(new LoggedError(e, currentLevel));
+
+		totalTime = (levelIDs.indexOf(currentLevel) + 1) * perLevelCheckTime;
+
+		goToNextLevel();
+	}
+
+	@Override
+	protected void customUpdate(GameContainer container, int delta)
+	{
+		if (isShown() && isActive())
+		{
+			startLoadTestButton.update(container, delta);
+			startUpdateRenderTestButton.update(container, delta);
+			startExtensiveTestButton.update(container, delta);
+			
+			if (runningCheck)
+			{
+				levelTime += delta;
+				totalTime += delta;
+
+				if (levelTime >= perLevelCheckTime)
+				{
+					goToNextLevel();
+				}
+			}
+		}
+	}
+
+	private void goToNextLevel()
+	{
+		levelTime = 0;
+
+		if (levelIDs.indexOf(currentLevel) != levelIDs.size() - 1)
+		{
+			try
+			{
+				currentLevel = levelIDs.get(levelIDs.indexOf(currentLevel) + 1);
+
+				LevelRenderer.initMap(Level.getMapPathByID(currentLevel), false);
+			}
+			catch (Exception e)
+			{
+				onError(e);
+			}
+		}
+		else
+		{
+			runningCheck = false;
+			finishedCheck = true;
+
+			this.setTitle("Sanity Check Finished");
+			startLoadTestButton.setActive(true);
+			startUpdateRenderTestButton.setActive(true);
+			startExtensiveTestButton.setActive(true);
+
+			GameLauncher.setStatus(beforeStatus);
+
+			if (beforeLevelID != null)
+			{
+				if (beforeStatus == GameStatus.IN_LEVEL || beforeStatus == GameStatus.PAUSE_MENU)
+				{
+					LevelRenderer.initMap(Level.getMapPathByID(beforeLevelID), false);
+				}
+				else if (beforeStatus == GameStatus.MAP_EDITOR)
+				{
+					MapEditor.initMap(beforeLevelID, Level.getMapPathByID(beforeLevelID));
+				}
+			}
+		}
+	}
+
+	@Override
+	protected void customRender(GameContainer container, float alphaFactor, Graphics g)
+	{
+		int y = (int) (yOffset + 5);
+		int x = (int) (xOffset + 5);
+		int offset = g.getFont().getLineHeight() + 5;
+
+		g.setColor(Color.white);
+
+		if (runningCheck)
+		{
+			g.setFont(Fonts.getSmallBoldFont());
+			g.drawString("Level Info: " + GameLauncher.getLevelContext().getName() + " (" + currentLevel + ")", x, y);
+			y += offset;
+
+			g.setFont(GameLauncher.getSmallFont());
+
+			g.drawString("Check Progress: " + (levelIDs.indexOf(currentLevel) + 1) + " / " + levelIDs.size() + " (" + ((int) (100 * (float) totalTime / ((float) levelIDs.size() * perLevelCheckTime))) + "%)", x, y);
+			y += offset;
+
+			g.drawString("Time Remaining: " + Math.round((((float) (levelIDs.size() * perLevelCheckTime) - totalTime) / 100.0f)) / 10.0f + " seconds ", x, y);
+			y += offset;
+
+			g.setColor(ColorHelper.applyAlphaAndCopy(Color.blue, 0.7f));
+			g.fillRect(xOffset + 1, this.yOffset + this.height - 100, width * Math.min(1.0f, (float) totalTime / ((float) levelIDs.size() * perLevelCheckTime)) - 2, 40);
+			g.setColor(ColorHelper.applyAlphaAndCopy(Color.white, 0.7f));
+			g.drawRect(xOffset + 1, this.yOffset + this.height - 100, width - 2, 40);
+		}
+		else if (finishedCheck)
+		{
+			g.setColor(loggedErrors.isEmpty() ? Color.green : Color.red);
+
+			g.setFont(Fonts.getSmallBoldFont());
+			g.drawString("-- Summary --", x + width / 2 - g.getFont().getWidth("-- Summary --") / 2, y);
+			y += offset;
+
+			g.setFont(GameLauncher.getSmallFont());
+
+			g.drawString("Time Elapsed: " + ((float) totalTime / 1000) + " seconds", x, y);
+			y += offset;
+
+			g.drawString("Levels Checked: " + levelIDs.size(), x, y);
+			y += offset;
+
+			g.drawString("Levels Passed: " + (levelIDs.size() - loggedErrors.size()) + " (" + Math.round((100 - ((int) ((float) loggedErrors.size()) / ((float) levelIDs.size())) * 100)) + "%)", x, y);
+			y += offset;
+
+			g.drawString("Levels Failed: " + loggedErrors.size() + " (" + Math.round(((int) ((float) loggedErrors.size()) / ((float) levelIDs.size())) * 100) + "%)", x, y);
+			y += offset;
+
+			for (LoggedError error : loggedErrors)
+			{
+				g.drawString("   " + error.level + ": " + error.exception + ": " + error.exception.getMessage(), x, y);
+				y += offset;
+
+				g.drawString("     at " + error.exception.getStackTrace()[0].getFileName().substring(0, error.exception.getStackTrace()[0].getFileName().lastIndexOf('.')) + "." + error.exception.getStackTrace()[0].getMethodName() + ":" + error.exception.getStackTrace()[0].getLineNumber(), x, y);
+				y += offset;
+
+			}
+		}
+
+		startLoadTestButton.render(container, alphaFactor, g);
+		startUpdateRenderTestButton.render(container, alphaFactor, g);
+		startExtensiveTestButton.render(container, alphaFactor, g);
+	}
+
+	@Override
+	public void onPositionUpdate(int xChange, int yChange)
+	{
+		startLoadTestButton.adjust(xChange, yChange);
+		startUpdateRenderTestButton.adjust(xChange, yChange);
+		startExtensiveTestButton.adjust(xChange, yChange);
+	}
+
+	public static boolean isRunningCheck()
+	{
+		return runningCheck;
+	}
+
+	private static class LoggedError
+	{
+		private Exception exception;
+		private String level;
+
+		private LoggedError(Exception e, String level)
+		{
+			this.exception = e;
+			this.level = level;
+		}
+	}
+}

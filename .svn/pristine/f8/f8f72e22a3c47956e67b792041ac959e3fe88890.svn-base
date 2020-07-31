@@ -1,0 +1,48 @@
+package com.unlogical.colored.gui.menu;
+
+import com.unlogical.colored.GameLauncher;
+import com.unlogical.colored.level.Level;
+import com.unlogical.colored.levelmanaging.LevelManager;
+import com.unlogical.colored.util.GameStatus;
+
+public class PauseMenu extends Menu
+{
+	public PauseMenu(float yOffset, float offset)
+	{
+		super(MenuOptions.PAUSE, 0.0f, yOffset, 0.0f, offset, true);
+	}
+	
+	@Override
+	public void onSelect(int selection)
+	{		
+		switch (selection)
+		{
+			case 0:
+				LevelManager.resume();
+				GameLauncher.setStatus(GameStatus.IN_LEVEL);
+				break;
+			case 1:
+				LevelManager.reset();
+				GameLauncher.setStatus(GameStatus.IN_LEVEL);
+				break;
+			case 2:
+				GameLauncher.setStatus(GameStatus.IN_LEVEL);
+				LevelManager.initMap(Level.getMapPathByID(GameLauncher.getLevelContext().getWorldHubLevelID()), false);
+				LevelManager.resume();
+				break;
+			case 3:
+				SettingsMenu.setLastGameStatus(GameStatus.PAUSE_MENU);
+				GameLauncher.setStatus(GameStatus.SETTINGS_MENU);
+				break;
+			case 4:
+				GameLauncher.setStatus(GameStatus.MAIN_MENU);
+				break;
+		}
+	}
+	
+	@Override
+	protected boolean isAvailable(int option)
+	{
+		return option != 2 || GameLauncher.getLevelContext() != null && GameLauncher.getLevelContext().getStoryHandler().canPlayerExitCurrentWorld() && GameLauncher.getLevelContext().hasWorldHub() && !GameLauncher.getLevelContext().getWorldHubLevelID().equals(GameLauncher.getLevelContext().getID());
+	}
+}

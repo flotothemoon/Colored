@@ -1,0 +1,60 @@
+package com.unlogical.colored.gui.menu;
+
+import com.unlogical.colored.GameLauncher;
+import com.unlogical.colored.input.ControllerFetcher;
+import com.unlogical.colored.level.Level;
+import com.unlogical.colored.levelrendering.LevelRenderer;
+import com.unlogical.colored.util.GameStatus;
+
+public class PauseMenu extends Menu
+{
+	public PauseMenu(float yOffset, float offset)
+	{
+		super(MenuOptions.PAUSE, 0.0f, yOffset, 0.0f, offset, true);
+	}
+
+	@Override
+	public void setActive(boolean active)
+	{
+		if (!this.isActive() && active)
+		{
+			ControllerFetcher.checkConnection();
+		}
+		
+		super.setActive(active);
+	}
+	
+	@Override
+	public void onSelect(int selection)
+	{
+		switch (selection)
+		{
+			case 0:
+				LevelRenderer.resume();
+				GameLauncher.setStatus(GameStatus.IN_LEVEL);
+				break;
+			case 1:
+				LevelRenderer.reset();
+				GameLauncher.setStatus(GameStatus.IN_LEVEL);
+				break;
+			case 2:
+				GameLauncher.setStatus(GameStatus.IN_LEVEL);
+				LevelRenderer.initMap(Level.getMapPathByID(GameLauncher.getLevelContext().getWorldHubLevelID()), false);
+				LevelRenderer.resume();
+				break;
+			case 3:
+				SettingsMenu.setLastGameStatus(GameStatus.PAUSE_MENU);
+				GameLauncher.setStatus(GameStatus.SETTINGS_MENU);
+				break;
+			case 4:
+				GameLauncher.setStatus(GameStatus.MAIN_MENU);
+				break;
+		}
+	}
+	
+	@Override
+	protected boolean isAvailable(int option)
+	{
+		return option != 2 || GameLauncher.getLevelContext() != null && GameLauncher.getLevelContext().hasWorldHub() && !GameLauncher.getLevelContext().getWorldHubLevelID().equals(GameLauncher.getLevelContext().getID());
+	}
+}

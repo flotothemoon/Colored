@@ -1,0 +1,74 @@
+package com.unlogical.linked.util;
+
+import com.unlogical.linked.level.Level;
+import com.unlogical.linked.level.LevelType;
+
+public class TimeStepHandler
+{
+	public static int currentFrameBeforeStart;
+	public static int currentFrameStart;
+	public static int currentFrameEnd;
+	public static int nextFrameStart;
+	public static int timeLoopLimit;
+
+	public static Level level;
+
+	public static void init(Level level)
+	{
+		TimeStepHandler.level = level;
+
+		currentFrameStart = 0;
+		currentFrameEnd = 0;
+		
+		if (level.getLevelType() == LevelType.TIME_TRAVEL || level.getLevelType() == LevelType.FROZEN)
+		{
+			timeLoopLimit = level.getTimeLoopLimit();
+		}
+		else
+		{
+			timeLoopLimit = Level.DEFAULT_TIME_LOOP;
+		}
+	}
+
+	public static void update(int delta)
+	{
+		currentFrameStart = currentFrameEnd;
+		currentFrameEnd = currentFrameStart + delta;
+
+		currentFrameBeforeStart = currentFrameStart - 1;
+
+		if (currentFrameBeforeStart < 0)
+		{
+			currentFrameBeforeStart = timeLoopLimit - 1;
+		}
+
+		if (currentFrameStart >= timeLoopLimit)
+		{
+			currentFrameStart = currentFrameStart % timeLoopLimit;
+		}
+
+		if (currentFrameEnd >= timeLoopLimit)
+		{
+			currentFrameEnd = currentFrameEnd % timeLoopLimit;
+		}
+
+		nextFrameStart = currentFrameEnd;
+	}
+
+	public static boolean isInCurrentFrame(int time)
+	{
+		if (currentFrameEnd > currentFrameStart)
+		{
+			return time >= currentFrameStart && time < currentFrameEnd;
+		}
+		else
+		{
+			return (time >= currentFrameStart && time < timeLoopLimit) || (time >= 0 && time < currentFrameEnd);
+		}
+	}
+
+	public static void onDimensionToggle(Dimension newDimension)
+	{
+
+	}
+}

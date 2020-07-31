@@ -1,0 +1,61 @@
+package com.unlogical.colored.inventory;
+
+public class ItemProperty {
+
+	private int damagePerHit;
+	private int range;
+	private int agility;
+	private String effectOnTouch;
+	private boolean throwable;
+	
+	public ItemProperty(int damagePerHit, int agility, int range, String effectOnTouch, boolean throwable)
+	{
+		this.damagePerHit = damagePerHit;
+		this.agility = agility;
+		this.range = range;
+		this.effectOnTouch = effectOnTouch;
+		this.throwable = throwable;
+	}
+
+	public int getDamagePerHit() {
+		return damagePerHit;
+	}
+
+	public void setDamagePerHit(int damagePerHit) {
+		this.damagePerHit = damagePerHit;
+	}
+
+	public int getRange() {
+		return range;
+	}
+
+	public void setRange(int range) {
+		this.range = range;
+	}
+
+	public int getAgility() {
+		return agility;
+	}
+
+	public void setAgility(int agility) {
+		this.agility = agility;
+	}
+
+	public String getEffectOnTouch() {
+		return effectOnTouch;
+	}
+
+	public void setEffectOnTouch(String effectOnTouch) {
+		this.effectOnTouch = effectOnTouch;
+	}
+
+	public boolean isThrowable() {
+		return throwable;
+	}
+
+	public void setThrowable(boolean throwable) {
+		this.throwable = throwable;
+	}
+	
+	
+}

@@ -1,0 +1,86 @@
+ -- General -- 
+Generated on: 2016-03-18_22-21-07
+Build: 660 from 08:20 PM - 18/03/16
+GameState: IN_LEVEL (previous: LOADING)
+Target FPS: 60
+Actual FPS: 61
+
+ -- Display -- 
+Target Width / Height: 1920 / 1080
+Actual Width / Height: 1920 / 1017 (windowed)
+
+ -- Environment -- 
+GPU: GeForce GTX 980 Ti/PCIe/SSE2 (NVIDIA Corporation)
+OpenGL Version: 4.5.0 NVIDIA 361.43
+Allocated Memory: 15MB
+Used Memory: 3MB
+"os.name": Windows 10
+"os.version": 10.0
+"os.arch": x86
+"java.version": 1.8.0_66
+"java.vendor": Oracle Corporation
+"sun.arch.data.model": 32
+
+ -- Level --
+ID: 21-02 (internal: 02)
+LevelType: REVERSAL
+Dimension: LIGHT
+Location: ../worlds/maps/21-02
+
+ -- Stack Trace -- 
+java.lang.NullPointerException
+com.unlogical.colored.particle.ParticleSystem.renderEmitter(ParticleSystem.java:327)
+com.unlogical.colored.particle.ParticleSystem.renderEmitter(ParticleSystem.java:248)
+com.unlogical.colored.util.LevelObject.drawEmitters(LevelObject.java:379)
+com.unlogical.colored.terrain.tile.Tile.customDraw(Tile.java:792)
+com.unlogical.colored.terrain.TerrainObject.draw(TerrainObject.java:232)
+com.unlogical.colored.levelmanaging.MapManager.renderForeground(MapManager.java:928)
+com.unlogical.colored.levelmanaging.LevelManager.renderGeometry(LevelManager.java:1183)
+com.unlogical.colored.levelmanaging.LevelManager.render(LevelManager.java:1132)
+com.unlogical.colored.GameLauncher.render(GameLauncher.java:464)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication.mainLoop(LwjglApplication.java:218)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication$1.run(LwjglApplication.java:123)
+
+ -- Last 20 Log Entries -- 
+@Log: Loading map files took 5ms. (11)
+@Log: Fetching lights for level "21-01" ... (11)
+@Log: Lights fetched for level "21-01", 1 light found. (11)
+@Log: Pre-simulating particles for 45000.0ms (300 x 150.0ms)... (11)
+@Log: Particle pre-simulation complete. Particles are now ahead of time by 45000.0ms. (11)
+@Log: Active save was saved to disk. (11)
+@Log: Loaded 21-01 (took 12ms). (11)
+@Log: Play sound JUMP at volume 0.0 and pitch 1.0 (once). (11)
+@Log: Play sound JUMP at volume 0.0 and pitch 1.0 (once). (11)
+@Log: Play sound OPEN_DOOR at volume 0.0 and pitch 1.0 (once). (11)
+@Log: Active save was saved to disk. (11)
+@Log: Level 21-01 cleared. (11)
+@Log: Loading map ../worlds/maps/21-02 ... (11)
+@Log: Loading map files took 5ms. (11)
+@Log: Fetching lights for level "21-02" ... (11)
+@Log: Lights fetched for level "21-02", 5 lights found. (11)
+@Log: Pre-simulating particles for 45000.0ms (300 x 150.0ms)... (11)
+@Log: Particle pre-simulation complete. Particles are now ahead of time by 45000.0ms. (11)
+@Log: Active save was saved to disk. (11)
+@Log: Loaded 21-02 (took 27ms). (11)
+
+ -- Last 20 Input Events -- 
+Key typed: a (charcode: 97) (3508ms ago)
+Key typed: a (charcode: 97) (3408ms ago)
+Key up: Space (62) (3241ms ago)
+Key down: Delete (67) (3191ms ago)
+Key up: A (29) (3108ms ago)
+Key up: Delete (67) (2891ms ago)
+Key down: Space (62) (2208ms ago)
+Key up: Space (62) (2108ms ago)
+Key down: A (29) (2025ms ago)
+Key up: A (29) (1841ms ago)
+Key down: D (32) (1758ms ago)
+Key typed: d (charcode: 100) (1341ms ago)
+Key typed: d (charcode: 100) (1241ms ago)
+Key typed: d (charcode: 100) (1141ms ago)
+Key down: W (51) (991ms ago)
+Key up: W (51) (858ms ago)
+Key down: D (32) (625ms ago)
+Key typed: d (charcode: 100) (208ms ago)
+Key typed: d (charcode: 100) (108ms ago)
+Key typed: d (charcode: 100) (8ms ago)

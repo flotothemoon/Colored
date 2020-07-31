@@ -1,0 +1,235 @@
+package com.unlogical.colored.gui.menu;
+
+import org.newdawn.slick.GameContainer;
+import org.newdawn.slick.Graphics;
+import org.newdawn.slick.Input;
+import org.newdawn.slick.geom.Rectangle;
+
+import com.unlogical.colored.GameLauncher;
+import com.unlogical.colored.configuration.Resolutions;
+import com.unlogical.colored.configuration.Settings;
+import com.unlogical.colored.configuration.SoundVolume;
+import com.unlogical.colored.gui.Slider;
+import com.unlogical.colored.gui.button.Button;
+import com.unlogical.colored.input.InputAction;
+import com.unlogical.colored.input.InputHandler;
+import com.unlogical.colored.input.KeyBindings;
+import com.unlogical.colored.util.ColorHelper;
+import com.unlogical.colored.util.GameStatus;
+import com.unlogical.colored.util.Renderer;
+import com.unlogical.colored.util.ShaderHandler;
+
+
+
+import static com.unlogical.colored.util.ColorHelper.set;
+
+@SuppressWarnings("rawtypes")
+public class SettingsMenu
+{
+	private static final int CENTER_OFFSET = 100;
+	private static GameStatus lastGameStatus = GameStatus.MAIN_MENU;
+
+	private Rectangle[] soundOptions;
+	private Slider[] soundSliders;
+	private boolean active;
+	private boolean lookForKey;
+	private boolean reducingAlpha;
+	private int selectedOption;
+	private Menu keybindingsMenu;
+	private Button backButton;
+
+	public SettingsMenu(float yOffset, float offset)
+	{
+		this.keybindingsMenu = new Menu(MenuOptions.SETTINGS, GameLauncher.getWidth() / 5, yOffset, GameLauncher.getWidth() / 2 - CENTER_OFFSET - GameLauncher.getWidth() / 5, offset, false)
+		{
+			@Override
+			public void onSelect(int selection)
+			{
+				if (lookForKey)
+				{
+					lookForKey = false;
+					ignoreButtons = false;
+					selectedColor.a = UNSELECTED_COLOR.a;
+				}
+				else
+				{
+					ignoreButtons = true;
+					lookForKey = true;
+					selectedOption = selection;
+				}
+			}
+
+			@Override
+			protected void customOptionRender(GameContainer container, Graphics g, int option, Rectangle box)
+			{
+				ShaderHandler.disableLighting();
+
+				if (!(option == selectedOption && lookForKey))
+				{
+					String keyName = Input.getKeyName(KeyBindings.getMainKey(InputAction.getAction(option)));
+					g.drawString(keyName, GameLauncher.getWidth() / 2 - CENTER_OFFSET - g.getFont().getWidth(keyName), box.getCenterY() - g.getFont().getLineHeight() / 2);
+				}
+				else
+				{
+					g.drawString(" ... ", GameLauncher.getWidth() / 2 - CENTER_OFFSET - g.getFont().getWidth(" ... "), box.getCenterY() - g.getFont().getLineHeight() / 2);
+				}
+				
+				Renderer.clearBind();
+			}
+
+			@Override
+			public void customUpdate(GameContainer container, int delta)
+			{
+				if (lookForKey)
+				{
+					if (selectedColor.a < 0.3f)
+					{
+						reducingAlpha = false;
+					}
+					else if (selectedColor.a > 1.0f)
+					{
+						reducingAlpha = true;
+					}
+
+					if (reducingAlpha)
+					{
+						selectedColor.a -= 0.001f * delta;
+					}
+					else
+					{
+						selectedColor.a += 0.001f * delta;
+					}
+
+					for (int i = 0; i < 256; i++) 
+					{
+						if (container.getInput().isKeyPressed(i) && !KeyBindings.isKeyBound(i, InputAction.getAction(selectedOption)))
+						{
+							KeyBindings.swapMainKey(InputAction.getAction(selectedOption), i);
+
+							Settings.saveSettings();
+
+							lookForKey = false;
+							ignoreButtons = false;
+							selectedColor.a = UNSELECTED_COLOR.a;
+						}
+					}
+
+					if (InputHandler.isKeyPressed(InputAction.MOVE_UP) || InputHandler.isKeyPressed(InputAction.MOVE_DOWN))
+					{
+						lookForKey = false;
+						ignoreButtons = false;
+						selectedColor.a = UNSELECTED_COLOR.a;
+					}
+				}
+			}
+		};
+		this.keybindingsMenu.setActive(true);
+
+		this.backButton = new Button("Back", GameLauncher.getWidth() / 2 - GameLauncher.getFont().getWidth("Back") / 2, (int) (keybindingsMenu.getY() + keybindingsMenu.getHeight()), GameLauncher.getFont().getWidth("Back"), GameLauncher.getFont().getHeight())
+		{
+			@Override
+			public void onClick()
+			{
+				if (lastGameStatus == GameStatus.PAUSE_MENU)
+				{
+					GameLauncher.setStatus(GameStatus.PAUSE_MENU);
+
+					// TODO key record cleanup for time delay tracking mode
+				}
+				else if (lastGameStatus == GameStatus.MAIN_MENU)
+				{
+					GameLauncher.setStatus(GameStatus.MAIN_MENU);
+				}
+				else
+				{
+					throw new IllegalStateException("SettingsMenu is in a bacon state. Because bacon is an invald game status to jump back to. Bacon.");
+				}
+			}
+		};
+		this.backButton.setUseEventColors(true);
+		this.backButton.setShowBox(false);
+
+		soundOptions = new Rectangle[SoundVolume.values().length];
+		soundSliders = new Slider[soundOptions.length];
+
+		for (int i = 0; i < soundOptions.length; i++)
+		{
+			soundOptions[i] = new Rectangle(GameLauncher.getWidth() / 2 + CENTER_OFFSET, keybindingsMenu.getY(i * 2), keybindingsMenu.getWidth(), offset + Resolutions.SELECTION_MENU_SCROLLBAR_WIDTH * 2);
+			soundSliders[i] = new Slider<SoundVolume>(soundOptions[i].getMinX(), soundOptions[i].getMaxY() - Resolutions.SELECTION_MENU_SCROLLBAR_WIDTH - 5, soundOptions[i].getWidth(), Resolutions.SELECTION_MENU_SCROLLBAR_WIDTH, (SoundVolume.values()[i].volume()) / 100.0f, true, SoundVolume.values()[i])
+			{
+				@Override
+				protected void onFactorChanged(float selectedRange, SoundVolume reference)
+				{
+					reference.setVolume((int) (selectedRange * 100));
+					
+					Settings.saveSettings();
+				}
+			};
+			soundSliders[i].setActive(true);
+		}
+	}
+
+	public void update(GameContainer container, int delta)
+	{
+		if (active)
+		{
+			keybindingsMenu.update(container, delta);
+			backButton.update(container, delta);
+			
+			for (int i = 0; i < soundOptions.length; i++)
+			{
+				soundSliders[i].update(container, delta);
+				
+				if (soundOptions[i].contains(container.getInput().getMouseX(), container.getInput().getMouseY()))
+				{					
+					set(soundSliders[i].getAdditionalColor(), 0.1f, 0.1f, 0.1f, 0.2f);
+				}
+				else
+				{
+					set(soundSliders[i].getAdditionalColor(), 0.0f, 0.0f, 0.0f, 0.0f);
+				}
+			}
+		}
+	}
+
+	public void render(GameContainer container, Graphics g)
+	{
+		if (active)
+		{
+			ShaderHandler.disableLighting();
+
+			keybindingsMenu.render(container, g);
+			backButton.render(container, 1.0f, g);
+			
+			for (int i = 0; i < soundOptions.length; i++)
+			{
+				soundSliders[i].render(container, g);
+				
+				ColorHelper.copyAndAdd(soundSliders[i].getSelectedColor(), ColorHelper.buffer, soundSliders[i].getAdditionalColor());
+				g.setColor(ColorHelper.buffer);
+				
+				ShaderHandler.disableLighting();
+				
+				g.setFont(GameLauncher.getFont());
+				g.drawString(SoundVolume.values()[i].name(), soundOptions[i].getCenterX() - g.getFont().getWidth(SoundVolume.values()[i].name()) / 2, soundOptions[i].getMinY());
+				
+				Renderer.clearBind();
+			}
+		}
+	}
+
+	public boolean isActive()
+	{
+		return active;
+	}
+
+	public void setActive(boolean active)
+	{
+		this.active = active;
+	}
+
+	public static void setLastGameStatus(GameStatus lastGameStatus)
+	{
+		SettingsMenu.lastGameStatus = lastGameStatus;
+	}
+}

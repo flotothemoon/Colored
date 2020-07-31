@@ -1,0 +1,63 @@
+ -- General -- 
+Generated on: 2016-03-31_21-59-34
+Build: 673 from 09:47 PM - 30/03/16
+GameState: IN_LEVEL (previous: LOADING)
+Target FPS: 60
+Actual FPS: 10
+
+ -- Display -- 
+Target Width / Height: 1920 / 1080
+Actual Width / Height: 1920 / 1017 (windowed)
+
+ -- Environment -- 
+GPU: GeForce GTX 980 Ti/PCIe/SSE2 (NVIDIA Corporation)
+OpenGL Version: 4.5.0 NVIDIA 361.43
+Allocated Memory: 15MB
+Used Memory: 0MB
+"os.name": Windows 10
+"os.version": 10.0
+"os.arch": x86
+"java.version": 1.8.0_66
+"java.vendor": Oracle Corporation
+"sun.arch.data.model": 32
+
+ -- Level --
+ID: 23-02 (internal: 02)
+LevelType: FROZEN
+Dimension: LIGHT
+Location: ../worlds/maps/23-02
+
+ -- Stack Trace -- 
+java.lang.IllegalStateException: SpriteBatch.begin must be called before draw.
+com.unlogical.colored.util.CustomVerticesSpriteBatch.draw(CustomVerticesSpriteBatch.java:804)
+com.unlogical.colored.resources.image.Images.draw(Images.java:109)
+com.unlogical.colored.resources.image.Images.draw(Images.java:99)
+com.unlogical.colored.levelmanaging.GUIManager.render(GUIManager.java:162)
+com.unlogical.colored.levelmanaging.LevelManager.render(LevelManager.java:1146)
+com.unlogical.colored.GameLauncher.render(GameLauncher.java:464)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication.mainLoop(LwjglApplication.java:218)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication$1.run(LwjglApplication.java:123)
+
+ -- Last 20 Log Entries -- 
+@Log: Play sound CANNON_SHOOT_CLOUD at volume 0.0 and pitch 1.0 (once). (8)
+@Log: Play sound CANNON_SHOOT_CLOUD at volume 0.0 and pitch 1.0 (once). (8)
+@Log: Play sound CANNON_SHOOT_CLOUD at volume 0.0 and pitch 1.0 (once). (8)
+@Log: Play sound CANNON_SHOOT_CLOUD at volume 0.0 and pitch 1.0 (once). (8)
+@Log: Play sound CANNON_SHOOT_CLOUD at volume 0.0 and pitch 1.0 (once). (8)
+@Log: Play sound CANNON_SHOOT_CLOUD at volume 0.0 and pitch 1.0 (once). (8)
+@Log: Play sound CANNON_SHOOT_CLOUD at volume 0.0 and pitch 1.0 (once). (8)
+@Log: Play sound CANNON_SHOOT_CLOUD at volume 0.0 and pitch 1.0 (once). (8)
+@Log: Play sound CANNON_SHOOT_CLOUD at volume 0.0 and pitch 1.0 (once). (8)
+@Log: Play sound CANNON_SHOOT_CLOUD at volume 0.0 and pitch 1.0 (once). (8)
+@Log: Play sound CANNON_SHOOT_CLOUD at volume 0.0 and pitch 1.0 (once). (8)
+@Log: Play sound CANNON_SHOOT_CLOUD at volume 0.0 and pitch 1.0 (once). (8)
+@Log: Play sound CANNON_SHOOT_CLOUD at volume 0.0 and pitch 1.0 (once). (8)
+@Log: Play sound CANNON_SHOOT_CLOUD at volume 0.0 and pitch 1.0 (once). (8)
+@Log: Play sound CANNON_SHOOT_CLOUD at volume 0.0 and pitch 1.0 (once). (8)
+@Log: Play sound CANNON_SHOOT_CLOUD at volume 0.0 and pitch 1.0 (once). (8)
+@Log: Pre-simulating particles for 45000.0ms (300 x 150.0ms)... (8)
+@Log: Particle pre-simulation complete. Particles are now ahead of time by 45000.0ms. (8)
+@Log: Active save was saved to disk. (8)
+@Log: Loaded 23-02 (took 109ms). (8)
+
+ -- Last 0 Input Events -- 

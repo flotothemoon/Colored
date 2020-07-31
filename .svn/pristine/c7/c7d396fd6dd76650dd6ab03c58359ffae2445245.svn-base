@@ -1,0 +1,128 @@
+package com.unlogical.linked.util;
+
+import com.unlogical.linked.GameLauncher;
+import com.unlogical.linked.configuration.Settings;
+import com.unlogical.linked.debug.Debug;
+import com.unlogical.linked.entity.Entity;
+import com.unlogical.linked.filesystem.FileOrganisation;
+import com.unlogical.linked.gui.menu.MenuDisplay;
+import com.unlogical.linked.gui.selection.MapSelectionMenu;
+import com.unlogical.linked.input.InputHandler;
+import com.unlogical.linked.input.KeyBindings;
+import com.unlogical.linked.level.Level;
+import com.unlogical.linked.levelrendering.LevelRenderer;
+import com.unlogical.linked.mapeditor.MapEditor;
+import com.unlogical.linked.resources.image.Images;
+import com.unlogical.linked.terrain.TerrainObject;
+import com.unlogical.linked.terrain.handler.SharedAnimationHandler;
+
+public class LoadingHandler
+{
+	private static int loadTime;
+	private static int currentStep;
+	private static boolean finishedLoading;
+	
+	public static void initLoading()
+	{
+		currentStep = 0;
+		finishedLoading = false;
+	}
+	
+	public static void loadNext()
+	{
+		try
+		{
+			if (currentStep == 0)
+			{
+				Debug.log("Initializing settings...");
+				Settings.init();
+			}
+			else if (currentStep == 1)
+			{
+				Debug.log("Initializing input handler...");
+				InputHandler.init();
+			}
+			else if (currentStep == 2)
+			{
+				Debug.log("Initializing key bindings...");
+				KeyBindings.init();
+			}
+			else if (currentStep == 3)
+			{
+				Debug.log("Initializing file system...");
+				FileOrganisation.init();
+			}
+			else if (currentStep == 4)
+			{
+				Debug.log("Calculating transition data...");
+				Transitions.calculateValues();
+			}
+			else if (currentStep == 5)
+			{
+				Debug.log("Fetching maps...");
+				Level.fetchMaps();
+				MapSelectionMenu.init();
+			}
+			else if (currentStep == 6)
+			{
+				Debug.log("Loading resources... (1 / 3)");
+				Entity.loadAll();
+				Debug.log("Loading resources... (2 / 3)");
+				TerrainObject.loadAll();
+				Debug.log("Loading resources... (3 / 3)");
+				Images.HintIdentifier.loadAll();
+			}
+			else if (currentStep == 7)
+			{
+				Debug.log("Initialising levelrenderer...");
+				LevelRenderer.init();
+				
+				Debug.log("Initializing menus...");
+				MenuDisplay.init();
+			}
+			else if (currentStep == 8)
+			{
+				Debug.log("Initializing animation handler...");
+				SharedAnimationHandler.init();
+			}
+			else if (currentStep == 9)
+			{
+				Debug.log("Initializing map editor...");
+				MapEditor.init();
+			}
+			else if (currentStep == 10)
+			{
+				Debug.log("Initializing shaders...");
+				ShaderHandler.init();	
+				
+				GameLauncher.getContainer().setClearEachFrame(true);
+			}
+			else if (currentStep == 11)
+			{
+				Debug.log("Finished loading, took " + loadTime + "ms.");
+				finishedLoading = true;
+			}
+		}
+		catch (Exception e)
+		{
+			Debug.log("Error while loading, trying to continue...", e);
+		}
+
+		currentStep++;
+	}
+
+	public static void update(int delta)
+	{
+		loadTime += delta;
+	}
+	
+	public static boolean hasFinishedLoading()
+	{
+		return finishedLoading;
+	}
+	
+	public static int getLoadingTime()
+	{
+		return loadTime;
+	}
+}

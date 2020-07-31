@@ -1,0 +1,466 @@
+package com.unlogical.colored.filesystem;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.RandomAccessFile;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import com.unlogical.colored.debug.Debug;
+import com.unlogical.colored.filesystem.MetaFileHandler.FileInfo;
+
+public class FilePackage
+{
+	private String parent;
+	private String path;
+	private String name;
+	private Map<String, FileHandle> filesByPath = new LinkedHashMap<String, FileHandle>();
+	private Collection<String> allFiles = new LinkedHashSet<String>();
+	private MetaFileHandler metaHandler;
+	private boolean imaginary;
+	private boolean global;
+
+	FilePackage(String path, String name, boolean imaginary, boolean global)
+	{
+		this.path = path.replace("\\", "/");
+
+		if (this.path.startsWith("./"))
+		{
+			this.path = this.path.substring(2);
+		}
+
+		if (this.path.contains("."))
+		{
+			this.path = this.path.substring(0, this.path.lastIndexOf('.'));
+		}
+
+		this.imaginary = imaginary;
+		this.global = global;
+
+		if (!this.path.endsWith("/") && !this.path.isEmpty())
+		{
+			this.path = this.path + "/";
+		}
+
+		if (imaginary)
+		{
+			createMetaFileHandler();
+		}
+
+		this.parent = path.isEmpty() ? path : (path.contains(".") ? (path.substring(0, path.lastIndexOf('.'))) : "");
+		this.name = name;
+	}
+
+	private void createMetaFileHandler()
+	{
+		this.metaHandler = new MetaFileHandler(new File(FileManager.getMetaPath(path)));
+		try
+		{
+			if (this.metaHandler.getFile().exists())
+			{
+				this.metaHandler.load();
+			}
+		}
+		catch (IOException e)
+		{
+			Debug.warn("Unable to load meta file " + this.metaHandler.getFile() + ": " + e, e);
+		}
+	}
+
+	public void createDirectory(String path) throws IOException
+	{
+		if (!imaginary)
+		{
+			new File(path).mkdirs();
+		}
+	}
+
+	public FileHandle createFile(String path) throws IOException
+	{
+		FileHandle handle;
+
+		if (imaginary)
+		{
+			handle = new FileHandle(path, this, new byte[] {});
+		}
+		else
+		{
+			handle = new FileHandle(path, this);
+			new File(path).createNewFile();
+		}
+
+		this.allFiles.add(path);
+		this.filesByPath.put(path, handle);
+
+		writeAll();
+
+		return handle;
+	}
+
+	public void fetchAll() throws IOException
+	{
+		allFiles.clear();
+
+		if (imaginary)
+		{
+			this.metaHandler.load();
+
+			allFiles.addAll(this.metaHandler.getPaths());
+		}
+		else
+		{
+			fetchFiles(path.isEmpty() ? "." : path);
+		}
+	}
+
+	private void fetchFiles(String path)
+	{
+		Collection<File> files = new ArrayList<File>();
+
+		FileManager.fetchFiles(new File(path), SearchMode.RECURSIVE, files);
+
+		for (File file : files)
+		{
+			if (!file.getName().endsWith(FileManager.PACKAGE_META_FILE_EXTENSION) && !file.getName().endsWith(FileManager.PACKAGE_RAW_FILE_EXTENSION))
+			{
+				String internalPath = file.getPath().replace('\\', '/');
+
+				if (internalPath.startsWith("./"))
+				{
+					internalPath = internalPath.substring(2);
+				}
+
+				if (!allFiles.contains(internalPath))
+				{
+					allFiles.add(internalPath);
+				}
+			}
+		}
+	}
+
+	public void loadAllBinaries(boolean reload) throws IOException
+	{
+		for (FileHandle handle : this.filesByPath.values())
+		{
+			if (handle.getData() == null || reload)
+			{
+				handle.readToBinary();
+			}
+		}
+	}
+
+	public void loadAll(boolean reload) throws IOException
+	{
+		loadFiles(filesByPath.keySet(), reload);
+	}
+
+	public void loadFiles(Collection<String> paths, boolean reload) throws IOException
+	{
+		RandomAccessFile file = imaginary ? new RandomAccessFile(FileManager.getPackagePath(this.path), "rw") : null;
+
+		for (String path : paths)
+		{
+			loadFile(path, file, reload);
+		}
+
+		if (file != null)
+		{
+			file.close();
+		}
+	}
+
+	public void loadFile(String path, boolean reload) throws IOException
+	{
+		RandomAccessFile file = imaginary ? new RandomAccessFile(FileManager.getPackagePath(this.path), "rw") : null;
+
+		loadFile(path, file, reload);
+
+		if (file != null)
+		{
+			file.close();
+		}
+	}
+
+	private void loadFile(String path, RandomAccessFile file, boolean reload) throws IOException
+	{
+		if (isFileLoaded(path) && !reload)
+		{
+			return;
+		}
+
+		if (imaginary)
+		{
+			FileInfo info = metaHandler.getFileInfo(path);
+			int length = info.getLength();
+
+			byte[] data = new byte[length];
+
+			file.seek(info.getOffset());
+			int read = file.read(data, 0, length);
+
+			if (read != length)
+			{
+				Debug.warn("Error while reading binary data for file " + path + " from " + file + ": " + read + " bytes != " + info.getLength() + " requested bytes");
+			}
+
+			filesByPath.put(path, new FileHandle(path, this, data));
+		}
+		else
+		{
+			filesByPath.put(path, new FileHandle(path, this));
+		}
+	}
+
+	public void releaseAll()
+	{
+		filesByPath.clear();
+	}
+
+	public void releaseFiles(Collection<String> paths)
+	{
+		for (String path : paths)
+		{
+			filesByPath.remove(path);
+		}
+	}
+
+	public void releaseFile(String path)
+	{
+		this.filesByPath.remove(path);
+	}
+
+	public void onFileWritten(FileHandle handle)
+	{
+		if (imaginary)
+		{
+			try
+			{
+				this.writeAll();
+			}
+			catch (IOException e)
+			{
+				Debug.warn("Error while writing meta / package files: " + e, e);
+			}
+		}
+	}
+
+	public void writeAll() throws IOException
+	{
+		if (this == FileManager.GLOBAL_FILE_PACKAGE)
+		{
+			return;
+		}
+
+		if (this.metaHandler == null)
+		{
+			createMetaFileHandler();
+		}
+
+		this.loadFiles(allFiles, false);
+		this.loadAllBinaries(false);
+		this.metaHandler.update(this.filesByPath);
+		this.metaHandler.write();
+		this.writePackageFile();
+	}
+
+	public void writeMetaFile() throws IOException
+	{
+		this.metaHandler.write();
+	}
+
+	public void writePackageFile() throws IOException
+	{
+		for (FileHandle handle : this.filesByPath.values())
+		{
+			if (handle.getData() == null)
+			{
+				throw new RuntimeException("Unable to write raw package file as binary data of file handle " + handle.getPath() + " is null.");
+			}
+		}
+
+		File pkgFile = new File(FileManager.getPackagePath(this.path));
+
+		if (!pkgFile.exists())
+		{
+			if (pkgFile.getParentFile() != null && !pkgFile.getParentFile().exists())
+			{
+				pkgFile.getParentFile().mkdirs();
+			}
+
+			pkgFile.createNewFile();
+		}
+
+		FileOutputStream out = new FileOutputStream(pkgFile);
+
+		List<FileHandle> sortedHandles = new ArrayList<FileHandle>(this.filesByPath.values());
+		Collections.sort(sortedHandles, new Comparator<FileHandle>()
+		{
+			@Override
+			public int compare(FileHandle o1, FileHandle o2)
+			{
+				return metaHandler.getFileInfo(o2).getOffset() - metaHandler.getFileInfo(o1).getOffset();
+			}
+		});
+
+		for (FileHandle handle : this.filesByPath.values())
+		{
+			out.write(handle.getData());
+		}
+
+		out.close();
+	}
+
+	public List<String> listFiles(String folder, boolean recursive)
+	{
+		List<String> subFiles = new ArrayList<String>();
+
+		if (!folder.endsWith("/"))
+		{
+			folder = folder + "/";
+		}
+		
+		if (global)
+		{
+			fetchFiles(folder);
+		}
+		
+		int folderDepth = folder.length() - folder.replaceAll("/", "").length();
+
+		for (String path : allFiles)
+		{
+			if (path.startsWith(folder) && (recursive || folderDepth == getDepth(path)))
+			{
+				subFiles.add(path);
+			}
+		}
+
+		return subFiles;
+	}
+
+	public void deleteFile(String path) throws IOException
+	{
+		Set<String> toDelete = new HashSet<String>();
+		String pathAsFolder = path.endsWith("/") ? path : (path + "/");
+
+		for (String other : allFiles)
+		{
+			if (other.equals(path) || other.startsWith(pathAsFolder))
+			{
+				toDelete.add(path);
+
+				FileHandle handle = filesByPath.get(path);
+
+				if (handle != null)
+				{
+					if (!handle.canBeDeleted())
+					{
+						throw new IOException("File \"" + "\" cannot be deleted, it might be in use (read/write).");
+					}
+
+					handle.onDeleted();
+
+					filesByPath.remove(path);
+				}
+			}
+		}
+
+		allFiles.removeAll(toDelete);
+
+		writeAll();
+	}
+
+	public long getTotalLoadedLength()
+	{
+		long totalLength = 0;
+
+		for (FileHandle handle : this.filesByPath.values())
+		{
+			if (handle.getData() != null)
+			{
+				totalLength += handle.getLength();
+			}
+		}
+
+		return totalLength;
+	}
+
+	@Override
+	public String toString()
+	{
+		return "[" + this.getClass().getSimpleName() + " " + name + ": " + (imaginary ? "imaginary " : "") + "path=" + path + " parent=" + parent + " loadedfiles=" + filesByPath.size() + "]";
+	}
+
+	public boolean existsFile(String path)
+	{
+		if (allFiles.contains(path) || global && new File(path).exists())
+		{
+			if (global && !allFiles.contains(path))
+			{
+				allFiles.add(path);
+			}
+			
+			return true;
+		}
+
+		return false;
+	}
+
+	public FileHandle getFile(String path)
+	{
+		return filesByPath.get(path);
+	}
+
+	public boolean isFileLoaded(String path)
+	{
+		return filesByPath.containsKey(path);
+	}
+
+	public String getPath()
+	{
+		return path;
+	}
+
+	public String getParent()
+	{
+		return parent;
+	}
+
+	public String getName()
+	{
+		return name;
+	}
+
+	public int getDepth()
+	{
+		return path.length() - path.replaceAll("/", "").length();
+	}
+
+	public int getDepth(String path)
+	{
+		return path.length() - path.replaceAll("/", "").length();
+	}
+
+	public boolean isImaginary()
+	{
+		return imaginary;
+	}
+
+	public int getFileCount()
+	{
+		return filesByPath.size();
+	}
+
+	public Collection<String> getAllFiles()
+	{
+		return allFiles;
+	}
+}

@@ -1,0 +1,50 @@
+package com.unlogical.colored.gui.panel;
+
+import org.newdawn.slick.GameContainer;
+import org.newdawn.slick.Graphics;
+
+import com.unlogical.colored.gui.InputField;
+import com.unlogical.colored.mapeditor.MapEditor;
+import com.unlogical.colored.terrain.tile.TileText;
+
+public class TextPanel extends GUIPanel
+{
+	private InputField inputField;
+	private TileText tile;
+
+	public TextPanel(float xOffset, float yOffset, float width, float height)
+	{
+		super("Edit Text", xOffset, yOffset, width, height);
+
+		this.setFillColor(MapEditor.panelColor);
+
+		inputField = new InputField(xOffset, yOffset, width, height);
+		inputField.setActive(true);
+	}
+
+	public void init(TileText textTile)
+	{
+		this.tile = textTile;
+		this.inputField.init(tile.getText());
+	}
+	
+	@Override
+	protected void customUpdate(GameContainer container, int delta)
+	{
+		inputField.update(container, delta);
+
+		tile.setText(inputField.getText());
+	}
+
+	@Override
+	protected void customRender(GameContainer container, float alphaFactor, Graphics g)
+	{
+		inputField.render(container, g);
+	}
+
+	@Override
+	public void onPositionUpdate(int xChange, int yChange)
+	{
+		inputField.adjust(xChange, yChange);
+	}
+}

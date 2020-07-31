@@ -1,0 +1,54 @@
+ -- General -- 
+Generated on: 2016-04-25_21-57-25
+Build: 699 from 09:07 PM - 25/04/16
+GameState: LOADING (previous: null)
+Target FPS: 60
+Actual FPS: 0
+
+ -- Display -- 
+Target Width / Height: 1920 / 1080
+Actual Width / Height: 1920 / 1053 (windowed)
+
+ -- Environment -- 
+GPU: GeForce GTX 980 Ti/PCIe/SSE2 (NVIDIA Corporation)
+OpenGL Version: 4.5.0 NVIDIA 361.43
+Allocated Memory: 15MB
+Used Memory: 6MB
+"os.name": Windows 10
+"os.version": 10.0
+"os.arch": x86
+"java.version": 1.8.0_66
+"java.vendor": Oracle Corporation
+"sun.arch.data.model": 32
+
+ -- Stack Trace -- 
+java.lang.NullPointerException
+com.unlogical.colored.util.Transitions.getFactor(Transitions.java:56)
+com.unlogical.colored.util.Transitions.getFactor(Transitions.java:41)
+com.unlogical.colored.GameLauncher.render(GameLauncher.java:481)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication.mainLoop(LwjglApplication.java:218)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication$1.run(LwjglApplication.java:123)
+
+ -- Last 20 Log Entries -- 
+@Log: ---- Startup Debug Information ---- (11)
+@Log: Location: C:\Users\Flo\Desktop\Java\Colored\desktop\. (11)
+@Log: Jar location: /C:/Users/Flo/Desktop/Java/Colored/core/bin/ (11)
+@Warning: Might not be enough memory available... (11)
+@Log: Available memory: 15MB (11)
+@Log: System.getProperty("os.name"): Windows 10 (11)
+@Log: System.getProperty("os.version"): 10.0 (11)
+@Log: System.getProperty("os.arch"): x86 (11)
+@Log: System.getProperty("java.version"): 1.8.0_66 (11)
+@Log: System.getProperty("java.vendor"): Oracle Corporation (11)
+@Log: System.getProperty("sun.arch.data.model"): 32 (11)
+@Log: ---- GPU Debug Information ---- (11)
+@Log: GPU: GeForce GTX 980 Ti/PCIe/SSE2 (NVIDIA Corporation) (11)
+@Log: OpenGL Version: 4.5.0 NVIDIA 361.43 (11)
+@Log: Build: 699 from 09:07 PM - 25/04/16 (11)
+@Log: Loading settings... (11)
+@Log: Settings loaded. (11)
+@Log: Logos loaded. (11)
+@Log: Loading font "Chelsea.ttf" ... (11)
+@Log: TrueTypeFont loaded, took 183ms. (11)
+
+ -- Last 0 Input Events -- 

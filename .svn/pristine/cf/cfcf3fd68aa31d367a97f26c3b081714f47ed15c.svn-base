@@ -1,0 +1,554 @@
+package com.unlogical.colored.util;
+
+import static org.lwjgl.opengl.GL11.GL_FALSE;
+import static org.lwjgl.opengl.GL11.GL_TRUE;
+import static org.lwjgl.opengl.GL20.GL_COMPILE_STATUS;
+import static org.lwjgl.opengl.GL20.GL_FRAGMENT_SHADER;
+import static org.lwjgl.opengl.GL20.GL_INFO_LOG_LENGTH;
+import static org.lwjgl.opengl.GL20.GL_LINK_STATUS;
+import static org.lwjgl.opengl.GL20.GL_VALIDATE_STATUS;
+import static org.lwjgl.opengl.GL20.GL_VERTEX_SHADER;
+import static org.lwjgl.opengl.GL20.glAttachShader;
+import static org.lwjgl.opengl.GL20.glCompileShader;
+import static org.lwjgl.opengl.GL20.glCreateProgram;
+import static org.lwjgl.opengl.GL20.glCreateShader;
+import static org.lwjgl.opengl.GL20.glGetProgram;
+import static org.lwjgl.opengl.GL20.glGetProgramInfoLog;
+import static org.lwjgl.opengl.GL20.glGetShaderInfoLog;
+import static org.lwjgl.opengl.GL20.glGetShaderi;
+import static org.lwjgl.opengl.GL20.glGetUniformLocation;
+import static org.lwjgl.opengl.GL20.glLinkProgram;
+import static org.lwjgl.opengl.GL20.glShaderSource;
+import static org.lwjgl.opengl.GL20.glUniform1f;
+import static org.lwjgl.opengl.GL20.glUniform1i;
+import static org.lwjgl.opengl.GL20.glUniform3;
+import static org.lwjgl.opengl.GL20.glUniform4;
+import static org.lwjgl.opengl.GL20.glUseProgram;
+import static org.lwjgl.opengl.GL20.glValidateProgram;
+
+import java.io.BufferedReader;
+import java.io.FileReader;
+import java.nio.FloatBuffer;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+
+import org.lwjgl.BufferUtils;
+import org.lwjgl.opengl.GL20;
+import org.newdawn.slick.Color;
+import org.newdawn.slick.Input;
+import org.newdawn.slick.geom.Circle;
+import org.newdawn.slick.geom.Line;
+import org.newdawn.slick.geom.Vector2f;
+
+import com.unlogical.colored.GameLauncher;
+import com.unlogical.colored.debug.Debug;
+import com.unlogical.colored.filesystem.FilePaths;
+import com.unlogical.colored.level.Level;
+import com.unlogical.colored.terrain.tile.Tile;
+
+public class ShaderHandler
+{
+	private static String vertexShader;
+	private static String fragmentShader;
+
+	private static Vector2f vector2f = new Vector2f(1.0f, 1.0f);
+	private static FloatBuffer positionFloatBuffer = BufferUtils.createFloatBuffer(3);
+	private static FloatBuffer colorfloatBuffer = BufferUtils.createFloatBuffer(4);
+	private static Map<String, Integer> uniformLocations = new HashMap<String, Integer>();
+
+	private static Level level;
+
+	private static Set<ILightSource> lights = new HashSet<ILightSource>();
+	private static Set<ILightSource> usedLights = new HashSet<ILightSource>();
+
+	private static int shaderProgramCode = -1;
+	private static int vertexShaderCode = -1;
+	private static int fragmentShaderCode = -1;
+	private static int vertexShaderTextureAttr = -1;
+	private static int usingTextureAttr = -1;
+	private static int depthAttr = -1;
+	private static int vertexCoordinateAttr = -1;
+
+	private static boolean enabled = true;
+
+	private static float topLimit;
+	private static float leftLimit;
+	private static float rightLimit;
+	private static float bottomLimit;
+
+	private static Line[] borders = new Line[4];
+	private static Line[] lightBorders = new Line[2];
+	private static Vector2f lightRotation = new Vector2f(100000.0f, 100000.0f);
+	private static Vector2f intersection = new Vector2f();
+	private static Circle circle = new Circle(0.0f, 0.0f, 0.0f);
+
+	public static void init0()
+	{
+		for (int i = 0; i < borders.length; i++)
+		{
+			borders[i] = new Line(0.0f, 0.0f, 0.0f, 0.0f);
+		}
+
+		for (int i = 0; i < lightBorders.length; i++)
+		{
+			lightBorders[i] = new Line(0.0f, 0.0f, 0.0f, 0.0f);
+		}
+	}
+
+	public static void init1()
+	{
+		loadShaders();
+		initShaders();
+	}
+
+	private static void loadShaders()
+	{
+		vertexShader = loadShader("vertexShader.glsl");
+		fragmentShader = loadShader("fragmentShader.glsl");
+	}
+
+	private static String loadShader(String shaderName)
+	{
+		try
+		{
+			BufferedReader reader = new BufferedReader(new FileReader(FilePaths.SHADERS + "/" + shaderName));
+			String shader = "";
+			String line;
+
+			while ((line = reader.readLine()) != null)
+			{
+				shader += line + "\n";
+			}
+
+			reader.close();
+
+			return shader;
+		}
+		catch (Exception e)
+		{
+			throw new RuntimeException("Unable to load shader " + shaderName + ".");
+		}
+	}
+
+	@SuppressWarnings("deprecation")
+	// sorry hell
+	private static void initShaders()
+	{
+		if (shaderProgramCode > 0)
+		{
+			GL20.glDeleteProgram(shaderProgramCode);
+			GL20.glDeleteShader(vertexShaderCode);
+			GL20.glDeleteShader(fragmentShaderCode);
+		}
+
+		shaderProgramCode = glCreateProgram();
+
+		vertexShaderCode = glCreateShader(GL_VERTEX_SHADER);
+		fragmentShaderCode = glCreateShader(GL_FRAGMENT_SHADER);
+
+		glShaderSource(vertexShaderCode, vertexShader);
+		glShaderSource(fragmentShaderCode, fragmentShader);
+
+		glCompileShader(vertexShaderCode);
+
+		if (glGetProgram(vertexShaderCode, GL_COMPILE_STATUS) == GL_FALSE)
+		{
+			Debug.warn("Could not compile vertex shader :(");
+			Debug.warn("VertexShaderLog: " + glGetShaderInfoLog(vertexShaderCode, glGetShaderi(vertexShaderCode, GL_INFO_LOG_LENGTH)));
+		}
+		else
+		{
+			Debug.log("Vertex shader compiled successfully!");
+		}
+
+		glCompileShader(fragmentShaderCode);
+
+		if (glGetProgram(fragmentShaderCode, GL_COMPILE_STATUS) == GL_FALSE)
+		{
+			Debug.warn("Could not compile fragment shader :(");
+			Debug.warn("FragmentShaderLog: " + glGetShaderInfoLog(fragmentShaderCode, glGetShaderi(fragmentShaderCode, GL_INFO_LOG_LENGTH)));
+		}
+		else
+		{
+			Debug.log("Fragment shader compiled successfully!");
+		}
+
+		glAttachShader(shaderProgramCode, vertexShaderCode);
+		glAttachShader(shaderProgramCode, fragmentShaderCode);
+
+		glLinkProgram(shaderProgramCode);
+
+		if (glGetProgram(shaderProgramCode, GL_LINK_STATUS) == GL_FALSE)
+		{
+			Debug.warn("Couldn't link shaders together :(");
+			Debug.warn("VertexShaderLog: " + glGetShaderInfoLog(vertexShaderCode, glGetShaderi(vertexShaderCode, GL_INFO_LOG_LENGTH)));
+			Debug.warn("FragmentShaderLog: " + glGetShaderInfoLog(fragmentShaderCode, glGetShaderi(fragmentShaderCode, GL_INFO_LOG_LENGTH)));
+			Debug.warn("ShaderProgramLog: " + glGetProgramInfoLog(shaderProgramCode, 13370000));
+
+			return;
+		}
+		else
+		{
+			Debug.log("Shaders linked together successfully!");
+		}
+
+		glValidateProgram(shaderProgramCode);
+
+		if (glGetProgram(shaderProgramCode, GL_VALIDATE_STATUS) == GL_FALSE)
+		{
+			Debug.warn("Invalid shader program :(");
+			Debug.warn("VertexShaderLog: " + glGetShaderInfoLog(vertexShaderCode, glGetShaderi(vertexShaderCode, GL_INFO_LOG_LENGTH)));
+			Debug.warn("FragmentShaderLog: " + glGetShaderInfoLog(fragmentShaderCode, glGetShaderi(fragmentShaderCode, GL_INFO_LOG_LENGTH)));
+			Debug.warn("ShaderProgramLog: " + glGetProgramInfoLog(shaderProgramCode, 13370000));
+
+			return;
+		}
+		else
+		{
+			Debug.log("Shader program validated!");
+		}
+		
+		uniformLocations.clear();
+
+		vertexShaderTextureAttr = getUniformLocation("texture");
+		usingTextureAttr = getUniformLocation("isTexture");
+		depthAttr = getUniformLocation("myDepth");
+		vertexCoordinateAttr = getUniformLocation("currentPos");
+	}
+
+	private static int getUniformLocation(String uniform)
+	{
+		Integer location = uniformLocations.get(uniform);
+
+		if (location != null)
+		{
+			return location;
+		}
+
+		location = glGetUniformLocation(shaderProgramCode, uniform);
+
+		uniformLocations.put(uniform, location);
+
+		return location;
+	}
+
+	public static void initMap(Level level)
+	{
+		ShaderHandler.level = level;
+
+		fetchLights(level);
+	}
+
+	private static void fetchLights(Level level)
+	{
+		Debug.log("Fetching lights for level \"" + level.getID() + "\" ...");
+
+		lights.clear();
+
+		for (Tile tile : level.getTiles())
+		{
+			if (tile instanceof ILightSource)
+			{
+				lights.add((ILightSource) tile);
+			}
+		}
+
+		Debug.log("Lights fetched for level \"" + level.getID() + "\", " + lights.size() + " light" + (lights.size() != 1 ? "s" : "") + " found.");
+	}
+
+	public static void addLight(ILightSource light)
+	{
+		lights.add(light);
+	}
+
+	public static void removeLight(ILightSource light)
+	{
+		lights.remove(light);
+	}
+
+	private static FloatBuffer getSpotDirection(int directionAngle)
+	{
+		vector2f.set(1.0f, 1.0f);
+		vector2f.setTheta(directionAngle);
+
+		positionFloatBuffer.clear();
+
+		positionFloatBuffer.put(vector2f.x);
+		positionFloatBuffer.put(vector2f.y);
+		positionFloatBuffer.put(0.0f);
+
+		positionFloatBuffer.rewind();
+
+		return positionFloatBuffer;
+	}
+
+	public static void startUsingTexture()
+	{
+		glUniform1i(vertexShaderTextureAttr, 0);
+		glUniform1i(usingTextureAttr, GL_TRUE);
+	}
+
+	public static void stopUsingTexture()
+	{
+		glUniform1i(usingTextureAttr, GL_FALSE);
+		glUniform1i(depthAttr, 0);
+	}
+
+	public static void initRender()
+	{
+		if (GameLauncher.getContainer().getInput().isKeyDown(Input.KEY_F7))
+		{
+			Debug.log("Re-initializing shaders...");
+
+			loadShaders();
+			initShaders();
+
+			Debug.log("Shaders re-initialized.");
+		}
+		
+		if (enabled)
+		{
+			glUseProgram(shaderProgramCode);
+
+			glUniform1f(getUniformLocation("targetHeight"), GameLauncher.getHeight());
+			glUniform1f(getUniformLocation("horizontalScale"), Renderer.getHorizontalScale());
+			glUniform1f(getUniformLocation("verticalScale"), Renderer.getVerticalScale());
+			glUniform1f(getUniformLocation("xOffset"), Renderer.getXOffset());
+			glUniform1f(getUniformLocation("yOffset"), Renderer.getYOffset());
+
+			transferLights();
+		}
+		else
+		{
+			glUseProgram(0);
+		}
+	}
+
+	private static float getLightRadius(ILightSource light)
+	{
+		float exactness = 1 / 0.05f;
+		float linearAtt = light.getLinearAttenuation() + 0.00001f;
+		float quadraticAtt = light.getQuadraticAttenuation() + 0.00001f;
+
+		float distance = (-(linearAtt) / 2 * quadraticAtt);
+
+		distance += Math.sqrt(Math.abs(Math.pow(linearAtt / (2 * quadraticAtt), 2.0f) - ((exactness - 1) / quadraticAtt)));
+
+		return distance;
+	}
+
+	private static boolean isLightUsed(ILightSource light)
+	{
+		if (!light.isSpotLight())
+		{
+			return true;
+		}
+
+		float lightRadius = getLightRadius(light);
+
+		lightRotation.set(lightRadius, 0.0f);
+		lightRotation.setTheta(light.getSpotDirection() - light.getAngle() / 2);
+
+		lightBorders[0].set(light.getPositionX(), light.getPositionX(), light.getPositionX() + lightRotation.x, light.getPositionY() + lightRotation.y);
+
+		lightRotation.add(light.getAngle());
+
+		lightBorders[1].set(light.getPositionX(), light.getPositionX(), light.getPositionX() + lightRotation.x, light.getPositionY() + lightRotation.y);
+
+		float minX = light.getPositionX();
+		float maxX = light.getPositionX();
+
+		for (Line absBorder : borders)
+		{
+			for (Line lightBorder : lightBorders)
+			{
+				if (absBorder.intersect(lightBorder, true, intersection))
+				{
+					if (intersection.x < minX)
+					{
+						minX = intersection.x;
+					}
+
+					if (intersection.x > maxX)
+					{
+						maxX = intersection.x;
+					}
+				}
+			}
+		}
+
+		circle.setCenterX(light.getPositionX());
+		circle.setCenterY(light.getPositionY());
+		circle.setRadius(lightRadius);
+
+		if (light.getAngle() < 180 || light.getAngle() == 360)
+		{
+			if (circle.getMinX() < minX)
+			{
+				minX = circle.getMinX();
+			}
+
+			if (circle.getMaxX() > maxX)
+			{
+				maxX = circle.getMaxX();
+			}
+		}
+		else
+		// yeee well no idea
+		{
+			if (circle.getMinX() > minX)
+			{
+				minX = circle.getMinX();
+			}
+
+			if (circle.getMaxX() < maxX)
+			{
+				maxX = circle.getMaxX();
+			}
+		}
+
+		return !(minX > rightLimit || maxX < leftLimit);
+	}
+
+	private static void transferLights()
+	{
+		topLimit = 0;
+		leftLimit = 0;
+		rightLimit = GameLauncher.getWidth();
+		bottomLimit = GameLauncher.getHeight();
+
+		borders[0].set(leftLimit, topLimit, rightLimit, topLimit);
+		borders[1].set(rightLimit, topLimit, rightLimit, bottomLimit);
+		borders[2].set(rightLimit, bottomLimit, leftLimit, bottomLimit);
+		borders[3].set(leftLimit, bottomLimit, leftLimit, topLimit);
+
+		usedLights.clear();
+
+		for (ILightSource light : lights)
+		{
+			if (isLightUsed(light))
+			{
+				usedLights.add(light);
+			}
+		}
+				
+		glUniform1i(getUniformLocation("numLights"), usedLights.size());
+
+		int i = 0;
+
+		for (ILightSource light : usedLights)
+		{
+			glUniform3(getUniformLocation("lightPosition[" + i + "]"), positionToFloatBuffer(light.getPositionX(), light.getPositionY()));
+			glUniform4(getUniformLocation("lightColor[" + i + "]"), colorToFloatBuffer(light.getColor(), light.getIntensity()));
+			glUniform1i(getUniformLocation("minAffectedDepth[" + i + "]"), light.getMinDepth());
+			glUniform1i(getUniformLocation("maxAffectedDepth[" + i + "]"), light.getMaxDepth());
+			glUniform1i(getUniformLocation("isSpotLight[" + i + "]"), light.isSpotLight() ? GL_TRUE : GL_FALSE);
+			glUniform3(getUniformLocation("spotDirection[" + i + "]"), getSpotDirection(light.getSpotDirection()));
+			glUniform1f(getUniformLocation("spotExponent[" + i + "]"), light.getSpotExponent() / 25.0f);
+			glUniform1f(getUniformLocation("spotCosCutOff[" + i + "]"), (float) Math.cos(Math.toRadians(light.getAngle() / 2.0f)));
+			glUniform1f(getUniformLocation("linearAttenuation[" + i + "]"), light.getLinearAttenuation());
+			glUniform1f(getUniformLocation("quadraticAttenuation[" + i + "]"), light.getQuadraticAttenuation());
+
+			i++;
+		}
+	}
+
+	private static FloatBuffer positionToFloatBuffer(float x, float y)
+	{
+		positionFloatBuffer.clear();
+		positionFloatBuffer.put(x).put(GameLauncher.getHeight() - y).put(ZHandler.getZ(x, y));
+		positionFloatBuffer.flip();
+
+		return positionFloatBuffer;
+	}
+
+	public static void applyLights(int depth, boolean background)
+	{
+		if (enabled)
+		{
+			glUseProgram(shaderProgramCode);
+
+			if (background && depth > 0)
+			{
+				depth *= -1;
+			}
+
+			glUniform1i(depthAttr, depth);
+		}
+	}
+
+	private static FloatBuffer colorToFloatBuffer(Color color, float intensity)
+	{
+		colorfloatBuffer.clear();
+
+		colorfloatBuffer.put(color.r);
+		colorfloatBuffer.put(color.g);
+		colorfloatBuffer.put(color.b);
+		colorfloatBuffer.put(intensity);
+
+		colorfloatBuffer.flip();
+
+		return colorfloatBuffer;
+	}
+
+	public static void disable()
+	{
+		enabled = false;
+	}
+
+	public static void enable()
+	{
+		enabled = true;
+	}
+
+	public static void toggleLighting()
+	{
+		enabled = !enabled;
+
+		if (enabled)
+		{
+			if (level != null)
+			{
+				fetchLights(level);
+			}
+		}
+	}
+
+	public static void disableLighting()
+	{
+		glUseProgram(0);
+		// Renderer.clearBind();
+	}
+
+	public static void applyLights(int depth)
+	{
+		applyLights(depth, false);
+	}
+
+	public static boolean isEnabled()
+	{
+		return enabled;
+	}
+
+	public static int getVertexShaderTextureCode()
+	{
+		return vertexShaderTextureAttr;
+	}
+
+	public static int getVertexCoordinateAttr()
+	{
+		return vertexCoordinateAttr;
+	}
+
+	public static Set<ILightSource> getLights()
+	{
+		return lights;
+	}
+
+	public static Set<ILightSource> getUsedLights()
+	{
+		return usedLights;
+	}
+}

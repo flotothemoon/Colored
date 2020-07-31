@@ -1,0 +1,968 @@
+package com.unlogical.colored.gui.panel;
+
+import java.io.IOException;
+import java.lang.ProcessBuilder.Redirect;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
+
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Input;
+import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.g2d.Batch;
+import com.badlogic.gdx.graphics.g2d.TextureRegion;
+import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
+import com.badlogic.gdx.graphics.glutils.ShapeRenderer.ShapeType;
+import com.badlogic.gdx.math.Rectangle;
+import com.badlogic.gdx.math.Vector2;
+import com.unlogical.colored.GameLauncher;
+import com.unlogical.colored.configuration.DisplayConstants;
+import com.unlogical.colored.debug.Debug;
+import com.unlogical.colored.filesystem.FileManager;
+import com.unlogical.colored.filesystem.FilePaths;
+import com.unlogical.colored.filesystem.files.WrapperTextureHandler;
+import com.unlogical.colored.gui.InputChangeListener;
+import com.unlogical.colored.gui.UserInputLine;
+import com.unlogical.colored.gui.button.Button;
+import com.unlogical.colored.input.InputHandler;
+import com.unlogical.colored.level.Level;
+import com.unlogical.colored.mapeditor.MapEditor;
+import com.unlogical.colored.particle.EmitterType;
+import com.unlogical.colored.particle.ParticleEmitterImpl;
+import com.unlogical.colored.resources.ResourceLoader;
+import com.unlogical.colored.resources.ResourceLoader.LoadMode;
+import com.unlogical.colored.util.Dimension;
+import com.unlogical.colored.util.RectanglePacker;
+import com.unlogical.colored.util.RectanglePacker.IPackableRectangle;
+import com.unlogical.colored.util.RectanglePacker.RectanglePackMode;
+import com.unlogical.colored.util.Renderer;
+import com.unlogical.colored.wrapper.WrapperTexture;
+import com.unlogical.colored.wrapper.WrapperTextureFinder;
+
+public class ImportWrapperPanel extends GUIPanel
+{
+	private static final int SELECTABLE_HEIGHT = 100;
+	private static final int INPUT_HEIGHT = 40;
+
+	private static Map<String, WrapperTexture> templateEmittersByName;
+
+	private ArrayList<WrapperTexture> wrappers = new ArrayList<WrapperTexture>();
+	private LinkedHashSet<SelectableWrapper> selectedWrappers = new LinkedHashSet<SelectableWrapper>();
+	private List<SelectableWrapper> allWrappers = new ArrayList<SelectableWrapper>();
+	private List<SelectableWrapper> selectableWrappers = new ArrayList<SelectableWrapper>();
+
+	private Rectangle scrollbarBorder;
+	private Rectangle moveableScrollbar;
+
+	private UserInputLine input;
+	private String matchString;
+
+	private Button cancelButton;
+	private Button importButton;
+
+	private float areaHeight;
+	private float barHeight;
+	private float barOffset;
+	private boolean scrolling;
+	private boolean particleCreationMode;
+
+	private Color selectedColor = new Color(1.0f, 1.0f, 1.0f, 0.4f);
+	private Color hoverColor = new Color(1.0f, 1.0f, 1.0f, 0.3f);
+
+	private WrapperTextureFinder wrapperFinder;
+	private WrapperTextureFinder emitterFinder;
+
+	public ImportWrapperPanel(String title, float xOffset, float yOffset, float width, float height)
+	{
+		super(title, xOffset, yOffset, width, height);
+
+		this.areaHeight = height - INPUT_HEIGHT;
+
+		this.wrapperFinder = new WrapperTextureFinder(FilePaths.WRAPPERS);
+		this.emitterFinder = new WrapperTextureFinder(FilePaths.PARTICLES);
+
+		this.input = new UserInputLine((int) xOffset, (int) yOffset, (int) width, INPUT_HEIGHT);
+		this.input.setActive(true);
+		this.input.addInputChangedListener(new InputChangeListener()
+		{
+			@Override
+			public void onInputChanged()
+			{
+				ImportWrapperPanel.this.updateSelectableWrappers();
+			}
+		});
+		this.input.setAlwaysFocus(true);
+		this.input.setAllowSpecialCharacters(true);
+
+		this.moveableScrollbar = new Rectangle(xOffset + width - DisplayConstants.SELECTION_MENU_SCROLLBAR_WIDTH, yOffset + INPUT_HEIGHT, DisplayConstants.SELECTION_MENU_SCROLLBAR_WIDTH, this.areaHeight);
+		this.scrollbarBorder = new Rectangle(this.moveableScrollbar.getX(), this.moveableScrollbar.getY(), this.moveableScrollbar.getWidth(), this.contentBox.getHeight());
+		this.fillColor = new Color(MapEditor.panelColor);
+
+		this.cancelButton = new Button("Cancel", (int) xOffset, (int) (yOffset + height), (int) (width / 2), 40, false)
+		{
+			@Override
+			public void onClick()
+			{
+				ImportWrapperPanel.this.disable();
+			}
+		};
+
+		this.importButton = new Button("Import", (int) (xOffset + width / 2), (int) (yOffset + height), (int) (width / 2), 40, false)
+		{
+			@Override
+			public void onClick()
+			{
+				try
+				{
+					if (ResourceLoader.LOAD_MODE == LoadMode.SPRITESHEET)
+					{
+						List<String> entireCommand = new ArrayList<String>();
+
+						entireCommand.add("java");
+						entireCommand.add("-jar");
+						entireCommand.add("imagePackager.jar");
+						entireCommand.add("flat");
+
+						for (SelectableWrapper selectableWrapper : ImportWrapperPanel.this.selectedWrappers)
+						{
+							String parent = selectableWrapper.getWrapper().getRelativePath().substring(0, selectableWrapper.getWrapper().getRelativePath().lastIndexOf('/'));
+
+							if (!entireCommand.contains(parent) && ResourceLoader.getAnimatedImages(selectableWrapper.getWrapper().getPath(), LoadMode.SPRITESHEET) == null)
+							{
+								Debug.log("Spritesheet version of " + selectableWrapper.getName() + " seems to be missing, will attempt reload...");
+
+								ResourceLoader.release(selectableWrapper.wrapper.getPath());
+
+								entireCommand.add(parent);
+							}
+						}
+
+						if (entireCommand.size() > 4)
+						{
+							Debug.log("As " + (entireCommand.size() - 4) + " spritesheet versions were missing, they will be reloaded now...");
+
+							Debug.log("Executing command: " + Arrays.toString(entireCommand.toArray(new String[] {})));
+
+							ProcessBuilder builder = new ProcessBuilder(entireCommand);
+
+							builder.redirectError(Redirect.INHERIT);
+							builder.redirectOutput(Redirect.INHERIT);
+
+							builder.start().waitFor();
+
+							for (SelectableWrapper selectableWrapper : ImportWrapperPanel.this.selectedWrappers)
+							{
+								String parent = selectableWrapper.getWrapper().getRelativePath().substring(0, selectableWrapper.getWrapper().getRelativePath().lastIndexOf('/'));
+
+								if (entireCommand.contains(parent))
+								{
+									selectableWrapper.getWrapper().setImages(selectableWrapper.wrapper.getRelativePath(), selectableWrapper.getName(), ResourceLoader.getAnimatedImages(selectableWrapper.wrapper.getPath(), LoadMode.SPRITESHEET));
+								}
+							}
+
+							Debug.log("Reload of " + (entireCommand.size() - 4) + " spritesheet versions was successful.");
+						}
+					}
+				}
+				catch (Exception e)
+				{
+					Debug.warn("Exception occured while attempting to repack spritesheets via imagePackager.jar: " + e, e);
+				}
+
+				RectanglePacker packer = new RectanglePacker(ImportWrapperPanel.this.selectedWrappers, RectanglePackMode.GREEDY);
+				java.awt.Rectangle boundingBox = packer.pack();
+
+				Set<WrapperTexture> addedWrappers = new HashSet<WrapperTexture>();
+
+				for (SelectableWrapper selectableWrapper : ImportWrapperPanel.this.selectedWrappers)
+				{
+					try
+					{
+						WrapperTexture temp = selectableWrapper.getWrapper();
+
+						WrapperTexture wrapper;
+
+						wrapper = new WrapperTexture(temp.getRelativePath(), temp.getSimpleName(), new Vector2((float) (selectableWrapper.rectangle.getX() + GameLauncher.getWidth() / 2 - boundingBox.getWidth() / 2), (float) (selectableWrapper.rectangle.getY() + GameLauncher.getHeight() / 2 - boundingBox.getHeight() / 2)), true, true, 0, 0.0f, 1.0f, new Color(temp.getStartEmitterTint()), 0, 1.0f, ResourceLoader.getAnimatedImages(selectableWrapper.wrapper.getPath(), LoadMode.SPRITESHEET), 100, MapEditor.getLevel(), temp.isDrawSubImages(), temp.isShouldClip(), temp.isStretchMode(), temp.isFlippedVertically(), temp.isFlippedHorizontally(), selectableWrapper.getWidth(), selectableWrapper.getHeight(), null);
+
+						if (temp.getEmitter() != null)
+						{
+							wrapper.setEmitter(temp.getEmitter().copy(wrapper, false, wrapper.getLevel()));
+						}
+
+						wrapper.setMaxParticles(temp.getMaxParticles());
+						wrapper.setColorDistributionMode(temp.getColorDistributionMode());
+						wrapper.setEndTint(new Color(temp.getEndEmitterTint()));
+						wrapper.setAddTint(new Color(temp.getAddEmitterTint()));
+						wrapper.setRotation(temp.getRotation());
+						wrapper.setTemplateName(temp.getTemplateName());
+						wrapper.setDepth(temp.getDepth());
+
+						if (ImportWrapperPanel.this.particleCreationMode)
+						{
+							if (!templateEmittersByName.containsValue(temp))
+							{
+								wrapper.setEmitter(new ParticleEmitterImpl(Dimension.COLORED, wrapper));
+							}
+
+							if (wrapper.getEmitter().shouldCreateMirror(true))
+							{
+								wrapper.getEmitter().createMirror(wrapper.getLevel().getType());
+							}
+
+							if (!wrapper.getEmitter().hasLimitedLifetime())
+							{
+								wrapper.getLevel().getParticleSystem().simulateEmitter(wrapper.getEmitter(), 40000, 100);
+
+								if (wrapper.getEmitter().hasMirror())
+								{
+									wrapper.getLevel().getParticleSystem().simulateEmitter(wrapper.getEmitter().getMirroredEmitter(), 40000, 100);
+								}
+							}
+						}
+
+						addedWrappers.add(wrapper);
+						wrapper.createBorders();
+						MapEditor.getLevel().addWrapper(wrapper);
+					}
+					catch (Exception e)
+					{
+						Debug.warn("Exception while importing wrapper " + selectableWrapper.wrapper + ": " + e, e);
+					}
+				}
+
+				MapEditor.deselectAll();
+				MapEditor.getSelectedWrappers().addAll(addedWrappers);
+				MapEditor.getSelectedObjects().addAll(addedWrappers);
+
+				ImportWrapperPanel.this.disable();
+			}
+		};
+
+		try
+		{
+			this.refresh();
+		}
+		catch (IOException e)
+		{
+			throw new RuntimeException("Error loading wrapper textures for MapEditor D:.", e);
+		}
+	}
+
+	@Override
+	public void customUpdate(int delta)
+	{
+		if (Gdx.input.isKeyPressed(Input.Keys.FORWARD_DEL) && this.particleCreationMode)
+		{
+			for (SelectableWrapper wrapper : this.selectedWrappers)
+			{
+				if (wrapper.wrapper.getTemplateName() != null && templateEmittersByName.containsKey(wrapper.wrapper.getTemplateName()))
+				{
+					templateEmittersByName.remove(wrapper.wrapper.getTemplateName());
+				}
+
+				writeTemplateEmitters();
+			}
+
+			try
+			{
+				this.refresh();
+				this.updateSelectableWrappers();
+			}
+			catch (Exception e)
+			{
+				Debug.warn("Exception while updating wrappers in import panel after attempting to delete selected wrappers: " + e, e);
+			}
+		}
+
+		if (this.moveableScrollbar.contains(InputHandler.getCurrentInputX(), InputHandler.getCurrentInputY()))
+		{
+			if (Gdx.input.isButtonPressed(Input.Buttons.LEFT))
+			{
+				this.scrolling = true;
+			}
+		}
+		else if (!Gdx.input.isButtonPressed(Input.Buttons.LEFT))
+		{
+			this.scrolling = false;
+		}
+
+		if (this.scrolling)
+		{
+			if (this.barOffset + this.barHeight > this.areaHeight)
+			{
+				this.barOffset = this.areaHeight - this.barHeight;
+			}
+			else if (this.barOffset < 0)
+			{
+				this.barOffset = 0;
+			}
+		}
+
+		this.input.setxOffset((int) this.xOffset);
+		this.input.setyOffset((int) this.yOffset);
+		this.input.updateInterface();
+
+		this.cancelButton.setX((int) this.xOffset);
+		this.importButton.setX((int) (this.xOffset + this.width / 2));
+
+		this.cancelButton.setY((int) (this.yOffset + this.height));
+		this.importButton.setY((int) (this.yOffset + this.height));
+
+		this.cancelButton.updateInterface();
+		this.importButton.updateInterface();
+
+		this.scrollbarBorder.setX(this.contentBox.getX() + this.contentBox.width - DisplayConstants.SELECTION_MENU_SCROLLBAR_WIDTH);
+		this.scrollbarBorder.setY(this.yOffset + INPUT_HEIGHT);
+
+		this.moveableScrollbar.setX(this.contentBox.getX() + this.contentBox.width - DisplayConstants.SELECTION_MENU_SCROLLBAR_WIDTH);
+		this.moveableScrollbar.setY(this.yOffset + INPUT_HEIGHT + this.barOffset);
+
+		float actualOffset = -(int) (this.barOffset / this.areaHeight * (this.selectableWrappers.size() * SELECTABLE_HEIGHT));
+
+		this.input.update(delta);
+		this.cancelButton.update(delta);
+		this.importButton.update(delta);
+
+		int index = 0;
+		int hoveredIndex = -1;
+		int selectedIndex = -1;
+
+		for (SelectableWrapper selectableWrapper : this.selectableWrappers)
+		{
+			selectableWrapper.setXOffset(this.xOffset);
+			selectableWrapper.setYOffset(this.yOffset + INPUT_HEIGHT + index * SELECTABLE_HEIGHT + actualOffset);
+
+			selectableWrapper.setActive(selectableWrapper.getYOffset() >= this.yOffset + INPUT_HEIGHT - selectableWrapper.selectionHeight && selectableWrapper.getYOffset() + SELECTABLE_HEIGHT <= this.yOffset + this.height + selectableWrapper.selectionHeight);
+
+			if (selectableWrapper.contains(InputHandler.getCurrentInputX(), InputHandler.getCurrentInputY()))
+			{
+				if (Gdx.input.isButtonPressed(Input.Buttons.LEFT) && Gdx.input.justTouched())
+				{
+					if (!this.selectedWrappers.contains(selectableWrapper))
+					{
+						selectedIndex = index;
+						hoveredIndex = index;
+					}
+					else
+					{
+						this.selectedWrappers.remove(selectableWrapper);
+					}
+				}
+				else
+				{
+					selectableWrapper.hovered = true;
+					hoveredIndex = index;
+				}
+			}
+			else
+			{
+				selectableWrapper.hovered = false;
+			}
+
+			index++;
+		}
+
+		int lastSelectedIndex = this.selectedWrappers.isEmpty() ? -1 : this.selectableWrappers.indexOf(this.selectedWrappers.toArray(new SelectableWrapper[] {})[this.selectedWrappers.size() - 1]);
+
+		if (hoveredIndex >= 0 && lastSelectedIndex >= 0 && Gdx.input.isKeyPressed(Input.Keys.SHIFT_LEFT))
+		{
+			int minIndex = Math.min(hoveredIndex, lastSelectedIndex);
+			int maxIndex = Math.max(hoveredIndex, lastSelectedIndex);
+
+			for (int i = minIndex; i <= maxIndex; i++)
+			{
+				if (selectedIndex >= 0 && i != selectedIndex)
+				{
+					this.selectedWrappers.add(this.selectableWrappers.get(i));
+				}
+				else
+				{
+					this.selectableWrappers.get(i).hovered = true;
+				}
+			}
+		}
+
+		if (selectedIndex >= 0)
+		{
+			this.selectedWrappers.add(this.selectableWrappers.get(selectedIndex));
+		}
+	}
+
+	@Override
+	public void customRender(float alphaFactor, Batch batch)
+	{
+		ShapeRenderer sr = Renderer.useShapeRenderer();
+
+		sr.set(ShapeType.Filled);
+		sr.setColor(Color.WHITE);
+		sr.rect(this.scrollbarBorder.x, this.scrollbarBorder.y, this.scrollbarBorder.width, this.scrollbarBorder.height);
+
+		sr.setColor(Color.DARK_GRAY);
+		sr.rect(this.moveableScrollbar.x, this.moveableScrollbar.y, this.moveableScrollbar.width, this.moveableScrollbar.height);
+
+		sr.set(ShapeType.Line);
+		sr.setColor(Color.BLACK);
+		sr.rect(this.scrollbarBorder.x, this.scrollbarBorder.y, this.scrollbarBorder.width, this.scrollbarBorder.height);
+
+		Renderer.push2DScissor((int) this.xOffset, (int) this.yOffset + INPUT_HEIGHT, (int) this.width, (int) this.areaHeight);
+
+		for (SelectableWrapper selectableWrapper : this.selectableWrappers)
+		{
+			if (selectableWrapper.isActive())
+			{
+				sr = Renderer.useShapeRenderer();
+
+				sr.set(ShapeType.Filled);
+
+				if (this.selectedWrappers.contains(selectableWrapper))
+				{
+					sr.setColor(this.selectedColor);
+					sr.rect(this.xOffset, selectableWrapper.getYOffset(), this.width - DisplayConstants.SELECTION_MENU_SCROLLBAR_WIDTH, SELECTABLE_HEIGHT);
+				}
+				else
+				{
+					if (selectableWrapper.hovered)
+					{
+						sr.setColor(this.hoverColor);
+						sr.rect(this.xOffset, selectableWrapper.getYOffset(), this.width - DisplayConstants.SELECTION_MENU_SCROLLBAR_WIDTH, SELECTABLE_HEIGHT);
+					}
+				}
+
+				batch = Renderer.useSpriteBatch();
+
+				batch.setColor(selectableWrapper.wrapper.getStartEmitterTint());
+
+				float scaleFactor = 1.0f;
+
+				if (selectableWrapper.previewImage.getRegionHeight() > SELECTABLE_HEIGHT - 10)
+				{
+					scaleFactor = selectableWrapper.previewImage.getRegionHeight() / (SELECTABLE_HEIGHT - 10.0f);
+				}
+
+				if (selectableWrapper.previewImage.getRegionWidth() / scaleFactor > selectableWrapper.previewWidth)
+				{
+					scaleFactor *= selectableWrapper.previewImage.getRegionWidth() / selectableWrapper.previewWidth;
+				}
+
+				float x = this.xOffset + selectableWrapper.previewWidth / 2 - selectableWrapper.previewImage.getRegionWidth() / scaleFactor / 2;
+				float y = selectableWrapper.getYOffset() + selectableWrapper.selectionHeight / 2 - selectableWrapper.getPreviewImage().getRegionHeight() / scaleFactor / 2;
+
+				batch.draw(selectableWrapper.getPreviewImage(), x, y, selectableWrapper.previewImage.getRegionWidth() / scaleFactor, selectableWrapper.previewImage.getRegionHeight() / scaleFactor);
+
+				String name = selectableWrapper.getName();
+				int count = this.matchString.isEmpty() ? -1 : (name.toLowerCase().length() - name.toLowerCase().replace(this.matchString, "").length()) / this.matchString.length();
+				int lastIndex = 0;
+
+				sr = Renderer.useShapeRenderer();
+				sr.setColor(Color.BLUE);
+				sr.set(ShapeType.Line);
+
+				for (int j = 0; j < count; j++)
+				{
+					int index = name.toLowerCase().indexOf(this.matchString, lastIndex);
+
+					sr.rect(this.xOffset + this.width / 3 + 10 + Renderer.getWidth(name.substring(0, index)), selectableWrapper.getYOffset() + selectableWrapper.selectionHeight / 2 - Renderer.getLineHeight() / 2 + 4, Renderer.getWidth(this.matchString), Renderer.getLineHeight());
+
+					lastIndex = index + 1;
+				}
+
+				batch = Renderer.useSpriteBatch();
+
+				Renderer.drawString(name, this.xOffset + this.width / 3 + 10, selectableWrapper.getYOffset() + selectableWrapper.selectionHeight / 2 - Renderer.getLineHeight() / 2 + 5, 1.0f, batch);
+
+				if (this.getTemplateEmitters().containsValue(selectableWrapper.wrapper))
+				{
+					Renderer.drawString("[template]", this.xOffset + selectableWrapper.previewWidth / 2 - Renderer.getWidth("[template]") / 2, selectableWrapper.getYOffset() + SELECTABLE_HEIGHT - Renderer.getLineHeight(), 1.0f, batch);
+				}
+			}
+		}
+
+		Renderer.popScissor();
+
+		sr = Renderer.useShapeRenderer();
+
+		sr.setColor(this.fillColor);
+		sr.set(ShapeType.Filled);
+		sr.rect(this.cancelButton.getX(), this.cancelButton.getY(), this.width, 40);
+
+		this.input.render(alphaFactor, batch);
+		this.cancelButton.render(alphaFactor, batch);
+		this.importButton.render(alphaFactor, batch);
+
+		sr = Renderer.useShapeRenderer();
+
+		sr.setColor(Color.BLACK);
+		sr.set(ShapeType.Line);
+		sr.rect(this.cancelButton.getX(), this.cancelButton.getY(), this.width, 40);
+	}
+
+	@Override
+	public boolean scrolled(int change)
+	{
+		this.barOffset -= 10.0f * (change / 120.0f);
+
+		if (this.barOffset + this.barHeight > this.height)
+		{
+			this.barOffset = this.height - this.barHeight;
+		}
+		else if (this.barOffset < 0)
+		{
+			this.barOffset = 0;
+		}
+
+		if (this.barOffset + this.barHeight > this.areaHeight)
+		{
+			this.barOffset = this.areaHeight - this.barHeight;
+		}
+
+		return false;
+	}
+
+	@Override
+	public boolean touchDragged(int newx, int newy, int pointer)
+	{
+		Vector2 pos = Renderer.unproject(newx, newy);
+
+		newx = (int) pos.x;
+		newy = (int) pos.y;
+
+		int oldx = InputHandler.getLastInputX();
+		int oldy = InputHandler.getLastInputY();
+
+		if (this.scrolling)
+		{
+			this.barOffset += newy - oldy;
+		}
+		else if (this.movingMode)
+		{
+			this.xOffset += newx - oldx;
+			this.yOffset += newy - oldy;
+
+			this.input.adjust(newx - oldx, newy - oldy);
+
+			this.cancelButton.setX((int) this.xOffset);
+			this.importButton.setX((int) (this.xOffset + this.width / 2));
+
+			this.cancelButton.setY((int) (this.yOffset + this.height));
+			this.importButton.setY((int) (this.yOffset + this.height));
+
+			this.cancelButton.updateInterface();
+			this.importButton.updateInterface();
+		}
+
+		return false;
+	}
+
+	public void refresh() throws IOException
+	{
+		// FileManager.updateGlobal();
+
+		this.wrappers.clear();
+		this.wrappers = this.wrapperFinder.getRawWrappers();
+		this.wrappers.addAll(this.emitterFinder.getRawWrappers());
+
+		if (this.particleCreationMode)
+		{
+			loadTemplateEmitters();
+			this.wrappers.addAll(this.getTemplateEmitters().values());
+		}
+
+		Collections.sort(this.wrappers, new Comparator<WrapperTexture>()
+		{
+			@Override
+			public int compare(WrapperTexture o1, WrapperTexture o2)
+			{
+				int result = o1.getPath().compareTo(o2.getPath());
+
+				if (result == 0)
+				{
+					if (o1.getTemplateName() == null)
+					{
+						result = -1;
+					}
+					else if (o2.getTemplateName() == null)
+					{
+						result = 1;
+					}
+					else
+					{
+						result = o1.getTemplateName().compareTo(o2.getTemplateName());
+					}
+				}
+
+				return result;
+			}
+		});
+
+		this.allWrappers.clear();
+
+		int i = 0;
+		for (WrapperTexture wrapper : this.wrappers)
+		{
+			if (FileManager.deglobaliseFile(wrapper.getPath()).startsWith(FilePaths.PARTICLES) == this.particleCreationMode)
+			{
+				this.allWrappers.add(new SelectableWrapper(wrapper, templateEmittersByName != null && templateEmittersByName.containsValue(wrapper) ? wrapper.getSimpleName() + "  [" + wrapper.getTemplateName() + "]" : wrapper.getSimpleName(), this.xOffset, this.yOffset + i++ * SELECTABLE_HEIGHT, this.width, this.width / 3, SELECTABLE_HEIGHT));
+			}
+		}
+
+		this.updateSelectableWrappers();
+	}
+
+	private void updateSelectableWrappers()
+	{
+		int beforeSize = this.selectableWrappers.size();
+
+		this.selectableWrappers.clear();
+
+		this.matchString = this.input.getInput().replaceAll(" ", "").toLowerCase();
+
+		for (SelectableWrapper selectableWrapper : this.allWrappers)
+		{
+			if (selectableWrapper.name.toLowerCase().contains(this.matchString))
+			{
+				this.selectableWrappers.add(selectableWrapper);
+			}
+			else if (this.selectedWrappers.contains(selectableWrapper))
+			{
+				this.selectedWrappers.remove(selectableWrapper);
+			}
+		}
+
+		int totalRows = this.selectableWrappers.size();
+		int displayableRows = (int) (this.areaHeight / SELECTABLE_HEIGHT);
+
+		this.barHeight = (float) displayableRows / (float) totalRows * this.areaHeight;
+
+		if (displayableRows > totalRows)
+		{
+			this.barHeight = this.areaHeight;
+		}
+
+		this.moveableScrollbar = new Rectangle(this.xOffset + this.width - DisplayConstants.SELECTION_MENU_SCROLLBAR_WIDTH, this.yOffset, DisplayConstants.SELECTION_MENU_SCROLLBAR_WIDTH, this.barHeight);
+
+		if (beforeSize != this.selectableWrappers.size())
+		{
+			if (this.barOffset + this.barHeight > this.areaHeight)
+			{
+				this.barOffset = this.areaHeight - this.barHeight;
+			}
+		}
+	}
+
+	public WrapperTexture getNextWrapper(WrapperTexture wrapper)
+	{
+		return this.getNextWrapper(wrapper, 1, false);
+	}
+
+	private WrapperTexture getNextWrapper(WrapperTexture wrapper, int offset, boolean respectGroups)
+	{
+		if (wrapper == null)
+		{
+			throw new NullPointerException("Wrapper can't be null.");
+		}
+
+		int wrapperIndex = this.getWrapperIndex(wrapper);
+
+		for (int i = wrapperIndex + offset; i != wrapperIndex; i++)
+		{
+			if (i >= this.wrappers.size())
+			{
+				i = 0;
+			}
+
+			if (this.wrappers.get(i).getGroup().equals(wrapper.getGroup()) && !this.wrappers.get(i).getPath().equals(wrapper.getPath()) || !respectGroups)
+			{
+				return this.wrappers.get(i);
+			}
+		}
+
+		return wrapper;
+	}
+
+	public WrapperTexture getNextGroupWrapper(WrapperTexture wrapper)
+	{
+		return this.getNextWrapper(wrapper, 1, true);
+	}
+
+	private int getWrapperIndex(WrapperTexture wrapper)
+	{
+		for (int i = 0; i < this.wrappers.size(); i++)
+		{
+			if (this.wrappers.get(i).getCleanPath().equals(wrapper.getCleanPath()))
+			{
+				return i;
+			}
+		}
+
+		throw new IllegalArgumentException("This shouldn't happen either. Unknown group.");
+	}
+
+	private static void checkTemplateEmittersLoaded()
+	{
+		if (templateEmittersByName == null)
+		{
+			loadTemplateEmitters();
+		}
+	}
+
+	private static void loadTemplateEmitters()
+	{
+		try
+		{
+			WrapperTextureHandler handler = new WrapperTextureHandler(FileManager.getOrCreateFile(FilePaths.EMITTER_TEMPLATES_FILE));
+
+			Level dummyLevel = new Level();
+			dummyLevel.setDummyLevel(true);
+			dummyLevel.createParticleSystem();
+
+			List<WrapperTexture> wrappers = handler.read(dummyLevel);
+
+			templateEmittersByName = new TreeMap<String, WrapperTexture>(new Comparator<String>()
+			{
+				@Override
+				public int compare(String o1, String o2)
+				{
+					return o1.compareTo(o2);
+				}
+			});
+
+			for (WrapperTexture wrapper : wrappers)
+			{
+				if (wrapper.getPath().startsWith(FilePaths.PARTICLES) && wrapper.getTemplateName() != null && !wrapper.getTemplateName().isEmpty())
+				{
+					templateEmittersByName.put(wrapper.getTemplateName(), wrapper);
+				}
+			}
+		}
+		catch (Exception e)
+		{
+			Debug.warn("Exception while loading template emitters: " + e, e);
+		}
+	}
+
+	private static void writeTemplateEmitters()
+	{
+		if (templateEmittersByName == null)
+		{
+			throw new IllegalStateException("Cannot write template emitters file before it was read.");
+		}
+
+		try
+		{
+			WrapperTextureHandler handler = new WrapperTextureHandler(FileManager.getOrCreateFile(FilePaths.EMITTER_TEMPLATES_FILE));
+
+			handler.write(new ArrayList<WrapperTexture>(templateEmittersByName.values()));
+		}
+		catch (IOException e)
+		{
+			Debug.warn("Exception while writing template emitters: " + e, e);
+		}
+	}
+
+	public static void addTemplateEmitter(String name, WrapperTexture wrapper)
+	{
+		Level dummyLevel = new Level();
+		dummyLevel.setDummyLevel(true);
+		dummyLevel.createParticleSystem();
+
+		wrapper = wrapper.duplicate(dummyLevel);
+		wrapper.setTemplateName(name);
+
+		checkTemplateEmittersLoaded();
+
+		if (wrapper.getTemplateName() == null || wrapper.getTemplateName().isEmpty())
+		{
+			throw new IllegalArgumentException("Template emitter name cannot be \"" + wrapper.getTemplateName() + "\".");
+		}
+
+		templateEmittersByName.put(wrapper.getTemplateName(), wrapper);
+
+		writeTemplateEmitters();
+	}
+
+	public static void removeTemplateEmitter(WrapperTexture wrapper)
+	{
+		checkTemplateEmittersLoaded();
+
+		if (!EmitterType.isTemplateUsed(wrapper.getTemplateName()))
+		{
+			templateEmittersByName.remove(wrapper.getTemplateName());
+
+			writeTemplateEmitters();
+		}
+		else
+		{
+			Debug.log("Couldn't delete " + wrapper.getTemplateName() + " as it's currently used.");
+		}
+	}
+
+	public Map<String, WrapperTexture> getTemplateEmitters()
+	{
+		checkTemplateEmittersLoaded();
+
+		return templateEmittersByName;
+	}
+
+	public static WrapperTexture getTemplate(String templateName)
+	{
+		checkTemplateEmittersLoaded();
+
+		return templateEmittersByName.get(templateName);
+	}
+
+	private class SelectableWrapper implements IPackableRectangle<SelectableWrapper>
+	{
+		private boolean active;
+		private boolean hovered;
+		private boolean particleWrapper;
+
+		private WrapperTexture wrapper;
+		private TextureRegion previewImage;
+		private java.awt.Rectangle rectangle;
+		private String name;
+
+		private float xOffset;
+		private float yOffset;
+
+		private float previewWidth;
+		private float selectionWidth;
+		private float selectionHeight;
+		private int width;
+		private int height;
+
+		public SelectableWrapper(WrapperTexture wrapper, String name, float xOffset, float yOffset, float width, float previewWidth, float height)
+		{
+			this.wrapper = wrapper;
+
+			this.previewImage = wrapper.getAvailableImages()[wrapper.getInnerType()][0];
+
+			this.xOffset = xOffset;
+			this.yOffset = yOffset;
+			this.selectionWidth = width;
+			this.selectionHeight = height;
+			this.previewWidth = previewWidth;
+			this.name = name;
+			this.particleWrapper = wrapper.getPath().startsWith(FilePaths.PARTICLES);
+
+			if (this.particleWrapper)
+			{
+				if (ImportWrapperPanel.this.getTemplateEmitters().containsValue(this.wrapper))
+				{
+					this.width = this.wrapper.getWidth();
+					this.height = this.wrapper.getHeight();
+				}
+				else
+				{
+					this.width = 500;
+					this.height = 300;
+				}
+			}
+			else
+			{
+				this.width = this.wrapper.getImage().getRegionWidth();
+				this.height = this.wrapper.getImage().getRegionHeight();
+			}
+
+			this.rectangle = new java.awt.Rectangle(0, 0, this.getWidth(), this.getHeight());
+		}
+
+		public boolean contains(int mouseX, int mouseY)
+		{
+			return mouseX > this.xOffset && mouseX < this.xOffset + this.selectionWidth - DisplayConstants.SELECTION_MENU_SCROLLBAR_WIDTH && mouseY > this.yOffset && mouseY <= this.yOffset + this.selectionHeight;
+		}
+
+		@Override
+		public int compareTo(SelectableWrapper other)
+		{
+			return other.name.compareTo(this.name);
+		}
+
+		@Override
+		public java.awt.Rectangle getRectangle()
+		{
+			return this.rectangle;
+		}
+
+		public int getWidth()
+		{
+			return this.width;
+		}
+
+		public int getHeight()
+		{
+			return this.height;
+		}
+
+		public boolean isActive()
+		{
+			return this.active;
+		}
+
+		public void setActive(boolean active)
+		{
+			this.active = active;
+		}
+
+		public void setXOffset(float xOffset)
+		{
+			this.xOffset = xOffset;
+		}
+
+		public float getYOffset()
+		{
+			return this.yOffset;
+		}
+
+		public void setYOffset(float yOffset)
+		{
+			this.yOffset = yOffset;
+		}
+
+		public String getName()
+		{
+			return this.name;
+		}
+
+		public TextureRegion getPreviewImage()
+		{
+			return this.previewImage;
+		}
+
+		public WrapperTexture getWrapper()
+		{
+			return this.wrapper;
+		}
+	}
+
+	@Override
+	public void setActive(boolean active)
+	{
+		super.setActive(active);
+
+		this.selectedWrappers.clear();
+		this.input.setInput("");
+		this.updateSelectableWrappers();
+	}
+
+	public ArrayList<WrapperTexture> getWrappers()
+	{
+		return this.wrappers;
+	}
+
+	public void setParticleCreationMode(boolean particleCreationMode)
+	{
+		this.particleCreationMode = particleCreationMode;
+	}
+
+	public boolean shouldLockInput()
+	{
+		return this.isActive();
+	}
+}

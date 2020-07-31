@@ -1,0 +1,863 @@
+package com.unlogical.linked.entity.player;
+
+import java.util.Random;
+
+import org.newdawn.slick.Color;
+import org.newdawn.slick.GameContainer;
+import org.newdawn.slick.Graphics;
+import org.newdawn.slick.Image;
+import org.newdawn.slick.geom.Vector2f;
+
+import com.unlogical.linked.debug.Debug;
+import com.unlogical.linked.entity.Entity;
+import com.unlogical.linked.entity.EntityAction;
+import com.unlogical.linked.entity.EntityLiving;
+import com.unlogical.linked.entity.EntityType;
+import com.unlogical.linked.entity.IEntityPickupable;
+import com.unlogical.linked.entity.goomba.EntityGoomba;
+import com.unlogical.linked.entity.property.EntityProperty;
+import com.unlogical.linked.entity.property.SharedEntityProperties;
+import com.unlogical.linked.filesystem.FilePaths;
+import com.unlogical.linked.gui.HintProperties;
+import com.unlogical.linked.gui.ItemOverlay;
+import com.unlogical.linked.input.InputAction;
+import com.unlogical.linked.input.InputHandler;
+import com.unlogical.linked.level.Level;
+import com.unlogical.linked.level.LevelType;
+import com.unlogical.linked.particle.EmitterType;
+import com.unlogical.linked.resources.image.Images.HintIdentifier;
+import com.unlogical.linked.terrain.tile.Tile;
+import com.unlogical.linked.terrain.tile.cage.TileCage;
+import com.unlogical.linked.terrain.tile.properties.ITileBlockedFromAbove;
+import com.unlogical.linked.util.Dimension;
+import com.unlogical.linked.util.GameObject;
+import com.unlogical.linked.util.LevelObject;
+import com.unlogical.linked.util.ScheduledEvent;
+
+public class EntityPlayer extends EntityLiving
+{
+	private static final float[] handOffsets = new float[] { 40, 50, 10, 50 };
+	private static final float CLIMBING_ACCELERATION_FACTOR = 0.95f;
+	private static float openingCageTime;
+
+	private static final Vector2f handOffset = new Vector2f(27.0f, 30.0f);
+
+	private static final int SAFE_POINT_TIME = 1500;
+	private static final int TRAVEL_DIMENSION_BLOCKER_TIME = 1200;
+
+	private static boolean tryInteract;
+	private static boolean tryMoveUp;
+	private static boolean tryMoveDown;
+	private static boolean tryRevive;
+	private static boolean tryJump;
+	private static boolean openingCage;
+
+	private ItemOverlay overlay = new ItemOverlay(null, null, 0.0f, 0.0f, 0, 0, 0, 0);
+	private HintIdentifier overlayIdentifier;
+
+	private float safePointTimer;
+
+	private float movedXVelocity;
+	private float movedYVelocity;
+
+	private boolean canTravelDimensions;
+	private boolean bouncing;
+
+	private int travelDimensionCooldown;
+
+	public EntityPlayer(Vector2f position, Level level, Dimension dimension, boolean allowMirrors)
+	{
+		super(EntityType.PLAYER, position, level, dimension, allowMirrors);
+
+		if (this.dimension == Dimension.LIGHT && this.hasMirror)
+		{
+			this.mirroredEntity.setEnabled(false);
+			((EntityPlayer) this.mirroredEntity).invincible = true;
+			this.mirroredEntity.setSkipMainUpdate(true);
+		}
+
+		this.passiveUpdate = true;
+	}
+
+	public static void onDimensionChanging(EntityPlayer oldPlayer, EntityPlayer newPlayer, Dimension newDimension)
+	{
+		newPlayer.setEnabled(true);
+		newPlayer.setSkipMainUpdate(false);
+		newPlayer.setPosition(oldPlayer.position.x, oldPlayer.position.y);
+		newPlayer.setBlockedBelow(oldPlayer.isBlockedBelow());
+		newPlayer.setVelocity(oldPlayer.velocity.x, oldPlayer.velocity.y);
+		newPlayer.setFocused(oldPlayer.focused);
+		newPlayer.setRender(true);
+		newPlayer.invincible = false;
+		newPlayer.climbing = oldPlayer.climbing;
+
+		oldPlayer.velocity.x = 0.0f;
+		oldPlayer.velocity.y = 0.0f;
+		oldPlayer.invincible = true;
+		oldPlayer.setSkipMainUpdate(true);
+		oldPlayer.setEnabled(false);
+
+		if (oldPlayer.isHoldingEntity())
+		{
+			IEntityPickupable holdedEntity = oldPlayer.getHoldedEntity();
+
+			oldPlayer.dropHoldedEntity();
+
+			if (holdedEntity.isShared())
+			{
+				newPlayer.hold(holdedEntity);
+				holdedEntity.onPickup(newPlayer);
+			}
+		}
+	}
+
+	public static void onDimensionChanged(EntityPlayer oldPlayer, EntityPlayer newPlayer, Dimension newDimension)
+	{
+		oldPlayer.setRender(false);
+	}
+
+	public static void updateKeyRecords(GameContainer container)
+	{
+		tryInteract = InputHandler.isKeyPressed(InputAction.INTERACT, container);
+		tryMoveUp = InputHandler.isKeyPressed(InputAction.MOVE_UP, container);
+		tryMoveDown = InputHandler.isKeyPressed(InputAction.MOVE_DOWN, container);
+		tryJump = InputHandler.isKeyPressed(InputAction.JUMP, container);
+	}
+
+	public static void clearRecords()
+	{
+		tryJump = tryInteract = tryMoveUp = tryMoveDown = tryRevive = false;
+	}
+
+	@Override
+	public void revive()
+	{
+		super.revive();
+
+		this.setSkipMainUpdate(false);
+
+		this.safePointTimer = 0;
+
+		if (this.hasMirror && this.dimension == level.getForegroundDimension())
+		{
+			this.mirroredEntity.setPosition(this.position.x, this.position.y);
+			((EntityLiving) this.mirroredEntity).revive();
+
+			if (this.level.getType() != LevelType.TIME_TRAVEL)
+			{
+				this.mirroredEntity.setSkipMainUpdate(true);
+			}
+		}
+	}
+
+	@Override
+	public void onUpdate(GameContainer container, float delta, Random rng)
+	{
+		float friction = 1.0f;
+
+		if (this.dimension == level.getForegroundDimension() && !openingCage)
+		{
+			tryMoveLeft = InputHandler.isKeyDown(InputAction.MOVE_LEFT, container);
+			tryMoveRight = InputHandler.isKeyDown(InputAction.MOVE_RIGHT, container);
+
+			if (climbing)
+			{
+				boolean tryMoveUp = false;
+				boolean tryMoveDown = false;
+				float verticalFriction = 0.0f;
+
+				if (true)
+				{
+					if (climbedTile.getHitbox().contains(this.hitbox.getCenterX(), this.hitbox.getCenterY() - 10) && InputHandler.isKeyDown(InputAction.MOVE_UP, container))
+					{
+						tryMoveUp = true;
+
+						velocity.y -= properties.getAcceleration(delta) * CLIMBING_ACCELERATION_FACTOR;
+
+						if (velocity.y > 0.0f)
+						{
+							verticalFriction = 0.02f;
+						}
+					}
+
+					if (climbedTile.getHitbox().contains(this.hitbox.getCenterX(), this.hitbox.getCenterY() + 10) && InputHandler.isKeyDown(InputAction.MOVE_DOWN, container))
+					{
+						tryMoveDown = true;
+						velocity.y += properties.getAcceleration(delta) * CLIMBING_ACCELERATION_FACTOR;
+
+						if (velocity.y < 0.0f)
+						{
+							verticalFriction = 0.02f;
+						}
+					}
+				}
+
+				if (!(tryMoveUp || tryMoveDown))
+				{
+					verticalFriction = 0.0145f;
+				}
+
+				velocity.y *= 1.0f - (verticalFriction * delta);
+
+				if (climbedTile instanceof Tile)
+				{
+					Tile tile = (Tile) climbedTile;
+
+					if (tile.blocksOnClimbing())
+					{
+						travelDimensionCooldown = TRAVEL_DIMENSION_BLOCKER_TIME;
+					}
+				}
+			}
+
+			if (collidedBelow && tileBelow != null && tileBelow.blocksOnStanding())
+			{
+				travelDimensionCooldown = TRAVEL_DIMENSION_BLOCKER_TIME;
+			}
+
+			if (onClimbable && onLadder && !climbing && !(tryMoveRight || tryMoveLeft) && ((InputHandler.isKeyDown(InputAction.MOVE_DOWN, container) && (!collidedBelow || tileBelow instanceof ITileBlockedFromAbove)) || InputHandler.isKeyDown(InputAction.MOVE_UP, container)))
+			{
+				if (this.hitbox.getCenterX() > climbedTile.getHitbox().getCenterX())
+				{
+					tryMoveLeft = true;
+				}
+				else
+				{
+					tryMoveRight = true;
+				}
+			}
+
+			if (tryMoveLeft && (!climbing || (climbedTile.getHitbox().contains(this.hitbox.getMinX() - 2, this.hitbox.getCenterY()) && !onLadder)))
+			{
+				setFocused(true);
+
+				if (!bouncing)
+				{
+					velocity.x -= properties.getAcceleration(delta) * (climbing ? CLIMBING_ACCELERATION_FACTOR : 1.0f);
+
+					if (velocity.x > 0)
+					{
+						friction = 0.0132f * delta;
+					}
+				}
+
+				if (!climbing)
+				{
+					if (velocity.x < -properties.getMaxSpeed())
+					{
+						velocity.x = -properties.getMaxSpeed();
+					}
+				}
+				else if (velocity.x < -properties.getMaxClimbSpeed())
+				{
+					velocity.x = -properties.getMaxClimbSpeed();
+				}
+			}
+
+			if (tryMoveRight && (!climbing || climbedTile.getHitbox().contains(this.hitbox.getMaxX() + 2, this.hitbox.getCenterY()) && !onLadder))
+			{
+				setFocused(false);
+
+				if (!bouncing)
+				{
+					velocity.x += properties.getAcceleration(delta) * (climbing ? CLIMBING_ACCELERATION_FACTOR : 1.0f);
+
+					if (velocity.x < 0)
+					{
+						friction = 0.0135f * delta;
+					}
+				}
+
+				if (!climbing)
+				{
+					if (velocity.x > properties.getMaxSpeed())
+					{
+						velocity.x = getProperties().getMaxSpeed();
+					}
+				}
+				else if (velocity.x > properties.getMaxClimbSpeed())
+				{
+					velocity.x = properties.getMaxClimbSpeed();
+				}
+			}
+
+			if (climbingOnGround && !collidedBelow)
+			{
+				climbingOnGround = false;
+			}
+
+			if (climbing && Math.abs(velocity.y) > properties.getMaxClimbSpeed())
+			{
+				velocity.y = velocity.y < 0 ? -properties.getMaxClimbSpeed() : properties.getMaxClimbSpeed();
+			}
+
+			if (!jumping && tryJump && !collidedAbove && !climbing && (collidedBelow || lastBelow || (closeBelow && (!(hitbox.isRightBottom() && -hitbox.getRightAngle() > 45) && !(hitbox.isLeftBottom() && hitbox.getLeftAngle() > 45)) || hitbox.isOnCorner())))
+			{
+				velocity.y = -0.57f;
+				jumping = true;
+			}
+
+			boolean canClimb = onClimbable && climbedTile.getHitbox().contains(this.hitbox.getCenterX(), this.hitbox.getCenterY());
+			
+			if ((((InputHandler.isKeyDown(InputAction.MOVE_DOWN, container) && (!collidedBelow || tileBelow instanceof ITileBlockedFromAbove)) || InputHandler.isKeyDown(InputAction.MOVE_UP, container)) || ((tryMoveDown && !collidedBelow) || (tryMoveUp && !collidedAbove))) && onClimbable && !climbing && canClimb)
+			{				
+				if (!onLadder || Math.abs(this.hitbox.getCenterX() - climbedTile.getHitbox().getCenterX()) < 2.0f && !(InputHandler.isKeyDown(InputAction.MOVE_LEFT, container) || InputHandler.isKeyDown(InputAction.MOVE_RIGHT, container)))
+				{
+					climbing = true;
+
+					resetVelocities();
+
+					if (onLadder)
+					{
+						this.position.x = climbedTile.getHitbox().getCenterX() - this.hitbox.getWidth() / 2.0f;
+					}
+
+					if ((collidedBelow || closeBelow || lastBelow) && !tryMoveDown)
+					{
+						climbingOnGround = true;
+					}
+				}
+			}
+			else if (climbing && (!(InputHandler.isKeyDown(InputAction.MOVE_DOWN, container) || InputHandler.isKeyDown(InputAction.MOVE_UP, container)) || tryJump || !canClimb))
+			{
+				if (onLadder)
+				{
+					if (tryMoveRight)
+					{
+						velocity.x = 0.1f;
+					}
+					else if (tryMoveLeft)
+					{
+						velocity.x = -0.1f;
+					}
+				}
+
+				climbing = climbing && ((!tryMoveRight && !tryMoveLeft) || !onLadder) && !tryJump;
+			}
+
+			if ((!(tryMoveRight || tryMoveLeft) || friction != 1.0f) && (collidedBelow || closeBelow || climbing) && !(hitbox.getLeftAngle() > 45 || -hitbox.getRightAngle() > 45))
+			{
+				if (friction == 1.0f)
+				{
+					friction = 1.0f - (0.0145f * delta);
+				}
+
+				velocity.x *= friction;
+			}
+
+			if (collidedBelow && (!hitbox.isOnCorner() || (hitbox.isLeftBottom() ^ hitbox.isRightBottom())))
+			{
+				if (!hitbox.isLeftBottom() && !collidedLeft && !onLeftConnectedTile && hitbox.getDistanceToLeftEnd() < 14f)
+				{
+					collidedBelow = false;
+					gravityActive = true;
+					bouncing = true;
+
+					if (velocity.x > 0.0f)
+					{
+						velocity.x *= -1.15f;
+					}
+
+					velocity.x -= 0.0018f * delta;
+				}
+				else if (!hitbox.isRightBottom() && !collidedRight && !onRightConnectedTile && hitbox.getDistanceToRightEnd() < 14f)
+				{
+					collidedBelow = false;
+					bouncing = true;
+					gravityActive = true;
+
+					if (velocity.x < 0.0f)
+					{
+						velocity.x *= -1.15f;
+					}
+
+					velocity.x += 0.0018f * delta;
+				}
+			}
+
+			if (travelDimensionCooldown > 0)
+			{
+				travelDimensionCooldown -= delta;
+			}
+
+			if (canTravelDimensions && travelDimensionCooldown > 0)
+			{
+				this.addEmitter(EmitterType.BLOCKED_AREA_ENTITY, this.dimension);
+			}
+			else if (!canTravelDimensions && travelDimensionCooldown <= 0)
+			{
+				this.stopAndRemoveEmitter(EmitterType.BLOCKED_AREA_ENTITY, this.dimension);
+			}
+
+			canTravelDimensions = travelDimensionCooldown <= 0;
+
+			if (onSafePoint())
+			{
+				// TODO revival system
+				safePointTimer += delta;
+
+				if (safePointTimer >= SAFE_POINT_TIME)
+				{
+					Vector2f safePoint = getAbsSafePoint();
+
+					level.setSafePoint(safePoint.x, safePoint.y);
+
+					safePointTimer = 0;
+				}
+			}
+		}
+		else if (this.hasMirror)
+		{
+			this.setPosition(this.mirroredEntity.getPosition().x, this.mirroredEntity.getPosition().y);
+		}
+
+		if (openingCage)
+		{
+			openingCageTime -= delta;
+
+			if (openingCageTime < 0)
+			{
+				openingCage = false;
+			}
+		}
+
+		if (overlay != null)
+		{
+			overlay.update(delta);
+		}
+
+		if (bouncing)
+		{
+			velocity.x *= (1.0f - 0.002f * delta);
+
+			if (Math.abs(velocity.x) < this.properties.getMaxSpeed())
+			{
+				bouncing = false;
+			}
+		}
+		else
+		{
+			if (velocity.x > this.properties.getMaxSpeed())
+			{
+				velocity.x = this.properties.getMaxSpeed();
+			}
+			else if (velocity.x < this.properties.getMaxSpeed() * -1)
+			{
+				velocity.x = this.properties.getMaxSpeed() * -1;
+			}
+		}
+	}
+
+	@Override
+	protected void onTimeResistantStart(Tile tileBelow)
+	{
+//		ZHandler.addDistortion(new ZDistortion(1000)
+//		{
+//			@Override
+//			public float getZDistortion(float x, float y)
+//			{				
+//				float factor = (float) Math.sqrt((x - EntityPlayer.this.getCenterX()) * (x - EntityPlayer.this.getCenterX()) + (y - EntityPlayer.this.getCenterY()) * (y - EntityPlayer.this.getCenterY()));
+//						
+//				factor = (float) (Math.sin(factor) / (Math.sqrt(factor))) * ageFactor;
+//				
+////				if (factor >= 1.0f)
+////				{
+////					factor = 1.0f;
+////				}
+//				
+//				return factor;
+//			}
+//		});
+	}
+
+	@Override
+	protected void updateMirror(float delta)
+	{
+		synchronizeAnimation(this.mirroredEntity);
+	}
+
+	@Override
+	protected void onCloseMoveToBlockBelow(Tile tile, float distanceToBlockBelow)
+	{
+		if (tile.blocksOnStanding())
+		{
+			travelDimensionCooldown = TRAVEL_DIMENSION_BLOCKER_TIME;
+		}
+	}
+
+	@Override
+	protected void onScheduledEvent(ScheduledEvent event)
+	{
+
+	}
+
+	@Override
+	protected void onPostMovement(float delta)
+	{
+		this.movedXVelocity = this.movingDistance.x / delta;
+		this.movedYVelocity = this.movingDistance.y / delta;
+	}
+
+	public void displayOverlay(Image image, Vector2f base, HintProperties properties, HintIdentifier identifier, boolean forceDisplay)
+	{
+		if (forceDisplay)
+		{
+			this.overlay.init(image, base, properties.getXOffset(), properties.getYOffset(), properties.getDisplayTime(), properties.getFadeInTime(), properties.getFadeOutTime(), 1.0f);
+			this.overlay.setFadingIn(false);
+			this.overlayIdentifier = identifier;
+		}
+		else if (this.overlayIdentifier == identifier || this.overlayIdentifier == null || this.overlay.getLifeTime() > this.overlay.getDisplayTime())
+		{
+			if (this.overlay.getLifeTime() > this.overlay.getDisplayTime())
+			{
+				this.overlay.setAlpha(properties.getStartAlpha());
+				this.overlay.setFadingIn(true);
+			}
+			else
+			{
+				this.overlay.setAlpha(1.0f);
+			}
+
+			this.overlay.setLifeTime(0);
+			this.overlay.setFadingOut(false);
+			this.overlay.setImage(image);
+			this.overlay.setBase(base);
+			this.overlay.setXOffset(properties.getXOffset());
+			this.overlay.setYOffset(properties.getYOffset());
+			this.overlay.setFadeInTime(properties.getFadeInTime());
+			this.overlay.setFadeOutTime(properties.getFadeOutTime());
+			this.overlay.setDisplayTime(properties.getDisplayTime());
+			this.overlayIdentifier = identifier;
+		}
+
+		if (properties.shouldCenterOnHead())
+		{
+			this.overlay.setXOffset(this.hitbox.getWidth() / 2 - this.overlay.getImage().getWidth() / 2);
+			this.overlay.setYOffset(-this.overlay.getImage().getHeight() - 5);
+		}
+	}
+
+	public void drawOverlay(Graphics g)
+	{
+		if (overlay != null)
+		{
+			overlay.draw(g);
+		}
+	}
+
+	@Override
+	protected void setImageColor(Color color, Image image)
+	{
+		if (travelDimensionCooldown > TRAVEL_DIMENSION_BLOCKER_TIME / 2)
+		{
+			level.setImageColorFactor(this.image, color, EmitterType.BLOCKED_AREA.tint, 1.0f);
+		}
+		else if (travelDimensionCooldown <= 0)
+		{
+			super.setImageColor(color, image);
+		}
+		else
+		{
+			level.setImageColorFactor(this.image, color, EmitterType.BLOCKED_AREA.tint, ((float) travelDimensionCooldown) / (((float) TRAVEL_DIMENSION_BLOCKER_TIME) / 2.0f));
+		}
+	}
+
+	@Override
+	public void customOnDeath(LevelObject damageSource)
+	{
+		Debug.log("Player in " + dimension + " died.");
+
+		tryRevive = true;
+		this.clearAllEvents();
+	}
+
+	@Override
+	public boolean checkAdditionalSuffocation()
+	{
+		return this.dimension != this.level.getForegroundDimension();
+	}
+
+	public void onCageOpened(TileCage cage)
+	{
+		openingCage = true;
+
+		openingCageTime = this.properties.getImageDuration(EntityAction.OPENING_CAGE) * availableImages.get(currentAction)[0].length;
+	}
+
+	@Override
+	protected boolean useAutomaticAnimations()
+	{
+		return !openingCage;
+	}
+
+	@Override
+	protected EntityAction getCustomAction()
+	{
+		return EntityAction.OPENING_CAGE;
+	}
+
+	@Override
+	protected boolean shouldUpdateAnimation(EntityAction currentAction, Vector2f velocity)
+	{
+		if (currentAction.equals(EntityAction.CLIMBING) && onClimbable && (Math.abs(velocity.y) > 0.05f || (!onLadder && Math.abs(velocity.x) > 0.05f)))
+		{
+			return true;
+		}
+		else if (currentAction.equals(EntityAction.CLIMBING) && !onClimbable && (Math.abs(velocity.y) > 0.05f || Math.abs(velocity.x) > 0.05f))
+		{
+			return true;
+		}
+		else if (currentAction.equals(EntityAction.WALKING) && (tryMoveRight || tryMoveLeft || (level.getType() == LevelType.TIME_TRAVEL && this.dimension == Dimension.SHADOW && level.getForegroundDimension() == Dimension.LIGHT)))
+		{
+			return true;
+		}
+		else if (currentAction.equals(EntityAction.FALLING) && (velocity.y > 0.0f))
+		{
+			return true;
+		}
+		else if (currentAction == EntityAction.OPENING_CAGE)
+		{
+			return true;
+		}
+
+		return false;
+	}
+
+	@Override
+	protected void onBounceOff(Entity entity)
+	{
+		super.onBounceOff(entity);
+
+		if (entity instanceof EntityGoomba)
+		{
+			((EntityGoomba) entity).damage(1, this);
+		}
+	}
+
+	@Override
+	public boolean shouldReSimulate()
+	{
+		return false;
+	}
+
+	@Override
+	protected float getAnimatedDelta(float delta, Vector2f velocity)
+	{
+		if (this.currentAction == EntityAction.CLIMBING)
+		{
+			return (delta * (Math.max(Math.abs(velocity.x), Math.abs(velocity.y)) / properties.getMaxClimbSpeed()));
+		}
+		else if (this.currentAction == EntityAction.FALLING)
+		{
+			return (delta * (Math.abs(velocity.y)));
+		}
+		else if (this.currentAction == EntityAction.OPENING_CAGE)
+		{
+			return delta;
+		}
+		else
+		{
+			return (delta * (Math.abs(velocity.x) / properties.getMaxSpeed()));
+		}
+	}
+
+	@Override
+	public boolean supportsAction(EntityAction action)
+	{
+		return action == EntityAction.STANDING || action == EntityAction.WALKING || action == EntityAction.FALLING || action == EntityAction.CLIMBING || action == EntityAction.OPENING_CAGE;
+	}
+
+	@Override
+	protected boolean canBeHarmedBy(Entity entity)
+	{
+		return this.type != entity.getType();
+	}
+
+	@Override
+	protected boolean canInteractWith(Entity entity)
+	{
+		return this.type != entity.getType();
+	}
+
+	@Override
+	protected Vector2f getHandOffset(boolean focused, EntityAction currentAction, int currentImage)
+	{
+		if (focused)
+		{
+			handOffset.x = handOffsets[2];
+		}
+		else
+		{
+			handOffset.x = handOffsets[0];
+		}
+
+		handOffset.y = handOffsets[1];
+
+		return handOffset;
+	}
+
+	@Override
+	public boolean checkEntitySuffocation()
+	{
+		return this.dimension != level.getForegroundDimension();
+	}
+
+	@Override
+	public boolean collidesWithEntities()
+	{
+		return true;
+	}
+
+	@Override
+	protected boolean canBeHarmedBy(GameObject source)
+	{
+		return !openingCage;
+	}
+
+	@Override
+	protected boolean isGravityEffected()
+	{
+		return true;
+	}
+
+	@Override
+	protected boolean shouldDrawRecentPositions()
+	{
+		return false;
+	}
+
+	@Override
+	protected boolean shouldRecordRecentPositions()
+	{
+		return false;
+	}
+
+	@Override
+	protected boolean canBeBouncedOff()
+	{
+		return true;
+	}
+
+	@Override
+	protected boolean shouldPositionBeFixed()
+	{
+		return !(this.dimension == Dimension.SHADOW && level.getForegroundDimension() == Dimension.LIGHT);
+	}
+
+	public boolean canChangeDimensions()
+	{
+		return canTravelDimensions;
+	}
+
+	private Vector2f getAbsSafePoint()
+	{
+		return null;
+	}
+
+	private boolean onSafePoint()
+	{
+		return false;
+	}
+
+	@Override
+	protected boolean shouldUseFittingTextures()
+	{
+		return true;
+	}
+
+	@Override
+	public boolean shouldBounceFromEntities()
+	{
+		return !invincible;
+	}
+
+	@Override
+	public boolean checkEntityCollisions()
+	{
+		return true;
+	}
+
+	@Override
+	public boolean collidesWithTerrain()
+	{
+		return true;
+	}
+
+	@Override
+	protected boolean notifyOnNearbyTerrain()
+	{
+		return true;
+	}
+
+	@Override
+	protected boolean shouldCreateParticlesOnDeath()
+	{
+		return false;
+	}
+
+	@Override
+	public String getTextureDirectory()
+	{
+		return FilePaths.PLAYER;
+	}
+
+	@Override
+	protected EntityProperty getEntityProperty()
+	{
+		return SharedEntityProperties.PLAYER;
+	}
+
+	@Override
+	protected boolean canWalkSlopes()
+	{
+		return true;
+	}
+
+	@Override
+	public boolean isBlocked()
+	{
+		return true;
+	}
+
+	@Override
+	public boolean isTimeEffected()
+	{
+		return false;
+	}
+
+	@Override
+	public boolean shouldHandleAsShared()
+	{
+		return true;
+	}
+
+	public static boolean tryMoveUp()
+	{
+		return tryMoveUp;
+	}
+
+	public static boolean tryInteract()
+	{
+		return tryInteract;
+	}
+
+	public static boolean requestsRevival()
+	{
+		return tryRevive;
+	}
+
+	public ItemOverlay getOverlay()
+	{
+		return overlay;
+	}
+
+	public float getMovedXVelocity()
+	{
+		return movedXVelocity;
+	}
+
+	public float getMovedYVelocity()
+	{
+		return movedYVelocity;
+	}
+}

@@ -1,0 +1,59 @@
+package com.unlogical.colored.levelmanaging;
+
+import org.newdawn.slick.Color;
+import org.newdawn.slick.GameContainer;
+import org.newdawn.slick.Graphics;
+
+import com.unlogical.colored.entity.Entity;
+import com.unlogical.colored.level.Level;
+import com.unlogical.colored.util.ColorHelper;
+import com.unlogical.colored.util.Dimension;
+import com.unlogical.colored.util.ShaderHandler;
+
+public class EntityManager
+{
+	public static void updateEntities(Level level, Dimension dimension, GameContainer container, float delta, float dimensionDelta)
+	{
+		for (Entity entity : level.getEntities())
+		{
+			if (entity.getDimension() == dimension && (!level.isUpdatingOnlyCycleObjects() || entity.isCycleObject()))
+			{
+				if (entity.isTimeEffected() && !entity.isShared() && !(entity.getHoldingEntity() != null && (!entity.getHoldingEntity().isTimeEffected() || entity.isShared())))
+				{
+					entity.update(container, dimensionDelta);
+				}
+				else
+				{
+					entity.update(container, delta);
+				}
+			}
+		}
+	}
+
+	public static void renderEntities(Level level, Dimension dimension, boolean renderShared, GameContainer container, Graphics g)
+	{
+		for (Entity entity : level.getEntities())
+		{
+			if (entity.getDimension() == dimension && !entity.isShared() || renderShared && entity.isShared())
+			{
+				entity.draw(g);
+
+				if (level.shouldShowHitboxes())
+				{
+					ShaderHandler.disableLighting();
+
+					if (dimension == level.getForegroundDimension())
+					{
+						g.setColor(Color.blue);
+					}
+					else
+					{
+						g.setColor(ColorHelper.applyAlphaAndCopy(Color.blue, 0.7f));
+					}
+
+					g.draw(entity.getHitbox());
+				}
+			}
+		}
+	}
+}

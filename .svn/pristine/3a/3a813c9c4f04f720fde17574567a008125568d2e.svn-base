@@ -1,0 +1,258 @@
+package com.unlogical.colored.gui.menu;
+
+import org.newdawn.slick.Color;
+import org.newdawn.slick.GameContainer;
+import org.newdawn.slick.Graphics;
+import org.newdawn.slick.Input;
+import org.newdawn.slick.geom.Rectangle;
+
+import com.unlogical.colored.GameLauncher;
+import com.unlogical.colored.configuration.Resolutions;
+import com.unlogical.colored.input.InputAction;
+import com.unlogical.colored.input.InputHandler;
+import com.unlogical.colored.sound.Sounds;
+import com.unlogical.colored.util.ColorHelper;
+import com.unlogical.colored.util.Renderer;
+import com.unlogical.colored.util.ShaderHandler;
+
+public abstract class Menu
+{
+	public static final float UNSELECTED_ALPHA = 0.8f;
+	public static final float SELECTED_ALPHA = 1.0f;
+
+	public static final Color UNSELECTED_COLOR = new Color(0.6f, 0.6f, 0.6f, UNSELECTED_ALPHA);
+	public static final Color SELECTION_COLOR = new Color(1.0f, 1.0f, 1.0f, SELECTED_ALPHA);
+
+	private Rectangle[] menuOptions;
+	protected final String[] options;
+
+	private boolean active;
+	private boolean selecting = true;
+	protected boolean ignoreButtons;
+
+	private final int CLICK_COOLDOWN = 500;
+
+	private int selectedOption;
+	private int clickCooldown;
+	private int height;
+
+	protected float width;
+
+	protected Color unselectedColor = new Color(UNSELECTED_COLOR);
+	protected Color selectedColor = new Color(SELECTION_COLOR);
+
+	private float xOffset;
+	private float yOffset;
+	private float offset;
+
+	public Menu(final String[] options, float xOffset, float yOffset, float width, float offset, boolean centered)
+	{
+		this.options = options;
+		this.xOffset = xOffset;
+		this.yOffset = yOffset;
+		this.offset = offset;
+		this.menuOptions = new Rectangle[options.length];
+
+		String longestString = "";
+
+		for (String option : options)
+		{
+			if (option.length() > longestString.length())
+			{
+				longestString = option;
+			}
+		}
+
+		this.width = width;
+		boolean useCalculatedWidth = this.width == 0.0f;
+
+		if (useCalculatedWidth)
+		{
+			this.width = GameLauncher.getFont().getWidth(longestString);
+		}
+
+		for (int i = 0; i < this.options.length; i++)
+		{
+			if (centered)
+			{
+				menuOptions[i] = new Rectangle(GameLauncher.getWidth() / 2 - GameLauncher.getFont().getWidth(options[i]) / 2, yOffset + i * offset - Resolutions.MENU_RECTANGLE_OFFSET, useCalculatedWidth ? GameLauncher.getFont().getWidth(options[i]) : width, Resolutions.MENU_RECTANGLE_HEIGHT);
+			}
+			else
+			{
+				menuOptions[i] = new Rectangle(xOffset, yOffset + i * offset - Resolutions.MENU_RECTANGLE_OFFSET, useCalculatedWidth ? GameLauncher.getFont().getWidth(options[i]) : width, Resolutions.MENU_RECTANGLE_HEIGHT);
+			}
+		}
+
+		this.height = (int) (menuOptions[this.options.length - 1].getMaxY() - menuOptions[0].getMinY());
+	}
+
+	public void update(GameContainer container, int delta)
+	{
+		Input in = container.getInput();
+
+		clickCooldown -= delta;
+
+		for (int i = 0; i < options.length; i++)
+		{
+			if (menuOptions[i].contains(in.getMouseX(), in.getMouseY()) && !ignoreButtons)
+			{
+				selectedOption = i;
+				selecting = true;
+			}
+		}
+
+		if (!ignoreButtons)
+		{
+			if (InputHandler.isKeyPressed(InputAction.MOVE_DOWN))
+			{
+				selectedOption++;
+				if (selectedOption == options.length)
+				{
+					selectedOption = 0;
+				}
+
+				selecting = true;
+			}
+
+			if (InputHandler.isKeyPressed(InputAction.MOVE_UP))
+			{
+				selectedOption--;
+				if (selectedOption < 0)
+				{
+					selectedOption = options.length - 1;
+				}
+
+				selecting = true;
+			}
+		}
+
+		if (isAvailable(selectedOption))
+		{
+			if (InputHandler.isKeyPressed(InputAction.BACK) && !(this instanceof MainMenu))
+			{
+				onSelect(menuOptions.length - 1);
+				Sounds.play("click");
+			}
+	
+			if (((in.isKeyPressed(Input.KEY_ENTER) || InputHandler.isKeyPressed(InputAction.JUMP) || (menuOptions[selectedOption].contains(in.getMouseX(), in.getMouseY()) && in.isMousePressed(Input.MOUSE_LEFT_BUTTON)) && clickCooldown <= 0)) && selecting)
+			{
+				onSelect(selectedOption);
+				Sounds.play("click");
+				clickCooldown = CLICK_COOLDOWN;
+			}
+		}
+
+		customUpdate(container, delta);
+	}
+
+	public void render(GameContainer container, Graphics g)
+	{
+		if (active)
+		{
+			ShaderHandler.disableLighting();
+			
+			for (int i = 0; i < options.length; i++)
+			{
+				g.setFont(GameLauncher.getFont());
+
+				Color baseColor = isAvailable(i) ? Color.white : ColorHelper.applyAlphaAndCopy(Color.gray, 0.5f);
+				
+				ShaderHandler.disableLighting();
+				
+				g.setColor(ColorHelper.multiplyAndCopy(baseColor, selectedOption == i ? selectedColor : unselectedColor));
+				g.drawString(options[i], menuOptions[i].getMinX(), menuOptions[i].getCenterY() - GameLauncher.getFont().getHeight() / 2);
+
+				Renderer.clearBind();
+				
+				customOptionRender(container, g, i, menuOptions[i]);
+			}
+
+			customRender(container, g);
+		}
+	}
+	
+	protected boolean isAvailable(int option)
+	{
+		return true;
+	}
+
+	protected void customOptionRender(GameContainer container, Graphics g, int option, Rectangle box)
+	{
+
+	}
+
+	public int getHeight()
+	{
+		return height;
+	}
+
+	public abstract void onSelect(int selection);
+
+	public boolean isActive()
+	{
+		return this.active;
+	}
+
+	public void setActive(boolean b)
+	{
+		this.active = b;
+	}
+
+	public float getY()
+	{
+		return yOffset;
+	}
+
+	public float getY(int option)
+	{
+		return menuOptions[option].getMinY();
+	}
+
+	public void setyOffset(float yOffset)
+	{
+		this.yOffset = yOffset;
+	}
+
+	public float getOffset()
+	{
+		return offset;
+	}
+
+	public void setOffset(float offset)
+	{
+		this.offset = offset;
+	}
+
+	public float getXOffset()
+	{
+		return xOffset;
+	}
+
+	public void customUpdate(GameContainer container, int delta)
+	{
+	}
+
+	public void customRender(GameContainer container, Graphics g)
+	{
+	}
+
+	public String[] getOptions()
+	{
+		return options;
+	}
+
+	public int getSelectedOption()
+	{
+		return selectedOption;
+	}
+
+	public void setSelectedOption(int selectedOption)
+	{
+		this.selectedOption = selectedOption;
+	}
+
+	public float getWidth()
+	{
+		return width;
+	}
+}

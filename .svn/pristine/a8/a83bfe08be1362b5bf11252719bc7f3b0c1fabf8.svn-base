@@ -1,0 +1,1346 @@
+package com.unlogical.colored.levelmanaging;
+
+import static com.unlogical.colored.level.Level.DEFAULT_TIME_FACTOR;
+import static com.unlogical.colored.level.Level.TIME_SCALE_BACKGROUND_FACTOR;
+import static com.unlogical.colored.level.Level.TIME_SCALE_FOREGROUND_FACTOR;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Set;
+
+import org.newdawn.slick.Color;
+import org.newdawn.slick.GameContainer;
+import org.newdawn.slick.Graphics;
+import org.newdawn.slick.Input;
+import org.newdawn.slick.geom.Vector2f;
+
+import com.unlogical.colored.GameLauncher;
+import com.unlogical.colored.collision.Hitbox;
+import com.unlogical.colored.debug.Debug;
+import com.unlogical.colored.entity.Entity;
+import com.unlogical.colored.entity.EntityType;
+import com.unlogical.colored.entity.player.EntityPlayer;
+import com.unlogical.colored.filesystem.FilePaths;
+import com.unlogical.colored.filesystem.files.EntityFileHandler;
+import com.unlogical.colored.filesystem.files.TerrainFileHandler;
+import com.unlogical.colored.filesystem.files.WrapperTextureHandler;
+import com.unlogical.colored.filesystem.files.YAMLConfiguration;
+import com.unlogical.colored.gui.HintProperties;
+import com.unlogical.colored.gui.panel.DebugPanel;
+import com.unlogical.colored.gui.panel.FPSPanel;
+import com.unlogical.colored.gui.panel.SanityPanel;
+import com.unlogical.colored.input.InputAction;
+import com.unlogical.colored.input.InputHandler;
+import com.unlogical.colored.level.Level;
+import com.unlogical.colored.level.LevelType;
+import com.unlogical.colored.mapeditor.MapEditor;
+import com.unlogical.colored.resources.font.Fonts;
+import com.unlogical.colored.resources.image.Images;
+import com.unlogical.colored.saving.Checkpoint;
+import com.unlogical.colored.saving.SaveState;
+import com.unlogical.colored.terrain.TileType;
+import com.unlogical.colored.terrain.tile.Tile;
+import com.unlogical.colored.terrain.tile.TileDoor;
+import com.unlogical.colored.terrain.tile.TileWorldDoor;
+import com.unlogical.colored.terrain.tile.properties.ITileInteractable;
+import com.unlogical.colored.util.ColorHelper;
+import com.unlogical.colored.util.CursorType;
+import com.unlogical.colored.util.Dimension;
+import com.unlogical.colored.util.GameStatus;
+import com.unlogical.colored.util.Renderer;
+import com.unlogical.colored.util.ShaderHandler;
+import com.unlogical.colored.util.Transitions;
+import com.unlogical.colored.util.ZHandler;
+import com.unlogical.colored.wrapper.WrapperTexture;
+
+public class LevelManager
+{
+	public static final int DIMENSION_TRANSITION_TIME = 555;
+	public static final int DEFAULT_FADE_IN_TIME = 1337 / 3;
+	public static final int FADE_OUT_TIME = 1337 / 5;
+	public static final int FADE_OUT_BLACKSCREEN_TIME = 250;
+	public static final int PLAYER_DEATH_FADE_TIME = 800;
+	private static final int CHECKPOINT_TRANSITION_TIME = 1000;
+
+	private static String mapPath;
+	private static String mapID;
+	private static String fileName;
+	private static String nextMapPath;
+
+	private static LinkedList<Checkpoint> checkpoints = new LinkedList<Checkpoint>();
+	private static LinkedList<Checkpoint> selectableCheckpoints = new LinkedList<Checkpoint>();
+	private static Checkpoint currentCheckpoint;
+
+	private static Level level;
+	private static List<Level> deadLevels = new ArrayList<Level>();
+
+	private static Vector2f spawnpoint;
+	private static Vector2f cameraOffset = new Vector2f(0.0f, 0.0f);
+
+	private static boolean debugMode;
+	private static boolean transitioningDimension;
+	private static boolean fadingIn;
+	private static boolean fadingOut;
+
+	private static boolean paused;
+	private static boolean renderMap = true;
+	private static boolean frameByFrameDebug;
+	private static boolean forceNormalDelta;
+	private static boolean checkpointSelectionMode;
+	private static boolean nextComesFromDoor;
+
+	private static int fadeInTime;
+	private static int totalFadeInTime;
+	private static int fadeOutTime;
+	private static int dimensionTransitionTime;
+	private static int checkpointTransitionTime;
+	private static int lastLoadingTime;
+
+	private static DebugPanel debugPanel;
+	private static FPSPanel fpsPanel;
+
+	public static void init() throws IOException
+	{
+		debugPanel = new DebugPanel(10, 30, 480, 0);
+		debugPanel.setActive(GameLauncher.isDeveloperMode());
+
+		fpsPanel = new FPSPanel(GameLauncher.getWidth() / 2 - 150, GameLauncher.getHeight() / 2 - 100, 300, 0);
+
+		Images.registerAndLoad("cantToggle", FilePaths.GUI + "/canttoggle.png", true);
+
+		GUIManager.init();
+	}
+
+	public static void initMap(String mapPath, boolean comesFromDoor, int fadeOutTime)
+	{
+		nextMapPath = mapPath;
+		nextComesFromDoor = comesFromDoor;
+		fadingOut = true;
+		LevelManager.fadeOutTime = fadeOutTime;
+	}
+
+	public static void initMap(String mapPath, boolean comesFromDoor)
+	{
+		initMap(mapPath, DEFAULT_FADE_IN_TIME, comesFromDoor);
+	}
+
+	public static void initMap(String mapPath, int fadeInTime, boolean comesFromDoor)
+	{
+		LevelManager.mapPath = mapPath;
+
+		Debug.log("Loading map " + mapPath + " ...");
+
+		long beforeTime = System.currentTimeMillis();
+
+		ZHandler.clearDistortions();
+
+		level = new Level();
+		level.setPlayMode(true);
+		level.createParticleSystem();
+
+		YAMLConfiguration cfg = new YAMLConfiguration(FilePaths.getFile(mapPath + "/config.yml"));
+
+		mapID = cfg.get("ID");
+
+		TerrainFileHandler terrainFile = new TerrainFileHandler(FilePaths.getFile(mapPath + "/terrain.map"));
+		EntityFileHandler entityFile = new EntityFileHandler(FilePaths.getFile(mapPath + "/entities.map"));
+
+		spawnpoint = new Vector2f(0.0f, 0.0f);
+
+		level.initID(mapID);
+
+		long beforeReading = System.currentTimeMillis();
+
+		level.setLevelType(LevelType.values()[Integer.parseInt(cfg.get("type"))]);
+
+		level.getStoryHandler().onPreLevelInit();
+
+		ArrayList<WrapperTexture> wrappers = new ArrayList<WrapperTexture>();
+		ArrayList<Tile> tiles = new ArrayList<Tile>();
+		ArrayList<Entity> entities = new ArrayList<Entity>();
+
+		try
+		{
+			level.createTimeStepHandler();
+			tiles = terrainFile.read(level);
+			level.transferBuffers();
+
+			MapManager.initMap(null, level);
+
+			WrapperTextureHandler wrapperHandler = new WrapperTextureHandler(FilePaths.getFile(mapPath + "/wrappers.cfg"));
+			wrappers = wrapperHandler.read(level);
+		}
+		catch (Exception e)
+		{
+			throw new RuntimeException("Even more bacon while loading map: " + e, e);
+		}
+
+		level.init(mapID, cfg.get("name"), tiles, wrappers, entities, cameraOffset.set(0.0f, 0.0f), spawnpoint);
+
+		Debug.log("Loading map files took " + (System.currentTimeMillis() - beforeReading) + "ms.");
+
+		level.findInteractableTiles();
+
+		GameLauncher.setLevelContext(level);
+
+		ArrayList<TileDoor> doors = new ArrayList<TileDoor>();
+
+		boolean viaDoor = false;
+
+		for (Tile tile : tiles)
+		{
+			tile.init();
+
+			if (tile.getType() == TileType.SPAWNPOINT)
+			{
+				spawnpoint.set(tile.getX(), tile.getY());
+			}
+
+			if (tile.getDimension() == Dimension.LIGHT && tile instanceof TileDoor)
+			{
+				doors.add((TileDoor) tile);
+			}
+		}
+
+		if (!level.getStoryHandler().shouldFavorDirectSpawnpoint())
+		{
+			for (TileDoor door : doors)
+			{
+				if (((!comesFromDoor || TileDoor.shouldFindStart()) && door.isLevelStart()) || (comesFromDoor && TileDoor.getEntryDoorID() == door.getDoorID()))
+				{
+					if (door instanceof TileWorldDoor)
+					{
+						spawnpoint.x = door.getCenterX() - Entity.getMainImage(EntityType.PLAYER).getWidth() / 2;
+					}
+					else
+					{
+						spawnpoint.x = (door.getCenterX() > level.getCenterX() ? door.getHitbox().getMinX() : door.getHitbox().getMaxX()) - Entity.getMainImage(EntityType.PLAYER).getWidth() / 2;
+					}
+
+					spawnpoint.y = door.getHitbox().getMaxY() - Entity.getMainImage(EntityType.PLAYER).getHeight();
+
+					viaDoor = true;
+
+					break;
+				}
+			}
+		}
+
+		if (level.getType() == LevelType.TIME_SCALE)
+		{
+			level.setForegroundDeltaFactor(DEFAULT_TIME_FACTOR);
+			level.setBackgroundDeltaFactor(TIME_SCALE_BACKGROUND_FACTOR);
+		}
+		else if (level.getType() == LevelType.FROZEN)
+		{
+			level.setForegroundDeltaFactor(0.0f);
+			level.setBackgroundDeltaFactor(DEFAULT_TIME_FACTOR);
+		}
+		else
+		{
+			level.setForegroundDeltaFactor(DEFAULT_TIME_FACTOR);
+			level.setBackgroundDeltaFactor(DEFAULT_TIME_FACTOR);
+		}
+
+		transitioningDimension = false;
+
+		EntityPlayer player = (EntityPlayer) Entity.createEntity(EntityType.PLAYER, spawnpoint.copy(), level, Dimension.LIGHT, true);
+
+		entities.add(player);
+		level.setControllingPlayer(player);
+		player.setFocused(spawnpoint.x > level.getCenterX());
+
+		entityFile.read(level);
+
+		level.transferBuffers();
+
+		for (Entity entity : level.getEntities())
+		{
+			entity.init();
+		}
+
+		level.getStoryHandler().onLevelInit();
+
+		GUIManager.initMap(level, true);
+		MapManager.initMap(spawnpoint, level);
+		MapManager.focusCamera();
+		ShaderHandler.initMap(level);
+		ShaderHandler.enable();
+
+		if (level.getLevelType() == LevelType.TIME_TRAVEL)
+		{
+			for (Entity entity : entities)
+			{
+				if (entity.isShared())
+				{
+					entity.storeReSimulationData();
+				}
+			}
+
+			for (Tile tile : tiles)
+			{
+				if (tile.isShared())
+				{
+					tile.storeReSimulationData();
+				}
+			}
+
+			simulateAll(Level.TIME_TRAVEL_TIME_DIFFERENCE_MILLIS - 1, 25, true, false);
+
+			for (Entity entity : entities)
+			{
+				if (entity.isShared())
+				{
+					entity.restoreReSimulationData();
+				}
+			}
+
+			for (Tile tile : tiles)
+			{
+				if (tile.isShared())
+				{
+					tile.restoreReSimulationData();
+				}
+			}
+		}
+		else if (level.getLevelType() == LevelType.FROZEN)
+		{
+			forceNormalDelta = true;
+
+			simulateAll(1000, 25, false, false);
+
+			forceNormalDelta = false;
+
+			level.getPRNG(false, Dimension.SHADOW).nextInt();
+		}
+
+		if (level.getType() != LevelType.TIME_TRAVEL)
+		{
+			if (level.getType() == LevelType.FROZEN)
+			{
+				forceNormalDelta = true;
+			}
+
+			simulateAll(25000, 200, false, true);
+
+			if (level.getType() == LevelType.FROZEN)
+			{
+				forceNormalDelta = false;
+			}
+		}
+
+		level.initRNGs(1337);
+		simulateParticlesAhead(150.0f, 300);
+
+		level.setControlAlphaFactor(0.0f);
+		fadingIn = true;
+		LevelManager.fadeInTime = fadeInTime;
+		LevelManager.totalFadeInTime = fadeInTime;
+
+		CursorType.useCursor(CursorType.DEFAULT);
+
+		deadLevels.clear();
+
+		checkpoints.clear();
+		currentCheckpoint = Checkpoint.storeLevel(level);
+		checkpoints.add(currentCheckpoint);
+
+		checkpointSelectionMode = false;
+
+		level.writeToGlobalSave(SaveState.LAST_VISITED_LEVEL, mapID);
+		level.writeToGlobalSave(Level.LEVEL_DOOR_ENTRY_ID, TileDoor.getEntryDoorID());
+		level.writeToGlobalSave(Level.LEVEL_DOOR_SHOULD_FIND_START, TileDoor.shouldFindStart());
+		level.writeToGlobalSave(Level.LEVEL_SHOULD_USE_DOOR, comesFromDoor);
+		level.writeToLevelSave(Level.LEVEL_VISITED_TOKEN, true);
+
+		level.saveToActiveSave();
+
+		lastLoadingTime = (int) (System.currentTimeMillis() - beforeTime);
+
+		level.getStoryHandler().onLevelEntry(viaDoor);
+
+		Debug.log("Loaded " + mapID + " (took " + lastLoadingTime + "ms).");
+	}
+
+	public static void simulateAll(int milliseconds, int preferredDelta, boolean initialising, boolean onlyCycleObjects)
+	{
+		int simulatedTime = 0;
+		boolean beforePaused = paused;
+		boolean beforeInitialising = false;
+
+		level.setSimulating(true);
+		level.setInitialising(initialising);
+		level.setUpdateOnlyCycleObjects(onlyCycleObjects);
+
+		while (simulatedTime < milliseconds)
+		{
+			paused = false;
+
+			update(GameLauncher.getContainer(), simulatedTime < milliseconds - preferredDelta ? preferredDelta : milliseconds - simulatedTime);
+
+			simulatedTime += preferredDelta;
+		}
+
+		paused = beforePaused;
+
+		level.setSimulating(false);
+		level.setInitialising(beforeInitialising);
+		level.setUpdateOnlyCycleObjects(false);
+	}
+
+	public static void simulateParticlesAhead(float delta, int count)
+	{
+		Debug.log("Pre-simulating particles for " + delta * count + "ms (" + count + " x " + delta + "ms)...");
+
+		level.setIgnoreTimeEffects(true);
+
+		for (int i = 0; i < count; i++)
+		{
+			level.updateParticleSystem((int) delta, delta, getBackgroundDelta((int) delta));
+		}
+
+		level.setIgnoreTimeEffects(false);
+
+		Debug.log("Particle pre-simulation complete. Particles are now ahead of time by " + delta * count + "ms.");
+	}
+
+	public static void update(GameContainer container, int delta)
+	{		
+		if (InputHandler.isKeyPressed(InputAction.PAUSE, container))
+		{
+			if (paused)
+			{
+				resume();
+				GameLauncher.setStatus(GameStatus.IN_LEVEL);
+			}
+			else
+			{
+				pause();
+				GameLauncher.setStatus(GameStatus.PAUSE_MENU);
+			}
+		}
+
+		if (GameLauncher.isDeveloperMode())
+		{
+			if (container.getInput().isKeyDown(Input.KEY_LCONTROL) && container.getInput().isKeyPressed(Input.KEY_F))
+			{
+				frameByFrameDebug = !frameByFrameDebug;
+
+				if (!frameByFrameDebug)
+				{
+					paused = false;
+				}
+			}
+
+			if (container.getInput().isKeyPressed(Input.KEY_F3))
+			{
+				debugMode = !debugMode;
+
+				debugPanel.setActive(debugMode);
+			}
+
+			if (!GameLauncher.getCheatPanel().isActive())
+			{
+				if (container.getInput().isKeyPressed(Input.KEY_G))
+				{
+					level.setShowHitboxes(!level.shouldShowHitboxes());
+				}
+
+				if (container.getInput().isKeyPressed(Input.KEY_N))
+				{
+					Hitbox.debugMode = !Hitbox.debugMode;
+				}
+
+//				if (level.getLevelType() == LevelType.TIME_TRAVEL && container.getInput().isKeyPressed(Input.KEY_E))
+//				{
+//					MapManager.reSimulateAll(null);
+//				}
+			}
+
+			if (container.getInput().isKeyDown(Input.KEY_LCONTROL) && container.getInput().isKeyPressed(Input.KEY_P))
+			{
+				fpsPanel.init();
+				fpsPanel.setActive(true);
+			}
+		}
+
+		if (frameByFrameDebug && (container.getInput().isKeyPressed(Input.KEY_F) || container.getInput().isKeyDown(Input.KEY_R)))
+		{
+			paused = false;
+		}
+
+		if (frameByFrameDebug && !paused)
+		{
+			Debug.log("--- NEW UPDATE FRAME (" + delta + ") ---");
+		}
+
+		if (GameLauncher.isDeveloperMode() && (container.getInput().isKeyPressed(Input.KEY_F11) || container.getInput().isKeyPressed(Input.KEY_F1) || container.getInput().isKeyDown(Input.KEY_LCONTROL) && container.getInput().isKeyPressed(Input.KEY_M)))
+		{
+			MapEditor.initMap(mapID, mapPath);
+
+			MapEditor.adjustCameraOffset(null, level.getCameraOffset().x, level.getCameraOffset().y);
+
+			GameLauncher.setStatus(GameStatus.MAP_EDITOR);
+
+			return;
+		}
+
+		try
+		{
+			if (!paused)
+			{
+				if (checkpointSelectionMode && !GameLauncher.getCheatPanel().isActive())
+				{
+					updateCheckpointSelection(container);
+				}
+
+				if (!checkpointSelectionMode && checkpointTransitionTime > 0)
+				{
+					checkpointTransitionTime -= delta;
+
+					if (checkpointTransitionTime < 0)
+					{
+						checkpointTransitionTime = 0;
+					}
+				}
+
+				EntityPlayer.updateKeyRecords(container);
+
+				for (int i = 0; i < deadLevels.size(); i++)
+				{
+					Level level = deadLevels.get(i);
+					float deadDelta = delta; // ((1.0f - level.getDeadFactor())
+												// / 2.0f + 0.5f);
+
+					level.deadUpdate(deadDelta);
+
+					updateLevel(level, deadDelta, container);
+
+					if (level.isGone())
+					{
+						deadLevels.remove(i);
+						i--;
+					}
+				}
+
+				if (level.isFading())
+				{
+					level.updateFadeIn(delta);
+				}
+
+				if (!checkpointSelectionMode)
+				{
+					updateLevel(level, delta, container);
+
+					if (EntityPlayer.requestsRevival())
+					{
+						revive();
+					}
+
+					if (EntityPlayer.requestsCheckpoint())
+					{
+						takeCheckpoint();
+					}
+
+					TileDoor.postUpdate();
+
+					updateFading(delta);
+
+					if (InputHandler.isKeyPressed(InputAction.BACK, container) && !GameLauncher.getCheatPanel().isActive())
+					{
+						checkpoints.addLast(Checkpoint.storeLevel(level));
+
+						currentCheckpoint = checkpoints.getLast();
+
+						if (isPreviousCheckpointAvailable()) // not sure about
+																// this
+						{
+							updateSelectableCheckpoints();
+
+							currentCheckpoint = selectableCheckpoints.get(selectableCheckpoints.indexOf(currentCheckpoint) - 1).copy();
+						}
+
+						applyCheckpoint(currentCheckpoint);
+					}
+
+					if (GameLauncher.isDeveloperMode())
+					{
+						if (container.getInput().isKeyPressed(Input.KEY_F9))
+						{
+							currentCheckpoint = checkpoints.removeLast();
+
+							checkpoints.addLast(currentCheckpoint.copy());
+
+							applyCheckpoint(currentCheckpoint);
+						}
+					}
+
+					if (!level.isInitialising() && !level.isUpdatingOnlyCycleObjects() && !level.isSimulating())
+					{
+						level.getStoryHandler().update(container, delta);
+					}
+				}
+
+				if (!level.isInitialising() && !level.isUpdatingOnlyCycleObjects() && !level.isSimulating())
+				{
+					MapManager.update(container, delta);
+					GUIManager.update(container, delta);
+					
+					float posChangeX = (int) -MapManager.getCameraOffsetChangeX();
+					float posChangeY = (int) -MapManager.getCameraOffsetChangeY();
+					
+					for (Level deadLevel : deadLevels)
+					{
+						for (Entity entity : deadLevel.getEntities())
+						{
+							entity.adjustX(posChangeX);
+							entity.adjustY(posChangeY);
+						}
+						
+						for (Tile tile : deadLevel.getTiles())
+						{
+							if (tile.shouldCopy())
+							{
+								tile.adjustX(posChangeX);
+								tile.adjustY(posChangeY);
+							}
+						}
+					}
+				}
+			}
+
+			if (Hitbox.debugMode)
+			{
+				Hitbox.cachedLines.clear();
+			}
+
+			if (debugMode)
+			{
+				debugPanel.update(container, delta);
+			}
+		}
+		catch (Exception e)
+		{
+			Debug.warn("Error while updating level / physics - jumping back to menu screen.", e);
+
+			if (SanityPanel.isRunningCheck())
+			{
+				GameLauncher.getSanityPanel().onError(e);
+			}
+			else
+			{
+				GameLauncher.setStatus(GameStatus.CUSTOM_MAP_SELECTION);
+			}
+		}
+
+		fpsPanel.update(container, delta);
+
+		if (frameByFrameDebug)
+		{
+			paused = true;
+		}
+	}
+
+	private static void updateLevel(Level level, float delta, GameContainer container)
+	{
+		updateDimensionTransition(level, delta, container);
+
+		float foregroundDelta = getForegroundDelta(delta);
+		float backgroundDelta = getBackgroundDelta(delta);
+
+		if (level.getForegroundDimension() == Dimension.LIGHT)
+		{
+			level.setLightDelta(foregroundDelta);
+			level.setShadowDelta(backgroundDelta);
+		}
+		else
+		{
+			level.setLightDelta(backgroundDelta);
+			level.setShadowDelta(foregroundDelta);
+		}
+
+		level.timeStepHandler.update((int) delta);
+
+		updateInteractables(level, container);
+
+		MapManager.updateTiles(level, level.getForegroundDimension(), container, delta, foregroundDelta);
+
+		if (!level.isInitialising())
+		{
+			MapManager.updateTiles(level, level.getBackgroundDimension(), container, delta, backgroundDelta);
+		}
+
+		EntityManager.updateEntities(level, level.getForegroundDimension(), container, delta, foregroundDelta);
+
+		if (!level.isInitialising())
+		{
+			EntityManager.updateEntities(level, level.getBackgroundDimension(), container, delta, backgroundDelta);
+		}
+
+		level.transferBuffers();
+		level.updateParticleSystem(delta, level.getLightDelta(), level.getShadowDelta());
+		level.updateTransitions(delta);
+	}
+
+	private static void updateCheckpointSelection(GameContainer container)
+	{
+		if (InputHandler.isKeyPressed(InputAction.JUMP, container))
+		{
+			checkpointSelectionMode = false;
+			checkpointTransitionTime = CHECKPOINT_TRANSITION_TIME;
+
+			if (checkpoints.indexOf(currentCheckpoint) != checkpoints.size() - 1 || !(currentCheckpoint.getLevel().getControllingPlayer().isOnGround() || currentCheckpoint.getLevel().getControllingPlayer().isClimbing()))
+			{
+				for (int i = checkpoints.indexOf(currentCheckpoint) + ((currentCheckpoint.getLevel().getControllingPlayer().isOnGround() || currentCheckpoint.getLevel().getControllingPlayer().isClimbing()) ? 1 : 0); i < checkpoints.size(); i++)
+				{
+					checkpoints.remove(i);
+					i--;
+				}
+			}
+		}
+
+		if (InputHandler.isKeyPressed(InputAction.MOVE_DOWN, container) || InputHandler.isKeyPressed(InputAction.BACK, container))
+		{
+			updateSelectableCheckpoints();
+
+			if (isPreviousCheckpointAvailable())
+			{
+				currentCheckpoint = selectableCheckpoints.get(selectableCheckpoints.indexOf(currentCheckpoint) - 1).copy();
+				applyCheckpoint(currentCheckpoint);
+			}
+		}
+
+		if (InputHandler.isKeyPressed(InputAction.MOVE_UP, container))
+		{
+			updateSelectableCheckpoints();
+
+			if (isNextCheckpointAvailable())
+			{
+				currentCheckpoint = selectableCheckpoints.get(selectableCheckpoints.indexOf(currentCheckpoint) + 1).copy();
+				applyCheckpoint(currentCheckpoint);
+			}
+		}
+	}
+
+	private static void updateFading(int delta)
+	{
+		if (fadingIn)
+		{
+			fadeInTime -= delta;
+
+			if (fadeInTime < 0)
+			{
+				fadeInTime = 0;
+				fadingIn = false;
+			}
+
+			level.setControlAlphaFactor(1.0f - Transitions.getFactor((int) (((float) fadeInTime) / ((float) totalFadeInTime) * 1000)));
+		}
+
+		if (fadingOut)
+		{
+			fadeOutTime -= delta;
+
+			if (fadeOutTime < -FADE_OUT_BLACKSCREEN_TIME)
+			{
+				fadeOutTime = 0;
+				fadingOut = false;
+
+				initMap(nextMapPath, nextComesFromDoor);
+			}
+
+			level.setControlAlphaFactor(Transitions.getFactor((int) (((float) Math.max(fadeOutTime, 0)) / ((float) FADE_OUT_TIME) * 1000)));
+		}
+	}
+
+	public static void takeCheckpoint()
+	{
+		currentCheckpoint = Checkpoint.storeLevel(level);
+		checkpoints.add(currentCheckpoint);
+
+		if (checkpoints.size() > 7)
+		{
+			int lastIndex = 0;
+
+			Set<Checkpoint> toRemove = new HashSet<Checkpoint>();
+
+			for (int i = 1; i < checkpoints.size() - 4; i++)
+			{
+				Vector2f buffer = Entity.getBufferedVector();
+
+				buffer.set(checkpoints.get(i).getLevel().getControllingPlayer().getPosition());
+				buffer.sub(checkpoints.get(i).getLevel().getCameraOffset());
+				buffer.negateLocal();
+
+				buffer.add(checkpoints.get(lastIndex).getLevel().getControllingPlayer().getPosition());
+				buffer.sub(checkpoints.get(lastIndex).getLevel().getCameraOffset());
+
+				if (checkpoints.get(i).getTimestampLong() - checkpoints.get(lastIndex).getTimestampLong() < 3000 + Math.min((checkpoints.size() - i - 1) * 400, 10000) || buffer.length() < 200 || checkpoints.size() > 30)
+				{
+					checkpoints.remove(checkpoints.get(i));
+
+					break;
+				}
+
+				lastIndex = i;
+			}
+
+			checkpoints.removeAll(toRemove);
+			toRemove.clear();
+		}
+	}
+
+	private static void applyCheckpoint(Checkpoint checkpoint)
+	{
+		level = currentCheckpoint.getLevel();
+		GameLauncher.setLevelContext(level);
+
+		for (WrapperTexture wrapper : level.getWrappers())
+		{
+			wrapper.adjustX(-wrapper.getLevel().getCameraOffset().x + level.getCameraOffset().x);
+			wrapper.adjustY(-wrapper.getLevel().getCameraOffset().y + level.getCameraOffset().y);
+
+			wrapper.setLevel(level);
+		}
+
+		for (Tile tile : level.getTiles())
+		{
+			if (!tile.shouldCopy())
+			{
+				tile.adjustX(-tile.getLevel().getCameraOffset().x + level.getCameraOffset().x);
+				tile.adjustY(-tile.getLevel().getCameraOffset().y + level.getCameraOffset().y);
+
+				tile.setLevel(level);
+			}
+		}
+
+		level.findInteractableTiles();
+
+		MapManager.initMap(spawnpoint, level);
+		GUIManager.initMap(level, false);
+
+		if (level.getControllingPlayer().isOnGround())
+		{
+			level.getControllingPlayer().resetVelocities();
+		}
+
+		checkpointSelectionMode = true;
+		checkpointTransitionTime = CHECKPOINT_TRANSITION_TIME;
+	}
+
+	private static void updateSelectableCheckpoints()
+	{
+		selectableCheckpoints.clear();
+
+		long lastTimestamp = checkpoints.get(0).getTimestampLong();
+		Vector2f lastPlayerPosition = new Vector2f(checkpoints.get(0).getLevel().getControllingPlayer().getPosition()).sub(checkpoints.get(0).getLevel().getCameraOffset());
+
+		selectableCheckpoints.addFirst(checkpoints.get(0));
+
+		for (int i = 1; i < checkpoints.size(); i++)
+		{
+			Vector2f buffer = Entity.bufferedVector;
+
+			buffer.set(checkpoints.get(i).getLevel().getControllingPlayer().getPosition());
+			buffer.sub(checkpoints.get(i).getLevel().getCameraOffset());
+
+			buffer.sub(lastPlayerPosition);
+
+			if (checkpoints.get(i).getTimestampLong() - lastTimestamp > 5000 && buffer.length() > 250)
+			{
+				selectableCheckpoints.add(checkpoints.get(i));
+
+				lastTimestamp = checkpoints.get(i).getTimestampLong();
+				lastPlayerPosition.set(checkpoints.get(i).getLevel().getControllingPlayer().getPosition());
+				lastPlayerPosition.sub(checkpoints.get(i).getLevel().getCameraOffset());
+			}
+		}
+
+		if (selectableCheckpoints.get(selectableCheckpoints.size() - 1) != checkpoints.get(checkpoints.size() - 1))
+		{
+			selectableCheckpoints.addLast(checkpoints.get(checkpoints.size() - 1));
+		}
+	}
+
+	public static boolean canPlayerInteract()
+	{
+		EntityPlayer player = level.getControllingPlayer();
+
+		for (Tile tile : level.getInteractableTiles())
+		{
+			if (tile.inSameDimension(player) && ((ITileInteractable) tile).canInteract(player))
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	private static void updateInteractables(Level level, GameContainer container)
+	{
+		EntityPlayer player = level.getControllingPlayer();
+
+		for (Tile tile : level.getInteractableTiles())
+		{
+			if (tile.inSameDimension(player) && ((ITileInteractable) tile).canInteract(player))
+			{
+				ITileInteractable interactable = (ITileInteractable) tile;
+
+				if (EntityPlayer.tryInteract() && !GameLauncher.getCheatPanel().isActive())
+				{
+					interactable.onInteract(player);
+				}
+
+				HintProperties hintProperties = interactable.getHintProperties();
+
+				player.displayOverlay(Images.getImage(interactable.getHintIdentifier(), player.getDimension()), player.getPosition(), hintProperties, interactable.getHintIdentifier(), hintProperties.shouldForceDisplay());
+			}
+		}
+	}
+
+	private static void updateDimensionTransition(Level level, float delta, GameContainer container)
+	{
+		if (InputHandler.isKeyPressed(InputAction.TOGGLE_DIMENSIONS, container) && level.getStoryHandler().canPlayerTravelDimensions())
+		{
+			if (canToggleDimensions())
+			{
+				onDimensionToggle(true);
+			}
+			else
+			{
+				level.getControllingPlayer().displayOverlay(Images.getImage(Images.HintIdentifier.CANT_TOGGLE, level.getControllingPlayer().getDimension()), level.getControllingPlayer().getPosition(), HintProperties.WARNING_PROPERTIES, Images.HintIdentifier.CANT_TOGGLE, true);
+			}
+		}
+
+		if (transitioningDimension)
+		{
+			float foregroundFactor = 1.0f;
+			float backgroundFactor = 0.0f;
+
+			if (dimensionTransitionTime > 0)
+			{
+				backgroundFactor = Transitions.getFactor((int) ((((float) dimensionTransitionTime) / ((float) DIMENSION_TRANSITION_TIME)) * 1000.0f));
+				foregroundFactor = 1.0f - backgroundFactor;
+
+				dimensionTransitionTime -= delta;
+			}
+			else
+			{
+				dimensionTransitionTime = 0;
+				transitioningDimension = false;
+
+				level.setTransitioning(false);
+
+				if (level.getType() != LevelType.NORMAL)
+				{
+					EntityPlayer.onDimensionChanged((EntityPlayer) level.getControllingPlayer().getMirroredEntity(), level.getControllingPlayer(), level.getForegroundDimension());
+				}
+			}
+
+			Color foregroundColor = level.getDimensionColor(level.getForegroundDimension());
+			Color backgroundColor = level.getDimensionColor(level.getBackgroundDimension());
+
+			foregroundColor.a = level.backgroundAlpha + (level.foregroundAlpha - level.backgroundAlpha) * foregroundFactor;
+			backgroundColor.a = level.backgroundAlpha + (level.foregroundAlpha - level.backgroundAlpha) * backgroundFactor;
+
+			level.setWrapperAlpha(foregroundFactor, level.getForegroundDimension());
+			level.setWrapperAlpha(1.0f, level.getBackgroundDimension());
+
+			level.setForegroundFactor(foregroundFactor);
+			level.setBackgroundFactor(backgroundFactor);
+
+			if (level.getType() == LevelType.TIME_SCALE)
+			{
+				if (level.getForegroundDimension() == Dimension.LIGHT)
+				{
+					level.setBackgroundDeltaFactor(TIME_SCALE_BACKGROUND_FACTOR + (DEFAULT_TIME_FACTOR - TIME_SCALE_BACKGROUND_FACTOR) * backgroundFactor);
+					level.setForegroundDeltaFactor(DEFAULT_TIME_FACTOR + (TIME_SCALE_FOREGROUND_FACTOR - DEFAULT_TIME_FACTOR) * backgroundFactor);
+				}
+				else
+				{
+					level.setForegroundDeltaFactor(TIME_SCALE_BACKGROUND_FACTOR + (DEFAULT_TIME_FACTOR - TIME_SCALE_BACKGROUND_FACTOR) * foregroundFactor);
+					level.setBackgroundDeltaFactor(DEFAULT_TIME_FACTOR + (TIME_SCALE_FOREGROUND_FACTOR - DEFAULT_TIME_FACTOR) * foregroundFactor);
+				}
+			}
+			else if (level.getType() == LevelType.FROZEN)
+			{
+				level.setForegroundDeltaFactor(backgroundFactor);
+				level.setBackgroundDeltaFactor(foregroundFactor);
+			}
+		}
+	}
+
+	public static void onDimensionToggle(boolean shouldTransition)
+	{
+		level.setForegroundDimension(level.getForegroundDimension().getOpposite());
+		level.setBackgroundDimension(level.getBackgroundDimension().getOpposite());
+
+		if (level.getLevelType() != LevelType.NORMAL)
+		{
+			level.setControllingPlayer((EntityPlayer) level.getControllingPlayer().getMirroredEntity());
+
+			EntityPlayer.onDimensionChanging((EntityPlayer) level.getControllingPlayer().getMirroredEntity(), level.getControllingPlayer(), level.getForegroundDimension());
+
+			if (level.getType() == LevelType.TIME_TRAVEL)
+			{
+				level.timeStepHandler.onDimensionToggle(level.getControllingPlayer().getDimension());
+			}
+		}
+
+		float foregroundFactor = 1.0f;
+		float backgroundFactor = 0.0f;
+
+		if (shouldTransition)
+		{
+			transitioningDimension = true;
+			dimensionTransitionTime = DIMENSION_TRANSITION_TIME - dimensionTransitionTime;
+			level.setTransitioning(true);
+		}
+		else
+		{
+			dimensionTransitionTime = 0;
+
+			if (level.getType() != LevelType.NORMAL)
+			{
+				EntityPlayer.onDimensionChanged((EntityPlayer) level.getControllingPlayer().getMirroredEntity(), level.getControllingPlayer(), level.getForegroundDimension());
+			}
+
+			Color foregroundColor = level.getDimensionColor(level.getForegroundDimension());
+			Color backgroundColor = level.getDimensionColor(level.getBackgroundDimension());
+
+			foregroundColor.a = level.backgroundAlpha + (level.foregroundAlpha - level.backgroundAlpha) * foregroundFactor;
+			backgroundColor.a = level.backgroundAlpha + (level.foregroundAlpha - level.backgroundAlpha) * backgroundFactor;
+
+			level.setWrapperAlpha(foregroundFactor, level.getForegroundDimension());
+			level.setWrapperAlpha(1.0f, level.getBackgroundDimension());
+
+			level.setForegroundFactor(foregroundFactor);
+			level.setBackgroundFactor(backgroundFactor);
+		}
+	}
+
+	private static boolean canToggleDimensions()
+	{
+		return (!level.getControllingPlayer().hasMirror() || !level.getControllingPlayer().getMirroredEntity().isSuffocating()) && level.getControllingPlayer().canChangeDimensions();
+	}
+
+	private static float getBackgroundDelta(float delta)
+	{
+		if (level.getLevelType() == LevelType.FROZEN || level.getType() == LevelType.TIME_SCALE)
+		{
+			if (!level.getControllingPlayer().isRawTimeEffected() || forceNormalDelta)
+			{
+				return delta;
+			}
+		}
+
+		return delta * level.getBackgroundDeltaFactor();
+	}
+
+	private static float getForegroundDelta(float delta)
+	{
+		if (level.getLevelType() == LevelType.FROZEN || level.getType() == LevelType.TIME_SCALE)
+		{
+			if (!level.getControllingPlayer().isRawTimeEffected() || forceNormalDelta)
+			{
+				return delta;
+			}
+		}
+
+		return delta * level.getForegroundDeltaFactor();
+	}
+
+	public static void render(GameContainer container, Graphics g)
+	{
+		float beforeLightAlpha = level.getDimensionColor(Dimension.LIGHT).a;
+		float beforeShadowAlpha = level.getDimensionColor(Dimension.SHADOW).a;
+
+		level.getDimensionColor(Dimension.LIGHT).a *= level.getControlAlphaFactor();
+		level.getDimensionColor(Dimension.SHADOW).a *= level.getControlAlphaFactor();
+
+		// level.setControlAlpha(level.getControlAlphaFactor());
+
+		if (level.shouldRenderWrappers())
+		{
+			level.renderBackgroundWrappers(g);
+		}
+
+		for (Level deadLevel : deadLevels)
+		{
+			float beforeLA = deadLevel.getDimensionColor(Dimension.LIGHT).a;
+			float beforeSA = deadLevel.getDimensionColor(Dimension.SHADOW).a;
+			
+			deadLevel.getDimensionColor(Dimension.LIGHT).a *= deadLevel.getControlAlpha();
+			deadLevel.getDimensionColor(Dimension.SHADOW).a *= deadLevel.getControlAlpha();
+			
+			renderGeometry(deadLevel, container, g);
+									
+			deadLevel.getDimensionColor(Dimension.LIGHT).a = beforeLA;
+			deadLevel.getDimensionColor(Dimension.SHADOW).a = beforeSA;
+		}
+		
+		renderGeometry(level, container, g);
+
+		if (level.shouldRenderWrappers())
+		{
+			level.renderForegroundWrappers(g);
+		}
+
+		Hitbox.renderDebug(g);
+
+		level.getDimensionColor(Dimension.LIGHT).a = beforeLightAlpha;
+		level.getDimensionColor(Dimension.SHADOW).a = beforeShadowAlpha;
+
+		ShaderHandler.disableLighting();
+
+		level.getStoryHandler().render(container, g);
+
+		GUIManager.render(container, g);
+
+		if (level.getControlAlphaFactor0() != 1.0f)
+		{
+			g.setColor(ColorHelper.applyAlphaAndCopy(Color.black, 1.0f - level.getControlAlphaFactor0()));
+			g.fillRect(-ShaderHandler.getHorizontalFadeSize() - 5, -ShaderHandler.getVerticalFadeSize() - 5, GameLauncher.getWidth() + ShaderHandler.getHorizontalFadeSize() * 2 + 10, GameLauncher.getHeight() + ShaderHandler.getVerticalFadeSize() * 2 + 10);
+		}
+
+		if (debugMode)
+		{
+			debugPanel.render(container, 1.0f, g);
+
+			renderCheckpoints(g);
+
+			Renderer.clearBind();
+		}
+
+		fpsPanel.render(container, 1.0f, g);
+	}
+
+	private static void renderGeometry(Level level, GameContainer container, Graphics g)
+	{		
+		Dimension foregroundDimension = level.getType() == LevelType.NORMAL ? Dimension.LIGHT : level.getForegroundDimension();
+		Dimension backgroundDimension = level.getType() == LevelType.NORMAL ? Dimension.SHADOW : level.getBackgroundDimension();
+		
+		MapManager.renderBehindAllEntities(level, backgroundDimension, level.shouldRenderAll(), g);
+		MapManager.renderBehindAllEntities(level, foregroundDimension, level.shouldRenderAll(), g);
+		
+		EntityManager.renderEntities(level, foregroundDimension, true, container, g);
+
+		EntityManager.renderEntities(level, backgroundDimension, false, container, g);
+		
+		MapManager.renderBackground(level, backgroundDimension, level.shouldRenderAll(), g);
+				
+		EntityManager.renderEntities(level, foregroundDimension, false, container, g);
+		
+		MapManager.renderForeground(level, foregroundDimension, level.shouldRenderAll(), g);
+	}
+
+	public static void renderCheckpoints(Graphics g)
+	{
+		float lastRelX = Float.NaN;
+		float lastRelY = Float.NaN;
+
+		for (int i = 0; i < checkpoints.size(); i++)
+		{
+			Checkpoint checkpoint = checkpoints.get(i);
+			int size = 40;
+
+			EntityPlayer player = checkpoint.getLevel().getControllingPlayer();
+
+			float relX = player.getPosition().x - checkpoint.getLevel().getCameraOffset().x + level.getCameraOffset().x + player.getHitbox().getWidth() / 2.0f;
+			float relY = player.getPosition().y - checkpoint.getLevel().getCameraOffset().y + level.getCameraOffset().y + player.getHitbox().getHeight() / 2.0f;
+
+			g.setAntiAlias(true);
+			g.setColor(ColorHelper.applyAlphaAndCopy(Color.cyan, 0.2f));
+			g.fillOval(relX - size / 2, relY - size / 2, size, size);
+			g.setAntiAlias(false);
+
+			if (!Float.isNaN(lastRelX))
+			{
+				float beforeLW = g.getLineWidth();
+
+				g.setAntiAlias(true);
+
+				g.setLineWidth(10);
+				g.setColor(ColorHelper.applyAlphaAndCopy(Color.cyan, 0.02f + 0.1f * (((float) i) / ((float) checkpoints.size()))));
+				g.drawLine(lastRelX, lastRelY, relX, relY);
+
+				g.setLineWidth(beforeLW);
+				g.setAntiAlias(false);
+			}
+
+			g.setFont(Fonts.getSmallBoldFont());
+			g.setColor(Color.white);
+
+			g.drawString(i + "	", relX - g.getFont().getWidth(i + "") / 2, relY - g.getFont().getLineHeight() / 2);
+
+			lastRelX = relX;
+			lastRelY = relY;
+		}
+	}
+
+	public static void revive()
+	{
+		GameLauncher.clearRecords();
+		EntityPlayer.clearRecords();
+
+		Checkpoint currentCopy = Checkpoint.storeLevel(level);
+
+		currentCopy.getLevel().onDeath();
+
+		deadLevels.add(currentCopy.getLevel());
+
+		currentCheckpoint = checkpoints.removeLast();
+
+		Vector2f buffer = Entity.getBufferedVector();
+
+		buffer.set(0, 0);
+
+		while (level.getControllingPlayer().getTimeOfDeath() - currentCheckpoint.getTimestampLong() < 1100 && buffer.length() < 160)
+		{
+			buffer.set(level.getControllingPlayer().getPosition());
+			buffer.sub(level.getCameraOffset());
+			buffer.negateLocal();
+
+			buffer.add(currentCheckpoint.getLevel().getControllingPlayer().getPosition());
+			buffer.sub(currentCheckpoint.getLevel().getCameraOffset());
+
+			currentCheckpoint = checkpoints.removeLast();
+		}
+
+		checkpoints.addLast(currentCheckpoint.copy());
+
+		currentCheckpoint.getLevel().startFadeIn((int) (PLAYER_DEATH_FADE_TIME * 0.5f));
+
+		applyCheckpoint(currentCheckpoint);
+	}
+
+	public static void reset()
+	{
+		initMap(mapPath, false);
+
+		GameLauncher.clearRecords();
+		EntityPlayer.clearRecords();
+
+		resume();
+	}
+
+	public static void pause()
+	{
+		paused = true;
+	}
+
+	public static void resume()
+	{
+		paused = false;
+	}
+
+	public static boolean isCheckpointing()
+	{
+		return checkpointSelectionMode || checkpointTransitionTime > 0;
+	}
+
+	public static float getCheckpointingFactor()
+	{
+		return Transitions.getFactor(((float) checkpointTransitionTime) / ((float) CHECKPOINT_TRANSITION_TIME));
+	}
+
+	public static boolean isPreviousCheckpointAvailable()
+	{
+		return checkpoints.indexOf(currentCheckpoint) > 0;
+	}
+
+	public static boolean isNextCheckpointAvailable()
+	{
+		return checkpoints.indexOf(currentCheckpoint) + 1 < checkpoints.size();
+	}
+
+	public static boolean isPaused()
+	{
+		return paused;
+	}
+
+	public static float getXOffset()
+	{
+		return getCameraOffset().getX();
+	}
+
+	public static float getYOffset()
+	{
+		return getCameraOffset().getY();
+	}
+
+	public static boolean isDevMode()
+	{
+		return debugMode;
+	}
+
+	public static boolean isRenderMap()
+	{
+		return renderMap;
+	}
+
+	public static void setRenderMap(boolean renderMap)
+	{
+		LevelManager.renderMap = renderMap;
+	}
+
+	public static String getMapName()
+	{
+		return mapID;
+	}
+
+	public static String getFileName()
+	{
+		return fileName;
+	}
+
+	public static Level getLevel()
+	{
+		return level;
+	}
+
+	public static boolean isTransitioning()
+	{
+		return transitioningDimension;
+	}
+
+	public static Vector2f getCameraOffset()
+	{
+		return cameraOffset;
+	}
+
+	public static int getDimensionTransitionTime()
+	{
+		return dimensionTransitionTime;
+	}
+
+	public static Checkpoint getCurrentCheckpoint()
+	{
+		return currentCheckpoint;
+	}
+
+	public static Collection<Checkpoint> getCheckpoints()
+	{
+		return checkpoints;
+	}
+
+	public static boolean isInCheckpointSelectionMode()
+	{
+		return checkpointSelectionMode;
+	}
+
+	public static boolean isFadingOut()
+	{
+		return fadingOut;
+	}
+
+	public static float getTransitionFactor()
+	{
+		return ((float) dimensionTransitionTime) / ((float) DIMENSION_TRANSITION_TIME);
+	}
+}

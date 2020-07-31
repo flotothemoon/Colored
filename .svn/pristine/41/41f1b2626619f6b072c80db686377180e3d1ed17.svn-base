@@ -1,0 +1,775 @@
+package com.unlogical.colored.terrain;
+
+import java.util.HashMap;
+import java.util.Map;
+
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Input;
+import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.g2d.Batch;
+import com.badlogic.gdx.graphics.g2d.TextureRegion;
+import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
+import com.badlogic.gdx.graphics.glutils.ShapeRenderer.ShapeType;
+import com.badlogic.gdx.math.Vector2;
+import com.unlogical.colored.collision.Hitbox;
+import com.unlogical.colored.configuration.DisplayConstants;
+import com.unlogical.colored.gui.panel.CheatPanel;
+import com.unlogical.colored.level.Level;
+import com.unlogical.colored.level.LevelType;
+import com.unlogical.colored.levelmanaging.LevelManager;
+import com.unlogical.colored.resources.ResourceLoader;
+import com.unlogical.colored.terrain.handler.SharedAnimationHandler;
+import com.unlogical.colored.terrain.property.TileProperty;
+import com.unlogical.colored.terrain.tile.properties.ITileRotationListener;
+import com.unlogical.colored.util.ColorHelper;
+import com.unlogical.colored.util.Dimension;
+import com.unlogical.colored.util.IShareable;
+import com.unlogical.colored.util.LevelObject;
+import com.unlogical.colored.util.Renderer;
+
+public abstract strictfp class TerrainObject extends LevelObject implements Cloneable
+{
+	private static final HashMap<TileType, HashMap<String, TextureRegion[][]>> bufferedImages = new HashMap<TileType, HashMap<String, TextureRegion[][]>>();
+
+	public static final Color FILL_COLOR = new Color(0.937f, 0.596f, 0.0f, 0.5f);
+	private static final Color colorBuffer = new Color(0.0f, 0.0f, 0.0f, 0.0f);
+
+	protected TileProperty properties;
+
+	private int innerTypes;
+
+	private int duration;
+	private int timeToSwitch;
+	protected int lastInnerType;
+	protected int lastImage;
+	private int totalInnertypesCount;
+	protected int finalInnerType;
+
+	protected int relRenderStartOffset;
+	protected int relRenderEndOffset;
+
+	protected boolean resized;
+	protected boolean hasTextures = true;
+	protected boolean transitioning;
+	protected boolean beforeTransitioning;
+	protected boolean reverseAnimation;
+	protected boolean beforeReverseAnimation;
+
+	private boolean useOriginalTextures;
+
+	protected TextureRegion[][] availableImages;
+	private TextureRegion[] animationImages;
+
+	protected final TileType type;
+
+	public TerrainObject(final TileType type, int innerType, Vector2 position, final Level level, TileProperty properties, Dimension dimension)
+	{
+		super(null, position, dimension, level);
+
+		this.dimension = dimension;
+		this.type = type;
+		this.properties = properties;
+		this.level = level;
+		this.hasTextures = properties.hasTextures();
+
+		if (this.hasTextures)
+		{
+			String chapter = level.getChapter();
+
+			if (chapter == null || !CheatPanel.isStringNumeric(chapter))
+			{
+				chapter = "20";
+			}
+
+			this.availableImages = bufferedImages.get(type).get(chapter);
+
+			try
+			{
+				this.totalInnertypesCount = this.availableImages.length;
+			}
+			catch (NullPointerException e)
+			{
+				throw new RuntimeException("No available textures found for " + this.type + ", error while loading. Sorry. Probably not my fault though.", e);
+			}
+
+			if (this.isAnimated())
+			{
+				this.duration = SharedAnimationHandler.getPerImageDuration(type, level, innerType);
+				this.animationImages = this.availableImages[innerType];
+				this.image = this.animationImages[0];
+			}
+			else
+			{
+				this.image = this.availableImages[innerType][0];
+			}
+
+			this.setInnerType(innerType);
+		}
+
+		if (position != null)
+		{
+			if (this.hasTextures && !this.properties.shouldUseDefaultSize())
+			{
+				this.hitbox = new Hitbox(this.getX(), this.getY(), this.image.getRegionWidth(), this.image.getRegionHeight());
+			}
+			else
+			{
+				this.hitbox = new Hitbox(this.getX(), this.getY(), DisplayConstants.TILE_SIZE, DisplayConstants.TILE_SIZE);
+			}
+		}
+	}
+
+	@Override
+	public LevelObject deepCopy(Map<Object, Object> copiedReferences)
+	{
+		TerrainObject copy = (TerrainObject) super.deepCopy(copiedReferences);
+
+		copy.properties = this.properties.copy();
+		copy.innerTypes = this.innerTypes;
+		copy.duration = this.duration;
+		copy.timeToSwitch = this.timeToSwitch;
+		copy.lastImage = this.lastImage;
+		copy.totalInnertypesCount = this.totalInnertypesCount;
+		copy.finalInnerType = this.finalInnerType;
+		copy.relRenderEndOffset = this.relRenderEndOffset;
+		copy.relRenderStartOffset = this.relRenderStartOffset;
+		copy.resized = this.resized;
+		copy.hasTextures = this.hasTextures;
+		copy.transitioning = this.transitioning;
+		copy.reverseAnimation = this.reverseAnimation;
+		copy.useOriginalTextures = this.useOriginalTextures;
+		copy.availableImages = this.availableImages;
+		copy.currentImage = this.currentImage;
+		copy.image = this.image;
+		copy.animationImages = this.animationImages;
+
+		return copy;
+	}
+
+	public static void loadImages(TileType type)
+	{
+		bufferedImages.put(type, ResourceLoader.getTileImages(type.getTileName(), TileType.getProperty(type).isAnimated()));
+	}
+
+	public static TextureRegion getMainImage(String type)
+	{
+		return bufferedImages.get(TileType.getTileType(type)) == null ? null : bufferedImages.get(TileType.getTileType(type)).get("20")[0][0];
+	}
+
+	public static TextureRegion getMainImage(TileType type)
+	{
+		return bufferedImages.get(type) == null ? null : bufferedImages.get(type).get("20")[0][0];
+	}
+
+	public static void reloadAll()
+	{
+		bufferedImages.clear();
+
+		loadAll();
+	}
+
+	public static void loadAll()
+	{
+		for (TileType type : TileType.values())
+		{
+			if (type.getProperties().hasTextures())
+			{
+				loadImages(type);
+			}
+		}
+	}
+
+	public TextureRegion getImage(Dimension dimension)
+	{
+		return this.availableImages[this.lastInnerType][this.lastImage];
+	}
+
+	public final void initDraw()
+	{
+
+	}
+
+	protected void preDraw(Color color, Dimension dimension, Batch batch)
+	{
+
+	}
+
+	@Override
+	public void draw(Batch batch)
+	{
+		this.draw(batch, this.dimension);
+	}
+
+	@Override
+	public void draw(Batch batch, Dimension dimension)
+	{
+		if (!this.hidden && this.isActive())
+		{
+			if (this.hasTextures && this.shouldDrawTextures())
+			{
+				if (this.renderImage)
+				{
+					this.drawTextured(dimension, batch);
+				}
+			}
+			else if (this.shouldDrawAsSolidBlock())
+			{
+				if (!Gdx.input.isKeyPressed(Input.Keys.ALT_LEFT))
+				{
+					Renderer.setGrayScaleFactor(this.dimension == Dimension.COLORED ? 0.0f : this.level.getDimensionFactor(Dimension.MONOCHROME));
+					ShapeRenderer sr = Renderer.useShapeRenderer();
+
+					ColorHelper.applyAlphaAndCopy(FILL_COLOR, this.level.getControlAlpha(), sr);
+					sr.set(ShapeType.Filled);
+					Renderer.drawPolygonAsTriangles(this.hitbox.getPoints(), sr);
+				}
+			}
+
+			this.customDraw(dimension, batch);
+		}
+	}
+
+	public void drawTextured(Dimension dimension, Batch batch)
+	{
+		Color color = this.getDrawColor(this.level.getType() == LevelType.NORMAL ? this.level.getForegroundDimension() : dimension, colorBuffer);
+
+		boolean identicalTwin = this.level.getType() == LevelType.NORMAL || this.hasMirror() && this.getMirror().getPosition().equals(this.position) && this.getMirror().getRotation() == this.rotation && this.innerType == ((TerrainObject) this.getMirror()).getInnerType();
+
+		if (this.level.getType() == LevelType.NORMAL)
+		{
+			Renderer.setGrayScaleFactor(this.level.getDimensionFactor(dimension.getOpposite()));
+		}
+		else
+		{
+			Renderer.setGrayScaleFactor(identicalTwin && !this.level.areDimensionOffset() ? this.level.getDimensionFactor(Dimension.MONOCHROME) : dimension == Dimension.COLORED ? 0.0f : 1.0f);
+		}
+
+		if (identicalTwin && !this.level.isDead())
+		{
+			color.a = 1.0f;
+		}
+
+		if (this.level.isFading() && this.isChangeable())
+		{
+			color.a *= this.level.getFadingAlpha();
+		}
+
+		color = this.customModifyDrawColor(color);
+
+		this.preDraw(color, dimension, batch);
+
+		if (this.shared)
+		{
+			this.level.drawAsShared((IShareable<?>) this, batch);
+		}
+		else
+		{
+			if (this.reSimulationCooldown > 0 || LevelManager.isCheckpointing() && this.isMoveable() || this.level.getLevelType() == LevelType.FROZEN && this.isTimeEffected() && this.isMoveable() && (dimension == this.level.getForegroundDimension() || dimension == this.level.getBackgroundDimension() && this.level.isTransitioning()) && this.level.getControllingPlayer() != null && this.level.getControllingPlayer().isRawTimeEffected())
+			{
+				int trailImages = (int) (this.level.getType() == LevelType.FROZEN ? 16 : this.reSimulationCooldown > 0 ? (float) this.reSimulationCooldown / (float) DEFAULT_RE_SIMULATION_COOLDOWN * 24 : 16 * LevelManager.getCheckpointingFactor());
+
+				if (this.level.getType() == LevelType.FROZEN && this.level.isTransitioning())
+				{
+					trailImages *= dimension == this.level.getBackgroundDimension() ? LevelManager.getTransitionFactor() : 1.0f - LevelManager.getTransitionFactor();
+				}
+
+				this.drawTrailImage(this.image, trailImages, 10, dimension, ColorHelper.copy(color, ColorHelper.buffer), 0.4f, batch);
+			}
+
+			this.drawImage(this.image, dimension, this.rotation, this.position.x, this.position.y, color, batch);
+		}
+
+		this.postDraw(dimension, batch);
+	}
+
+	protected void customDraw(Dimension dimension, Batch batch)
+	{
+
+	}
+
+	protected void postDraw(Dimension dimension, Batch batch)
+	{
+
+	}
+
+	public void drawImage(TextureRegion image, Dimension dimension, Color color, Batch batch)
+	{
+		this.drawImage(image, dimension, this.rotation, this.position.x, this.position.y, color, batch);
+	}
+
+	public void drawImageOffset(TextureRegion image, Dimension dimension, Color color, float xOffset, float yOffset, Batch batch)
+	{
+		this.drawImage(image, dimension, this.rotation, this.position.x + xOffset, this.position.y + yOffset, color, batch);
+	}
+
+	@Override
+	public void drawImage(TextureRegion image, Dimension dimension, float rotation, float x, float y, Color color, Batch batch)
+	{
+		if (image == null)
+		{
+			return;
+		}
+
+		x += this.level.getXOffset(dimension);
+		y += this.level.getYOffset(dimension);
+
+		Renderer.useSpriteBatch();
+
+		if (this.shouldDrawCustomImage())
+		{
+			this.drawCustomImage(image, x, y, color, batch);
+		}
+		else
+		{
+			batch.setColor(color);
+
+			if (this.resized)
+			{
+				if (this.properties.shouldScaleImage())
+				{
+					batch.draw(image, x, y, this.getCenterOfRotationX() - x, this.getCenterOfRotationY() - y, this.hitbox.getRawWidth(), this.hitbox.getRawHeight(), 1.0f, 1.0f, rotation);
+				}
+				else
+				{
+					Renderer.fillArea(image, x + this.relRenderStartOffset, y, this.getCenterOfRotationX() - x, this.getCenterOfRotationY() - y, this.hitbox.getRawWidth() - this.relRenderEndOffset - this.relRenderStartOffset, this.hitbox.getRawHeight(), 1.0f, 1.0f, rotation, true, batch);
+				}
+			}
+			else
+			{
+				if (this.renderPartially())
+				{
+					int beforeRegionX = image.getRegionX();
+					int beforeRegionWidth = image.getRegionWidth();
+
+					image.setRegionX(image.getRegionX() + this.relRenderStartOffset);
+					image.setRegionWidth(image.getRegionWidth() - this.relRenderEndOffset);
+
+					batch.draw(image, x + this.relRenderStartOffset, y, this.getCenterOfRotationX() - x, this.getCenterOfRotationY() - y, this.hitbox.getRawWidth() - this.relRenderStartOffset - this.relRenderEndOffset, this.hitbox.getRawHeight(), 1.0f, 1.0f, rotation);
+
+					image.setRegionX(beforeRegionX);
+					image.setRegionWidth(beforeRegionWidth);
+				}
+				else
+				{
+					batch.draw(image, x, y, this.getCenterOfRotationX() - x, this.getCenterOfRotationY() - y, this.hitbox.getRawWidth(), this.hitbox.getRawHeight(), 1.0f, 1.0f, rotation);
+				}
+			}
+		}
+	}
+
+	@Override
+	protected Color getFinalDrawColor()
+	{
+		return ColorHelper.multiplyAndCopy(this.customModifyDrawColor(ColorHelper.applyAlphaAndCopy(this.getDrawColor(this.dimension, ColorHelper.buffer), this.level.getDimensionColor(this.dimension).a)), this.shared ? this.level.getFinalSharedColor() : Color.WHITE);
+	}
+
+	protected void drawCustomImage(TextureRegion image, float x, float y, Color color, Batch batch)
+	{
+
+	}
+
+	protected boolean shouldDrawCustomImage()
+	{
+		return false;
+	}
+
+	protected boolean shouldDrawTextures()
+	{
+		return true;
+	}
+
+	public boolean isChangeable()
+	{
+		return true;
+	}
+
+	protected boolean shouldDrawAsSolidBlock()
+	{
+		return false;
+	}
+
+	protected Color getDrawColor(Dimension dimension, Color colorBuffer)
+	{
+		return ColorHelper.copy(this.level.getDimensionColor(dimension), colorBuffer);
+	}
+
+	public void updateAnimation(float delta)
+	{
+		if (this.timeToSwitch <= 0)
+		{
+			this.image = this.animationImages[this.currentImage];
+			this.lastImage = this.currentImage;
+			this.lastInnerType = this.innerType;
+
+			if (this.reverseAnimation)
+			{
+				if (--this.currentImage < 0)
+				{
+					if (this.transitioning)
+					{
+						this.transitioning = false;
+						this.reverseAnimation = false;
+
+						this.onTransitionFinished(this.innerType, this.finalInnerType);
+
+						this.setInnerType(this.finalInnerType);
+
+						this.currentImage = 0;
+						this.lastImage = 0;
+					}
+					else
+					{
+						this.currentImage = this.animationImages.length - 1;
+					}
+				}
+			}
+			else
+			{
+				if (++this.currentImage >= this.animationImages.length)
+				{
+					this.currentImage = 0;
+
+					if (this.transitioning)
+					{
+						this.transitioning = false;
+
+						this.setInnerType(this.finalInnerType);
+
+						this.onTransitionFinished(this.innerType, this.finalInnerType);
+					}
+				}
+			}
+
+			this.timeToSwitch = this.duration;
+		}
+
+		this.timeToSwitch -= delta;
+	}
+
+	protected void onTransitionFinished(int transitionInnerType, int finalInnerType)
+	{
+
+	}
+
+	protected void transitionAnimation(int transitionInnerType, int finalInnerType, boolean reversed, boolean reset)
+	{
+		this.transitioning = true;
+		this.finalInnerType = finalInnerType;
+		this.reverseAnimation = reversed;
+
+		this.setInnerType(transitionInnerType);
+
+		if (reset && reversed)
+		{
+			this.currentImage = this.animationImages.length - 1;
+			this.image = this.animationImages[this.currentImage];
+			this.lastImage = this.currentImage;
+		}
+	}
+
+	public void nextInnertype()
+	{
+		this.innerType++;
+
+		if (this.innerType >= this.totalInnertypesCount)
+		{
+			this.innerType = 0;
+		}
+
+		this.updateInnertypeAndHitbox();
+	}
+
+	public void previousInnertype()
+	{
+		this.innerType--;
+
+		if (this.innerType < 0)
+		{
+			this.innerType = this.totalInnertypesCount - 1;
+		}
+
+		this.updateInnertypeAndHitbox();
+	}
+
+	private void updateInnertypeAndHitbox()
+	{
+		if (this.lastInnerType != this.innerType)
+		{
+			this.lastInnerType = this.innerType;
+
+			int beforeImageWidth = this.image.getRegionWidth();
+			int beforeImageHeight = this.image.getRegionHeight();
+
+			this.updateInnerType();
+
+			if (beforeImageHeight != this.image.getRegionHeight() || beforeImageWidth != this.image.getRegionWidth())
+			{
+				float beforeX = this.hitbox.getCenterX();
+				float beforeY = this.hitbox.getCenterY();
+
+				this.hitbox.set(this.position.x, this.position.y, this.image.getRegionWidth(), this.image.getRegionHeight());
+
+				this.setRotation(this.rotation);
+
+				this.adjustX(beforeX - this.hitbox.getCenterX());
+				this.adjustY(beforeY - this.hitbox.getCenterY());
+			}
+		}
+	}
+
+	@Override
+	public void setInnerType(int innerType)
+	{
+		if (this.innerType != innerType && innerType >= 0 && innerType < this.totalInnertypesCount)
+		{
+			this.innerType = innerType;
+
+			this.updateInnerType();
+
+			this.lastInnerType = this.innerType;
+		}
+	}
+
+	public void updateInnerType()
+	{
+		if (this.hasTextures)
+		{
+			this.image = this.availableImages[this.innerType][0];
+
+			if (this.isAnimated())
+			{
+				this.duration = SharedAnimationHandler.getPerImageDuration(this.type, this.level, this.innerType);
+				this.animationImages = this.availableImages[this.innerType];
+
+				if (this.currentImage > this.animationImages.length)
+				{
+					this.currentImage = 0;
+				}
+
+				this.lastImage = this.currentImage;
+				this.image = this.animationImages[0];
+			}
+		}
+	}
+
+	@Override
+	public void storeReSimulationData()
+	{
+		super.storeReSimulationData();
+
+		this.beforeTransitioning = this.transitioning;
+		this.beforeReverseAnimation = this.reverseAnimation;
+	}
+
+	@Override
+	public void restoreReSimulationData()
+	{
+		super.restoreReSimulationData();
+
+		this.lastInnerType = this.innerType;
+		this.lastImage = this.currentImage;
+		this.transitioning = this.beforeTransitioning;
+		this.reverseAnimation = this.beforeReverseAnimation;
+	}
+
+	public void onInnerTypeChanged()
+	{
+
+	}
+
+	@Override
+	public void updateHitbox()
+	{
+		this.hitbox.setLocation(this.position.x, this.position.y);
+		this.hitbox.update();
+	}
+
+	public boolean isRotateable()
+	{
+		return this.properties.isRotatable();
+	}
+
+	@Override
+	public void setRotation(float rotation)
+	{
+		if (this.properties.isRotatable() && (Math.abs(rotation) <= 90 || !this.isRotationLimited()))
+		{
+			if (this instanceof ITileRotationListener)
+			{
+				((ITileRotationListener) this).onRotationUpdate(rotation - this.rotation, rotation);
+			}
+
+			this.rotation = rotation;
+
+			this.hitbox.setRotation(rotation, this.getCenterOfRotationX() - this.position.x, this.getCenterOfRotationY() - this.position.y);
+
+			this.onRotationChanged();
+		}
+	}
+
+	public boolean isLightAffected()
+	{
+		return true;
+	}
+
+	public boolean isRotationLimited()
+	{
+		return true;
+	}
+
+	protected boolean isMoveable()
+	{
+		return false;
+	}
+
+	protected void onRotationChanged()
+	{
+
+	}
+
+	public void onCreated()
+	{
+
+	}
+
+	@Override
+	public String customToString()
+	{
+		return " type:" + this.innerType + (this.rotation != 0.0f ? " rotation:" + this.rotation : "") + (this.image == null || this.hitbox.getRawWidth() != this.image.getRegionWidth() || this.hitbox.getRawHeight() != this.image.getRegionHeight() ? " resized w:" + this.hitbox.getRawWidth() + " h:" + this.hitbox.getRawHeight() : "");
+	}
+
+	public boolean isClimbable()
+	{
+		return this.properties.isClimbable();
+	}
+
+	protected boolean renderPartially()
+	{
+		return false;
+	}
+
+	@Override
+	public float getRotation()
+	{
+		return this.rotation;
+	}
+
+	@Override
+	public float getCenterOfRotationY()
+	{
+		return this.hitbox.getCenterY();
+	}
+
+	@Override
+	public float getCenterOfRotationX()
+	{
+		return this.hitbox.getCenterX();
+	}
+
+	public boolean isBlocked()
+	{
+		return this.properties.isBlocked();
+	}
+
+	public void setBlocked(boolean blocked)
+	{
+		this.properties.setBlocked(blocked);
+	}
+
+	public float getSlowdown()
+	{
+		return this.properties.getSlowdown();
+	}
+
+	public void setSlowdown(float slowdown)
+	{
+		this.properties.setSlowdown(slowdown);
+	}
+
+	public int getTouchDamage()
+	{
+		return this.properties.getTouchDamage();
+	}
+
+	public boolean isAnimated()
+	{
+		return this.properties.isAnimated();
+	}
+
+	public void setAnimated(boolean animated)
+	{
+		this.properties.setAnimated(animated);
+	}
+
+	public TileProperty getProperties()
+	{
+		return this.properties;
+	}
+
+	public TileType getType()
+	{
+		return this.type;
+	}
+
+	@Override
+	public Hitbox getHitbox()
+	{
+		return this.hitbox;
+	}
+
+	public int getInnerType()
+	{
+		return this.innerType;
+	}
+
+	public boolean dealsDamage()
+	{
+		return this.getTouchDamage() > 0;
+	}
+
+	@Override
+	public Level getLevel()
+	{
+		return this.level;
+	}
+
+	public int getTotalInnertypesCount()
+	{
+		return this.totalInnertypesCount;
+	}
+
+	public TextureRegion[][] getAvailableImages()
+	{
+		return this.availableImages;
+	}
+
+	public boolean shouldDrawBehindTiles()
+	{
+		return this.properties.shouldRenderBehindTiles();
+	}
+
+	public boolean shouldDrawBehindEntities()
+	{
+		return this.properties.shouldRenderBehindEntities();
+	}
+
+	public boolean shouldUseOriginalTextures()
+	{
+		return this.useOriginalTextures;
+	}
+
+	public void useOriginalTextures()
+	{
+		this.useOriginalTextures = true;
+	}
+
+	public boolean hasTextures()
+	{
+		return this.hasTextures;
+	}
+
+	public int getInnerTypes()
+	{
+		return this.innerTypes;
+	}
+}

@@ -1,0 +1,59 @@
+package com.unlogical.colored.util;
+
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Input;
+import com.badlogic.gdx.graphics.Cursor;
+import com.badlogic.gdx.graphics.Pixmap;
+import com.badlogic.gdx.graphics.g2d.Gdx2DPixmap;
+import com.unlogical.colored.GameLauncher;
+import com.unlogical.colored.filesystem.FileHandle;
+import com.unlogical.colored.filesystem.FileManager;
+import com.unlogical.colored.filesystem.FilePaths;
+
+public enum CursorType
+{
+	DEFAULT(FilePaths.CURSOR + "/default.png", 0, 0),
+	GRAB(FilePaths.CURSOR + "/grab.png", 0, 0),
+	SET(FilePaths.CURSOR + "/set.png", 7, 7);
+
+	private static CursorType currentType;
+	private static boolean cursorChanged = true;
+
+	private Cursor cursor;
+
+	private CursorType(String path, int hotspotX, int hotspotY)
+	{
+		try
+		{
+			FileHandle handle = FileManager.getFile(FileManager.globaliseFile(path));
+
+			Pixmap image = new Pixmap(new Gdx2DPixmap(handle.createInputStream(), Gdx2DPixmap.GDX2D_FORMAT_RGBA8888));
+
+			this.cursor = Gdx.graphics.newCursor(image, hotspotX, hotspotY);
+		}
+		catch (Exception e)
+		{
+			throw new RuntimeException("Failed to load cursor (" + path + ")", e);
+		}
+	}
+
+	public static void useCursor(CursorType cursorType)
+	{
+		if (currentType != cursorType)
+		{
+			cursorChanged = true;
+		}
+
+		currentType = cursorType;
+	}
+
+	public static void updateCursor()
+	{
+		if (cursorChanged)
+		{
+			Gdx.graphics.setCursor(currentType.cursor);
+		}
+
+		Gdx.input.setCursorCatched((GameLauncher.getStatus() == GameStatus.IN_LEVEL || GameLauncher.getStatus() == GameStatus.LOADING) && !GameLauncher.isDeveloperMode() && !Gdx.input.isKeyPressed(Input.Keys.CONTROL_LEFT));
+	}
+}

@@ -1,0 +1,59 @@
+Colored was programmed and designed by Florian Cäsar.
+Art by Larissa D' Aguiar.  
+Music / sound by xyz. 
+
+Copyright unlogical_games 2016. Do not distribute.  
+
+Used Software / Libraries:
+
+Java
+ by Sun Microsystems (Oracle)
+ licensed under GNU General Public
+
+Eclipse 
+ by Eclipse Foundation
+ licensed under Eclipse Public License 
+
+Gradle
+ by Gradle Inc.
+ licensed under Apache License 2.0
+
+OpenGL
+ by Khronos Group
+ 
+OpenAL 
+ by Creative Technology
+ licensed under GNU Lesser General Public License
+
+LibGDX
+ by Mario Zechner
+ licensed under Apache License 2.0
+
+ Extensions used:
+  gdx-freetype
+  gdx-controllers
+  gdx-box2dlights
+
+OpenCSV
+ by Glen Smith
+ licensed under Apache License 2.0
+
+Open Broadcaster Software
+ by 
+ licensed under 
+
+PaintTool SAI
+ by 
+ licensed under
+
+Adobe Photoshop 
+ by Adobe Systems
+ licensed under
+
+Paint.net
+ by 
+ licensed under
+
+MSPaint
+ by Microsoft Cooperation
+ licensed under

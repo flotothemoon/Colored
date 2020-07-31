@@ -1,0 +1,21 @@
+package com.unlogical.linked.gui.selection;
+
+import com.unlogical.linked.gui.GUIItem;
+import com.unlogical.linked.mapeditor.MapEditor;
+
+public class EntitySelection extends GUIItemSelection
+{
+	public EntitySelection(GUIItem[] items, int itemsPerLine, int itemsPerColumn, int xOffset, int yOffset)
+	{
+		super("Entities", items, itemsPerLine, itemsPerColumn, xOffset, yOffset);
+	}
+
+	@Override
+	public void itemSelected(int number, String name, String metadata)
+	{
+		MapEditor.setEntityName(name);
+		MapEditor.setClickCooldown(250);
+		MapEditor.clearTerrainSelection();
+		MapEditor.deselectAll();
+	}
+}

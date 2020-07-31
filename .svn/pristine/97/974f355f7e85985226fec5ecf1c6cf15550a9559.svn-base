@@ -1,0 +1,89 @@
+package com.unlogical.linked.terrain.tile;
+
+import java.util.Map;
+
+import org.newdawn.slick.geom.Vector2f;
+
+import com.unlogical.linked.level.Level;
+import com.unlogical.linked.levelrendering.map.MapRenderer;
+import com.unlogical.linked.terrain.TileType;
+import com.unlogical.linked.terrain.property.TileProperty;
+import com.unlogical.linked.util.Dimension;
+import com.unlogical.linked.util.LevelObject;
+
+public class TileCameraControl extends Tile
+{
+	private boolean limitsInteractionDistance;
+
+	public TileCameraControl(TileType type, String metadata, int innerType, float rotation, Vector2f position, Level level, Dimension dimension, TileProperty properties, boolean allowMirrors)
+	{
+		super(type, metadata, innerType, rotation, position, level, dimension, properties, allowMirrors);
+	}
+
+	@Override
+	public LevelObject deepCopy(Map<Object, Object> copiedReferences)
+	{
+		TileCameraControl copy = (TileCameraControl) super.deepCopy(copiedReferences);
+		
+		copy.limitsInteractionDistance = this.limitsInteractionDistance;
+		
+		return copy;
+	}
+	
+	@Override
+	public void writeMetadata()
+	{
+		this.metadata = this.limitsInteractionDistance + "";
+	}
+
+	@Override
+	public void readMetadata()
+	{
+		try
+		{
+			this.limitsInteractionDistance = Boolean.parseBoolean(this.metadata);
+		}
+		catch (Exception e)
+		{
+			this.limitsInteractionDistance = false;
+		}
+	}
+
+	@Override
+	public boolean shouldUpdate()
+	{
+		return false;
+	}
+
+	@Override
+	public boolean shouldRenderInGame()
+	{
+		return false;
+	}
+
+	@Override
+	public boolean canBeRemoved()
+	{		
+		return MapRenderer.getCameraControllers().size() > 2;
+	}
+	
+	public boolean isTransitionController()
+	{
+		return this.innerType != 0;
+	}
+
+	public boolean isVerticalController()
+	{
+		return this.innerType != 1;
+	}
+
+	public boolean isHorizontalController()
+	{
+		return this.innerType != 2;
+	}
+
+	public boolean limitsInteractionDistance()
+	{
+		return this.limitsInteractionDistance;
+	}
+}

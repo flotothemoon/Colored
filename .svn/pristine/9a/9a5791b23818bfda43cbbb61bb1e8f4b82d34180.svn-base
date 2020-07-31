@@ -1,0 +1,369 @@
+package com.unlogical.linked.entity.boss;
+
+import java.util.HashSet;
+import java.util.Random;
+import java.util.Set;
+
+import org.newdawn.slick.Color;
+import org.newdawn.slick.GameContainer;
+import org.newdawn.slick.Graphics;
+import org.newdawn.slick.geom.Vector2f;
+
+import com.unlogical.linked.entity.Entity;
+import com.unlogical.linked.entity.EntityAction;
+import com.unlogical.linked.entity.EntityLiving;
+import com.unlogical.linked.entity.EntityType;
+import com.unlogical.linked.entity.key.EntityKey;
+import com.unlogical.linked.entity.key.KeyPort;
+import com.unlogical.linked.entity.player.EntityPlayer;
+import com.unlogical.linked.entity.projectile.EntityProjectile;
+import com.unlogical.linked.entity.property.EntityProperty;
+import com.unlogical.linked.entity.property.SharedEntityProperties;
+import com.unlogical.linked.filesystem.FilePaths;
+import com.unlogical.linked.level.Level;
+import com.unlogical.linked.level.LevelType;
+import com.unlogical.linked.resources.font.Fonts;
+import com.unlogical.linked.util.ColorHelper;
+import com.unlogical.linked.util.Dimension;
+import com.unlogical.linked.util.LevelObject;
+import com.unlogical.linked.util.Renderer;
+import com.unlogical.linked.util.ShaderHandler;
+
+public class EntityBoss extends EntityLiving
+{
+	private static final float MAX_TARGET_DISTANCE = 1200.0f;
+	private static final int SHOOT_COOLDOWN = 5000;
+	private static final int IN_BETWEEN_SHOOTING_COOLDOWN = 250;
+	private static final int PROJECTILE_COUNT = 5;
+
+	private Set<EntityProjectile> projectiles = new HashSet<EntityProjectile>();
+	private Vector2f distanceToPlayer = new Vector2f(0.0f, 0.0f);
+	private boolean movingRight;
+	private boolean active;
+	private boolean shootingProjectiles;
+	private int shootCooldown = SHOOT_COOLDOWN;
+	private int betweenCooldown;
+	private int shotProjectilesCount;
+
+	public EntityBoss(EntityType type, Vector2f position, Level level, Dimension dimension, boolean allowMirrors)
+	{
+		super(type, position, level, dimension, allowMirrors);
+	}
+
+	@Override
+	public void onUpdate(GameContainer container, float delta, Random rng)
+	{
+		if (level.getType() == LevelType.REVERSAL)
+		{
+			if (this.dimension == level.getForegroundDimension())
+			{
+				EntityPlayer player = level.getControllingPlayer();
+
+				distanceToPlayer.set(player.getCenterX(), player.getCenterY());
+				distanceToPlayer.x -= this.getCenterX();
+				distanceToPlayer.y -= this.getCenterY();
+
+				if (Math.abs(distanceToPlayer.x) < MAX_TARGET_DISTANCE && Math.abs(distanceToPlayer.y) < 250)
+				{
+					if (!active)
+					{
+						active = true;
+						((EntityBoss) this.mirroredEntity).active = true;
+
+						shotProjectilesCount = 0;
+					}
+				}
+				else
+				{
+					active = false;
+					((EntityBoss) this.mirroredEntity).active = false;
+
+					shootCooldown = SHOOT_COOLDOWN;
+				}
+
+				if (active)
+				{
+					movingRight = player.getCenterX() > this.getCenterX();
+
+					this.velocity.x += this.properties.getAcceleration(delta) * (this.movingRight ? 1 : -1);
+
+					if (Math.abs(this.velocity.x) > this.properties.getMaxSpeed())
+					{
+						this.velocity.x = this.properties.getMaxSpeed() * Math.signum(this.velocity.x);
+					}
+
+					if (!shootingProjectiles)
+					{
+						if (shootCooldown <= 0)
+						{
+							shootingProjectiles = true;
+
+							shotProjectilesCount = 0;
+							shootCooldown = SHOOT_COOLDOWN;
+							betweenCooldown = IN_BETWEEN_SHOOTING_COOLDOWN;
+						}
+						else
+						{
+							shootCooldown -= delta;
+						}
+					}
+					else
+					{
+						betweenCooldown -= delta;
+
+						if (betweenCooldown <= 0)
+						{
+							if (++shotProjectilesCount > PROJECTILE_COUNT)
+							{
+								shootingProjectiles = false;
+							}
+							else
+							{
+								EntityProjectile projectile = shootProjectile(EntityType.SHADOWBALL);
+
+								if (this.hitbox.contains(projectile.getHitbox()) || this.hitbox.intersects(projectile.getHitbox()))
+								{
+									projectiles.add(projectile);
+								}
+							}
+
+							betweenCooldown = IN_BETWEEN_SHOOTING_COOLDOWN;
+						}
+					}
+				}
+				else
+				{
+					this.velocity.x *= 0.9f;
+				}
+			}
+			else
+			{
+				this.velocity.x = -this.mirroredEntity.getVelocity().x;
+				this.movingRight = !((EntityBoss) this.mirroredEntity).movingRight;
+			}
+
+			this.setFocused(this.movingRight);
+		}
+	}
+
+	@Override
+	public void onDeathUpdate(GameContainer container, float delta, Random rng)
+	{
+		if (this.collidedBelow)
+		{
+			this.resetVelocities();
+			this.enabled = false;
+			
+			System.out.println(this + " " + collidedBelow);
+		}
+	}
+
+	private EntityProjectile shootProjectile(EntityType projectileType)
+	{
+		EntityProjectile projectile = (EntityProjectile) Entity.createEntity(EntityType.SHADOWBALL, new Vector2f(this.getCenterX(), this.getCenterY()), level, Dimension.LIGHT, false);
+
+		float rotation = (float) distanceToPlayer.getTheta() + 90;
+		float shootSpeed = 1.0f;
+
+		projectile.setShared(true);
+		projectile.onShoot(this, rotation, shootSpeed);
+		projectile.setVelocity(projectile.getStartVelocity(this, rotation, shootSpeed).copy());
+
+		level.addEntity(projectile);
+
+		return projectile;
+	}
+
+	@Override
+	protected void customOnDeath(LevelObject damageSource)
+	{
+		if (level.getLevelType() == LevelType.REVERSAL)
+		{
+			if (damageSource instanceof EntityProjectile)
+			{
+				((EntityBoss) this.mirroredEntity).onDeath(this);
+
+				EntityKey key = (EntityKey) Entity.createEntity(EntityType.KEY, new Vector2f(this.getCenterX(), this.getCenterY()), level, dimension, false);
+
+				key.setPort(KeyPort.GREEN);
+				key.setShared(true);
+
+				level.addEntity(key);
+			}
+
+			this.hitbox.set(this.hitbox.getX(), this.hitbox.getY(), this.hitbox.getRawWidth(), this.hitbox.getRawHeight() - 55);
+			this.setRotation(this.velocity.x > 0 ? 15 : -15);
+
+			this.velocity.x *= 0.5f;
+
+			this.currentAction = EntityAction.DEAD;
+			this.changedAction = true;
+
+			this.enabled = true;
+			this.setSkipMainUpdate(false);
+		
+			this.collidedBelow = false;
+			this.hitbox.resetCache();
+		}
+	}
+
+	@Override
+	public void damagedByEntity(int damage, Entity damageSource)
+	{
+		if (damage > 0 && damageSource instanceof EntityProjectile)
+		{
+			((EntityProjectile) damageSource).onDeath(this);
+			((EntityBoss) this.mirroredEntity).health = this.health;
+		}
+	}
+
+	@Override
+	protected Color customModifiyDrawColor(Color color)
+	{
+		return ColorHelper.inverseMultiplyRGBAndCopy(super.customModifiyDrawColor(color), Color.red, 0.8f * (1.0f - ((float) shootCooldown) / ((float) SHOOT_COOLDOWN)));
+	}
+
+	@Override
+	public void draw(Graphics g)
+	{
+		super.draw(g);
+
+//		if (alive)
+		{
+			g.setAntiAlias(true);
+			g.setColor(ColorHelper.applyAlphaAndCopy(Color.red, level.getDimensionColor(this.dimension).a * 0.5f));
+			g.fillRect(this.getCenterX() - 50, this.getCenterY() - 65, 100 - (((float) shootCooldown) / (float) SHOOT_COOLDOWN) * 100.0f, 10);
+			g.setAntiAlias(false);
+			
+			ShaderHandler.disableLighting();
+
+			g.setFont(Fonts.getSmallFont());
+			g.setColor(customModifiyDrawColor(this.getDrawColor(this.dimension, ColorHelper.buffer)));
+
+			String drawString = "";
+
+			for (int i = 0; i < this.properties.getMaxHealth() - this.health; i++)
+			{
+				drawString += "X";
+			}
+
+			for (int i = 0; i < this.health; i++)
+			{
+				drawString += "O";
+			}
+
+			g.drawString(drawString + " " + enabled + " " + isSkipMainUpdate(), this.getCenterX() - g.getFont().getWidth(drawString) / 2.0f, this.getCenterY() - 58);
+
+			Renderer.bindTexture(null);
+		}
+	}
+
+	@Override
+	protected boolean canBeHarmedBy(Entity entity)
+	{
+		if (!(entity instanceof EntityProjectile))
+		{
+			return false;
+		}
+
+		return ((EntityProjectile) entity).getSource() != this && !projectiles.contains(entity);
+	}
+
+	@Override
+	protected boolean useAutomaticAnimations()
+	{
+		return false;
+	}
+
+	@Override
+	protected EntityAction getCustomAction()
+	{
+		if (alive)
+		{
+			if (active)
+			{
+				return EntityAction.WALKING;
+			}
+			else
+			{
+				return EntityAction.STANDING;
+			}
+		}
+		else
+		{
+			return EntityAction.DEAD;
+		}
+	}
+
+	@Override
+	protected Vector2f getHandOffset(boolean focused, EntityAction currentAction, int currentImage)
+	{
+		return null;
+	}
+
+	@Override
+	public boolean isBlocked()
+	{
+		return true;
+	}
+
+	@Override
+	protected boolean canInteractWith(Entity entity)
+	{
+		return true;
+	}
+
+	@Override
+	protected EntityProperty getEntityProperty()
+	{
+		return SharedEntityProperties.BOSS;
+	}
+
+	@Override
+	public boolean checkEntityCollisions()
+	{
+		return true;
+	}
+
+	@Override
+	public boolean collidesWithEntities()
+	{
+		return true;
+	}
+
+	@Override
+	public boolean collidesWithTerrain()
+	{
+		return true;
+	}
+
+	@Override
+	protected boolean canWalkSlopes()
+	{
+		return true;
+	}
+
+	@Override
+	protected boolean shouldBounceOnGround()
+	{
+		return true;
+	}
+
+	@Override
+	public boolean supportsAction(EntityAction action)
+	{
+		return action == EntityAction.STANDING || action == EntityAction.WALKING || action == EntityAction.DEAD;
+	}
+
+	@Override
+	protected boolean shouldUseFittingTextures()
+	{
+		return true;
+	}
+
+	@Override
+	public String getTextureDirectory()
+	{
+		return FilePaths.ENTITY_BOSS;
+	}
+}

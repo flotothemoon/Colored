@@ -1,0 +1,68 @@
+ -- General -- 
+Generated on: 2016-06-19_16-54-06
+Build: 759 from 10:18 PM - 18/06/16
+GameState: IN_LEVEL (previous: PAUSE_MENU)
+Target FPS: 60
+Actual FPS: 49
+
+ -- Display -- 
+Target Width / Height: 1920 / 1080
+Actual Width / Height: 1920 / 1017 (windowed)
+
+ -- Environment -- 
+GPU: GeForce GTX 980 Ti/PCIe/SSE2 (NVIDIA Corporation)
+OpenGL Version: 4.5.0 NVIDIA 361.43
+Allocated Memory: 123MB
+Used Memory: 22MB
+"os.name": Windows 10
+"os.version": 10.0
+"os.arch": x86
+"java.version": 1.8.0_66
+"java.vendor": Oracle Corporation
+"sun.arch.data.model": 32
+
+ -- Level --
+ID: 21-01 (internal: 01)
+LevelType: REVERSAL
+Dimension: COLORED
+Location: ../worlds/maps/21-01
+
+ -- Stack Trace -- 
+java.lang.NullPointerException
+com.unlogical.colored.audio.AudioManager.play(AudioManager.java:74)
+com.unlogical.colored.audio.AudioManager.play(AudioManager.java:64)
+com.unlogical.colored.gui.menu.Menu.update(Menu.java:171)
+com.unlogical.colored.gui.menu.MenuHandler.update(MenuHandler.java:181)
+com.unlogical.colored.GameLauncher.update(GameLauncher.java:389)
+com.unlogical.colored.GameLauncher.render(GameLauncher.java:460)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication.mainLoop(LwjglApplication.java:218)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication$1.run(LwjglApplication.java:123)
+
+ -- Last 20 Log Entries -- 
+@Log    : Initializing map editor... (tid: 12)
+@Log    : Initialising levelrenderer... (tid: 12)
+@Log    : Initializing menus... (tid: 12)
+@Log    : SaveState 1.dat found and read successfully. (tid: 12)
+@Log    : SaveState 2.dat found and read successfully. (tid: 12)
+@Log    : Initializing story handler... (tid: 12)
+@Log    : Initializing credits screen... (tid: 12)
+@Log    : Resizing contents to current window size... (tid: 12)
+@Log    : Finished loading, took 639ms. (tid: 12)
+@Log    : Loading map ../worlds/maps/21-01 ... (tid: 12)
+@Log    : Loading map files took 143ms. (tid: 12)
+@Warning: Tried to load image(s) from path res/gui/icons/21_01, the resolved path res/gui/icons/21_01.png however does not exist. (tid: 12)
+@Warning: Couldn't load level icon for 21-01. (tid: 12)
+@Log    : Fetching lights for level "21-01" ... (tid: 12)
+@Log    : Lights fetched for level "21-01", 8 lights found. (tid: 12)
+@Log    : Pre-simulating particles for 45000.0ms (300 x 150.0ms)... (tid: 12)
+@Log    : Particle pre-simulation complete. Particles are now ahead of time by 45000.0ms. (tid: 12)
+@Log    : Active save was saved to disk. (tid: 12)
+@Log    : Loaded 21-01 (took 211ms). (tid: 12)
+@Log    : Play sound RAIN at volume 0.59586954, pitch 1.0 and pan -0.2488 (looping). (tid: 12)
+
+ -- Last 5 Input Events -- 
+Touch up: 0 (pointer: 0) at x:451 y: 1 (3130ms ago)
+Key down: L-Ctrl (129) (1860ms ago)
+Key down: Escape (131) (626ms ago)
+Key up: Escape (131) (559ms ago)
+Touch down: 0 (pointer: 0) at x:936 y: 148 (9ms ago)

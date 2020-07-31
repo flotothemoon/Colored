@@ -1,0 +1,70 @@
+package com.unlogical.colored.terrain.tile;
+
+import java.util.Random;
+
+import com.badlogic.gdx.math.Vector2;
+import com.badlogic.gdx.utils.Pools;
+import com.unlogical.colored.entity.Entity;
+import com.unlogical.colored.level.Level;
+import com.unlogical.colored.particle.EmitterType;
+import com.unlogical.colored.terrain.TileType;
+import com.unlogical.colored.terrain.property.TileProperty;
+import com.unlogical.colored.terrain.tile.properties.ITileMirrorable;
+import com.unlogical.colored.util.Dimension;
+
+public class TileHole extends Tile implements ITileMirrorable
+{
+	public TileHole(TileType type, String metadata, int innerType, float rotation, Vector2 position, Level level, Dimension dimension, TileProperty properties, boolean allowMirrors)
+	{
+		super(type, metadata, innerType, rotation, position, level, dimension, properties, allowMirrors);
+
+		this.addEmitter(EmitterType.HOLE_ATTRACT, dimension);
+	}
+
+	@Override
+	public void onUpdate(float delta, Random rng)
+	{
+		super.onUpdate(delta, rng);
+
+		float range = 300;
+		float force = -0.02f;
+
+		Vector2 buffer = Pools.get(Vector2.class).obtain();
+
+		for (Entity entity : this.level.getEntities())
+		{
+			if (entity.inSameDimension(this))
+			{
+				buffer.set(entity.getCenterX(), entity.getCenterY());
+				buffer.sub(this.getCenterX(), this.getCenterY());
+
+				float distance = buffer.len();
+
+				if (distance <= range)
+				{
+					float attractionFactor = (float) (1.0f - Math.pow(distance / range, 1.5f));
+
+					entity.getVelocity().add(Math.signum(buffer.x) * attractionFactor * force, Math.signum(buffer.y) * attractionFactor * force);
+				}
+			}
+		}
+	}
+
+	@Override
+	public boolean shouldUpdate()
+	{
+		return true;
+	}
+
+	@Override
+	public boolean renderStatic()
+	{
+		return false;
+	}
+
+	@Override
+	public boolean isReallyChangeable()
+	{
+		return false;
+	}
+}

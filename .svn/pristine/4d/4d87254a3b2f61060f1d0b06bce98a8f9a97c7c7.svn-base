@@ -1,0 +1,10 @@
+package com.unlogical.colored.particle;
+
+import java.util.Random;
+
+import org.newdawn.slick.Color;
+
+public interface IColorDistributionMode
+{
+	public Color getColor(Color startColor, Color endColor, Random rng);
+}

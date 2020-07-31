@@ -1,0 +1,23 @@
+package com.unlogical.linked.util;
+
+public class Range
+{
+	private float min;
+	private float max;
+
+	public Range(float min, float max)
+	{
+		this.min = Math.min(min, max);
+		this.max = Math.max(min, max);
+	}
+
+	public boolean isInRange(int number)
+	{
+		return (number >= min && number <= max && min != max);
+	}
+	
+	public float random()
+	{
+		return (float) (min + (Math.random() * (max - min)));
+	}
+}

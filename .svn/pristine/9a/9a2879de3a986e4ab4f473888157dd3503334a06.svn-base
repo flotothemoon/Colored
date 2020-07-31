@@ -1,0 +1,255 @@
+package com.unlogical.colored.entity.boss;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.Set;
+
+import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.g2d.Batch;
+import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
+import com.badlogic.gdx.graphics.glutils.ShapeRenderer.ShapeType;
+import com.badlogic.gdx.math.Vector2;
+import com.unlogical.colored.debug.Debug;
+import com.unlogical.colored.entity.Entity;
+import com.unlogical.colored.entity.EntityType;
+import com.unlogical.colored.entity.projectile.EntityIceSpike;
+import com.unlogical.colored.entity.projectile.EntityMiniIceSpike;
+import com.unlogical.colored.entity.property.EntityProperties;
+import com.unlogical.colored.level.Level;
+import com.unlogical.colored.resources.font.Fonts;
+import com.unlogical.colored.terrain.tile.Tile;
+import com.unlogical.colored.util.ColorHelper;
+import com.unlogical.colored.util.Dimension;
+import com.unlogical.colored.util.LevelObject;
+import com.unlogical.colored.util.Renderer;
+
+public class EntityTimeScaleBoss extends EntityBoss
+{
+	private static final int JUMP_WAIT_TIME = 7000;
+
+	private List<EntityIceSpike> mainSpikes = new ArrayList<EntityIceSpike>();
+	private List<EntityMiniIceSpike> miniSpikes = new ArrayList<EntityMiniIceSpike>();
+	private EntityIceSpike nextSpike;
+	
+	private boolean lastJumping;
+	private int timeUntilJump;
+	
+	public EntityTimeScaleBoss(EntityType type, Vector2 position, Level level, Dimension dimension, boolean allowMirrors)
+	{
+		super(type, position, level, dimension, allowMirrors);
+	}
+
+	@Override
+	public LevelObject deepCopy(Map<Object, Object> copiedReferences)
+	{
+		EntityTimeScaleBoss copy = (EntityTimeScaleBoss) super.deepCopy(copiedReferences);
+		
+		copy.mainSpikes = Level.deepCopyCollection(this.mainSpikes, copy.mainSpikes, copiedReferences);
+		copy.miniSpikes = Level.deepCopyCollection(this.miniSpikes, copy.miniSpikes, copiedReferences);
+		copy.nextSpike = (EntityIceSpike) Level.getCopy(nextSpike, copiedReferences);
+		copy.lastJumping = this.lastJumping;
+		copy.timeUntilJump = this.timeUntilJump;
+		
+		return copy;
+	}
+	
+	@Override
+	public void init()
+	{
+		super.init();
+
+		mainSpikes.clear();
+
+		for (Entity entity : level.getEntities())
+		{
+			if (entity instanceof EntityIceSpike && entity.getDimension() == Dimension.LIGHT)
+			{
+				if (entity instanceof EntityMiniIceSpike)
+				{
+					miniSpikes.add((EntityMiniIceSpike) entity);
+				}
+				else
+				{
+					mainSpikes.add((EntityIceSpike) entity);
+				}
+			}
+		}
+		
+		Collections.sort(mainSpikes, new Comparator<Entity>()
+		{
+			@Override
+			public int compare(Entity o1, Entity o2)
+			{
+				return (int) (o1.getCenterX() - o2.getCenterX());
+			}
+		});
+
+		if (!mainSpikes.isEmpty())
+		{
+			nextSpike = mainSpikes.get(0);
+		}
+	}
+
+	@Override
+	public void onUpdate(float delta, Random rng)
+	{
+		super.onUpdate(delta, rng);
+
+		if (Math.abs(distanceToPlayer.x) < 720.0f && Math.abs(distanceToPlayer.y) < 80)
+		{
+			if (!active)
+			{
+				active = true;
+
+				timeUntilJump = -1;
+			}
+		}
+
+		if (active)
+		{
+			this.movingRight = nextSpike.getCenterX() > this.getCenterX();
+
+			float speedFactor = 0.5f;
+			
+			if (Math.abs(distanceToPlayer.x) < 400.0f)
+			{				
+				timeUntilJump -= delta;
+				
+				speedFactor = 1.0f;
+			}
+			
+			if (!this.jumping)
+			{				
+				this.velocity.x += this.properties.getAcceleration(delta) * (this.movingRight ? 1 : -1) * speedFactor;
+
+				if (Math.abs(this.velocity.x) > this.properties.getMaxSpeed() * speedFactor)
+				{
+					this.velocity.x = this.properties.getMaxSpeed() * speedFactor * Math.signum(this.velocity.x);
+				}
+			}
+				
+			if (timeUntilJump < 0)
+			{
+				this.resetVelocities();
+				this.velocity.y = -0.9f;
+				this.jumping = true;
+
+				timeUntilJump = JUMP_WAIT_TIME;
+			}
+
+			if (this.lastJumping && !this.jumping && !this.mainSpikes.isEmpty())
+			{
+				for (EntityMiniIceSpike spike : miniSpikes)
+				{
+					spike.fall();
+				}
+
+				nextSpike.fall();
+
+				int nextIndex = rng.nextInt(mainSpikes.size());
+
+				if (mainSpikes.get(nextIndex) == nextSpike)
+				{
+					nextIndex++;
+
+					if (nextIndex >= mainSpikes.size())
+					{
+						nextIndex = 0;
+					}
+				}
+
+				nextSpike = mainSpikes.get(nextIndex);
+
+				if (this.tileBelow != null)
+				{
+					
+				}
+				else
+				{
+					Debug.warn("EntityTimeScaleBoss stopped jumping but tilebelow is null. (" + this + ")");
+				}
+			}
+		}
+
+		this.lastJumping = this.jumping;
+	}
+
+	public void getAllLeft(Tile tile, Set<Tile> tiles)
+	{
+		tiles.add(tile);
+
+		if (tile.getHitbox().isConnectedLeft() && tile.getLeftConnectedTile() != null)
+		{
+			getAllLeft(tile.getLeftConnectedTile(), tiles);
+		}
+	}
+
+	public void getAllRight(Tile tile, Set<Tile> tiles)
+	{
+		tiles.add(tile);
+
+		if (tile.getHitbox().isConnectedRight() && tile.getRightConnectedTile() != null)
+		{
+			getAllRight(tile.getRightConnectedTile(), tiles);
+		}
+	}
+
+	@Override
+	public void onDeathUpdate(float delta, Random rng)
+	{
+		super.onDeathUpdate(delta, rng);
+	}
+
+	@Override
+	public void draw(Batch batch)
+	{
+		super.draw(batch);
+
+		if (alive && active)
+		{
+			ShapeRenderer sr = Renderer.useShapeRenderer();
+			
+			sr.set(ShapeType.Filled);
+			sr.setColor(ColorHelper.applyAlphaAndCopy(Color.RED, level.getDimensionColor(this.dimension).a * 0.5f));
+			sr.rect(this.getCenterX() - 50, this.getCenterY() - 65, 100 - (((float) timeUntilJump) / (float) JUMP_WAIT_TIME) * 100.0f, 10);
+			
+			Renderer.setFont(Fonts.getSmallFont());
+
+			String drawString = "";
+
+			for (int i = 0; i < this.properties.getMaxHealth() - this.health; i++)
+			{
+				drawString += "X";
+			}
+
+			for (int i = 0; i < this.health; i++)
+			{
+				drawString += "O";
+			}
+
+			Renderer.drawString(drawString, customModifiyDrawColor(this.getDrawColor(this.dimension, ColorHelper.buffer)), this.getCenterX() - Renderer.getWidth(drawString) / 2.0f, this.getCenterY() - 58, 1.0f, batch);
+		}
+	}
+
+	@Override
+	protected boolean canInteractWith(Entity entity)
+	{
+		return super.canInteractWith(entity) && entity.getType() != EntityType.GOOMBA && !(entity instanceof EntityMiniIceSpike);
+	}
+
+	@Override
+	protected boolean shouldBounceOnGround()
+	{
+		return false;
+	}
+
+	@Override
+	protected EntityProperties getEntityProperty()
+	{
+		return EntityProperties.TIME_SCALE_BOSS;
+	}
+}

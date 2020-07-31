@@ -1,0 +1,113 @@
+package com.unlogical.colored.filesystem.files;
+
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
+import java.util.ArrayList;
+import java.util.List;
+
+import org.newdawn.slick.geom.Vector2f;
+
+import com.unlogical.colored.configuration.Resolutions;
+import com.unlogical.colored.debug.Debug;
+import com.unlogical.colored.entity.Entity;
+import com.unlogical.colored.entity.EntityType;
+import com.unlogical.colored.filesystem.FileHandle;
+import com.unlogical.colored.level.Level;
+import com.unlogical.colored.mapeditor.MapEditor;
+import com.unlogical.colored.util.Dimension;
+
+import au.com.bytecode.opencsv.CSVReader;
+import au.com.bytecode.opencsv.CSVWriter;
+
+public class EntityFileHandler
+{
+	private FileHandle file;
+
+	public EntityFileHandler(FileHandle file)
+	{
+		this.file = file;
+	}
+
+	public void write(List<Entity> entities)
+	{
+		CSVWriter writer = null;
+
+		try
+		{
+			writer = new CSVWriter(new OutputStreamWriter(file.createOutputStream()));
+		}
+		catch (IOException e)
+		{
+			e.printStackTrace();
+		}
+
+		String[] line = new String[6];
+
+		for (Entity entity : entities)
+		{
+			if (entity.getDimension() == Dimension.LIGHT)
+			{
+				line[0] = entity.getType() + "";
+				line[1] = (entity.getX() - MapEditor.getLevel().getCameraOffset().getX()) / Resolutions.TILE_SIZE + "";
+				line[2] = (entity.getY() - MapEditor.getLevel().getCameraOffset().getY()) / Resolutions.TILE_SIZE + "";
+				line[3] = entity.getDimension().code() + "";
+				line[4] = entity.isShared() + "";			
+				
+				entity.writeMetadata();
+				
+				line[5] = entity.getMetadata();
+
+				writer.writeNext(line);
+			}
+		}
+
+		try
+		{
+			writer.close();
+			file.closeOutputStream();
+		}
+		catch (IOException e)
+		{
+			Debug.warn("Unable to close file writer: " + e, e);
+		}
+	}
+
+	public ArrayList<Entity> read(Level level)
+	{
+		CSVReader reader = null;
+		ArrayList<Entity> entities = level.getEntities();
+		String[] line = null;
+
+		try
+		{
+			reader = new CSVReader(new InputStreamReader(file.createInputStream()));
+
+			while ((line = reader.readNext()) != null)
+			{
+				Entity entity = Entity.createEntity(EntityType.getTypeByNameTag(line[0]), new Vector2f(Float.parseFloat(line[1]) * Resolutions.TILE_SIZE, Float.parseFloat(line[2]) * Resolutions.TILE_SIZE), level, Dimension.getDimension(Integer.parseInt(line[3])), true);
+				entity.setMetadata(line[5]);
+				entity.setShared(Boolean.parseBoolean(line[4]));
+				entity.setWasCreatedFromFile(true);
+				
+				if (entity.hasMirror())
+				{
+					entity.initMirror(entity.getMirroredEntity(), level.getType());
+				}
+				
+				level.addEntity(entity);
+			}
+			
+			reader.close();
+			file.closeInputStream();
+		}
+		catch (Exception e)
+		{
+			Debug.warn("Exception while reading entity file: " + e, e);
+		}
+		
+		level.transferBuffers();
+
+		return entities;
+	}
+}

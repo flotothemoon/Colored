@@ -1,0 +1,38 @@
+package com.unlogical.colored.filesystem;
+
+import java.io.IOException;
+
+public class MapFiles
+{
+	public static final String[] files = { "config.yml", "terrain.map", "entities.map" };
+
+	public static void createFiles(String mapname)
+	{
+		for (int i = 0; i < files.length; i++)
+		{
+			try
+			{
+				FileManager.createFile(FilePaths.MAPS + "/" + mapname + "/" + files[i]);
+			}
+			catch (IOException e)
+			{
+				throw new RuntimeException("Bacon while creating files for " + mapname + ": " + e);
+			}
+		}
+	}
+
+	public static void initFiles(String mapFolder, String mapPath, String mapname, String ID) throws IOException
+	{
+		FileHandle cfgFile = FileManager.getOrCreateFile(mapPath + "/config.yml");
+		ConfigFileHandler cfg = new ConfigFileHandler(cfgFile);
+
+		cfg.set("name", mapname);
+		cfg.set("ID", ID);
+		cfg.set("type", 0);
+		cfg.set("totalcages", 0);
+
+		FileManager.createFile(mapPath + "/terrain.map");
+		FileManager.createFile(mapPath + "/wrappers.cfg");
+		FileManager.createFile(mapPath + "/entities.map");
+	}
+}

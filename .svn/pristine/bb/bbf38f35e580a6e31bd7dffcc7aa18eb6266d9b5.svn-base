@@ -1,0 +1,16 @@
+package com.unlogical.linked.util;
+
+public enum GameStatus
+{
+	LOADING,
+	MAP_EDITOR,
+	IN_MAP,
+	
+	MAIN_MENU,
+	PAUSE_MENU,
+	SETTINGS_MENU,
+	PLAY_MENU,
+	MAP_CREATION_MENU,
+	MAP_EDITOR_MENU,
+	CUSTOM_MAP_SELECTION,
+}

@@ -1,0 +1,44 @@
+package com.unlogical.colored.story;
+
+import java.util.Map;
+
+import org.newdawn.slick.GameContainer;
+
+import com.unlogical.colored.level.Level;
+import com.unlogical.colored.levelrendering.LevelRenderer;
+
+public class BeginningStoryHandler extends CustomStoryHandler
+{
+	private boolean canPlayerTravelDimensions;
+	
+	public BeginningStoryHandler(Level level)
+	{
+		super(level);
+	}
+
+	@Override
+	public CustomStoryHandler deepCopy(Map<Object, Object> copiedReferences)
+	{
+		BeginningStoryHandler copy = new BeginningStoryHandler((Level) Level.getCopy(this.level, copiedReferences));
+		
+		return copy;
+	}
+	
+	@Override
+	public void update(GameContainer container, int delta)
+	{
+		super.update(container, delta);
+	}
+	
+	@Override
+	public void onLevelInit()
+	{				
+		LevelRenderer.onDimensionToggle(false);
+	}
+	
+	@Override
+	public boolean canPlayerTravelDimensions()
+	{
+		return canPlayerTravelDimensions;
+	}
+}

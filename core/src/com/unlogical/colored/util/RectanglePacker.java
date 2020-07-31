@@ -1,0 +1,289 @@
+package com.unlogical.colored.util;
+
+import java.awt.Point;
+import java.awt.Rectangle;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.LinkedHashSet;
+import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
+
+public class RectanglePacker
+{
+	private static final int SPACING = 3;
+	private static final Comparator<IPackableRectangle<?>> sizeComparator = new Comparator<IPackableRectangle<?>>()
+	{
+		@Override
+		public int compare(IPackableRectangle<?> o1, IPackableRectangle<?> o2)
+		{
+			int result = o2.getRectangle().width * o2.getRectangle().height - o1.getRectangle().width * o1.getRectangle().height;
+
+			if (result == 0)
+			{
+				result = o2.hashCode() - o1.hashCode();
+			}
+
+			return result;
+		}
+	};
+	@SuppressWarnings("unused")
+	private static final Comparator<Line> lineComparator = new Comparator<Line>()
+	{
+		@Override
+		public int compare(Line o1, Line o2)
+		{
+			int result = (int) (o2.startY - o1.startY);
+
+			if (result == 0)
+			{
+				result = (int) (o2.startX - o1.startX);
+			}
+
+			if (result == 0)
+			{
+				result = (int) (o2.endY - o1.endY);
+			}
+
+			if (result == 0)
+			{
+				result = (int) (o2.endX - o1.endX);
+			}
+
+			return -result;
+		}
+	};
+
+	private RectanglePackMode packMode;
+	private LinkedHashSet<IPackableRectangle<?>> freeRectangles;
+
+	public RectanglePacker(Collection<? extends IPackableRectangle<?>> rectangles, RectanglePackMode packMode)
+	{
+		this.freeRectangles = new LinkedHashSet<IPackableRectangle<?>>(rectangles);
+		this.packMode = packMode;
+	}
+
+	public Rectangle pack()
+	{
+		if (packMode == RectanglePackMode.LINEAR)
+		{
+			Rectangle boundingBox = new Rectangle(0, 0, 0, 0);
+
+			for (IPackableRectangle<?> rectangle : freeRectangles)
+			{
+				rectangle.getRectangle().setLocation(0, (int) boundingBox.getHeight() + SPACING);
+				boundingBox.setSize(boundingBox.getWidth() < rectangle.getRectangle().getWidth() ? (int) rectangle.getRectangle().getWidth() : (int) boundingBox.getWidth(), (int) boundingBox.getHeight() + SPACING + (int) rectangle.getRectangle().getHeight());
+			}
+
+			return boundingBox;
+		}
+		else if (packMode == RectanglePackMode.GREEDY)
+		{
+			Rectangle boundingBox = new Rectangle(0, 0, 0, 0);
+			SortedSet<IPackableRectangle<?>> freeRectanglesBySize = new TreeSet<IPackableRectangle<?>>(sizeComparator);
+			Set<IPackableRectangle<?>> packedRectangles = new LinkedHashSet<IPackableRectangle<?>>();
+
+			for (IPackableRectangle<?> rect : this.freeRectangles)
+			{
+				freeRectanglesBySize.add(rect);
+				rect.getRectangle().setSize(rect.getRectangle().width + SPACING, rect.getRectangle().height + SPACING);
+			}
+
+			for (IPackableRectangle<?> rectangle : freeRectanglesBySize)
+			{
+				Set<Point> availablePositions = getAvailablePositions(boundingBox, packedRectangles, false);
+
+				if (availablePositions.isEmpty())
+				{
+					rectangle.getRectangle().setLocation((int) boundingBox.getX(), (int) boundingBox.getY());
+					boundingBox.setSize(rectangle.getRectangle().width, rectangle.getRectangle().height);
+
+					packedRectangles.add(rectangle);
+				}
+				else
+				{
+					Point usedPoint = null;
+					Point usedSize = null;
+
+					for (Point point : availablePositions)
+					{
+						rectangle.getRectangle().setLocation(point);
+
+						if (!intersectsAny(rectangle.getRectangle(), packedRectangles))
+						{
+							packedRectangles.add(rectangle);
+
+							Point newSize = getNewSize(packedRectangles, boundingBox);
+
+							if (usedPoint == null || newSize.x * newSize.y <= usedSize.x * usedSize.y && (boundingBox.width > 1024 || newSize.x < 1024) && (boundingBox.height > 1024 || newSize.y < 1024))
+							{
+								usedPoint = point;
+								usedSize = newSize;
+							}
+
+							packedRectangles.remove(rectangle);
+						}
+					}
+
+					rectangle.getRectangle().setLocation(usedPoint);
+
+					packedRectangles.add(rectangle);
+
+					Point newSize = getNewSize(packedRectangles, boundingBox);
+
+					boundingBox.setSize((newSize.x), (newSize.y));
+
+					packedRectangles.remove(rectangle);
+
+					Point bestLocation = new Point(usedPoint);
+
+					while (rectangle.getRectangle().x > 1 && rectangle.getRectangle().getMaxX() <= boundingBox.getWidth())
+					{
+						int yDiff = rectangle.getRectangle().y > 1 ? 2 : rectangle.getRectangle().y;
+
+						while (rectangle.getRectangle().y >= yDiff && yDiff != 0)
+						{
+							rectangle.getRectangle().setLocation(rectangle.getRectangle().x, rectangle.getRectangle().y - yDiff);
+
+							if (intersectsAny(rectangle.getRectangle(), packedRectangles))
+							{
+								rectangle.getRectangle().setLocation(rectangle.getRectangle().x, rectangle.getRectangle().y + yDiff);
+
+								if (rectangle.getRectangle().y < bestLocation.y)
+								{
+									bestLocation.x = rectangle.getRectangle().x;
+									bestLocation.y = rectangle.getRectangle().y;
+								}
+
+								break;
+							}
+							else
+							{
+								bestLocation.y = rectangle.getRectangle().y;
+							}
+
+							yDiff = rectangle.getRectangle().y > 1 ? 2 : rectangle.getRectangle().y;
+						}
+
+						rectangle.getRectangle().setLocation(rectangle.getRectangle().x + 2, rectangle.getRectangle().y);
+
+						if (intersectsAny(rectangle.getRectangle(), packedRectangles))
+						{
+							break;
+						}
+					}
+
+					rectangle.getRectangle().setLocation(bestLocation);
+
+					if (intersectsAny(rectangle.getRectangle(), packedRectangles))
+					{
+						rectangle.getRectangle().setLocation(usedPoint);
+					}
+
+					packedRectangles.add(rectangle);
+				}
+			}
+
+			for (IPackableRectangle<?> rect : this.freeRectangles)
+			{
+				freeRectanglesBySize.add(rect);
+				rect.getRectangle().setSize(rect.getRectangle().width - SPACING, rect.getRectangle().height - SPACING);
+				rect.getRectangle().setLocation(rect.getRectangle().x + SPACING / 2, rect.getRectangle().y + SPACING / 2);
+			}
+
+			return boundingBox;
+		}
+
+		throw new UnsupportedOperationException("Rectangle pack mode " + packMode + " isn't implemented or doesn't exist.");
+	}
+
+	private boolean intersectsAny(Rectangle rectangle, Set<IPackableRectangle<?>> packedRectangles)
+	{
+		boolean intersectsAny = false;
+
+		for (IPackableRectangle<?> other : packedRectangles)
+		{
+			if (rectangle.intersects(other.getRectangle()) || rectangle.contains(other.getRectangle()) || other.getRectangle().contains(rectangle))
+			{
+				intersectsAny = true;
+
+				break;
+			}
+		}
+
+		return intersectsAny;
+	}
+
+	private Point getNewSize(Set<IPackableRectangle<?>> rectangles, Rectangle boundingBox)
+	{
+		float maxX = 0.0f, maxY = 0.0f;
+
+		for (IPackableRectangle<?> rect : rectangles)
+		{
+			if (rect.getRectangle().getMaxX() > maxX)
+			{
+				maxX = (float) rect.getRectangle().getMaxX();
+			}
+
+			if (rect.getRectangle().getMaxY() > maxY)
+			{
+				maxY = (float) rect.getRectangle().getMaxY();
+			}
+		}
+
+		return new Point((int) maxX - boundingBox.x, (int) (maxY - boundingBox.y));
+	}
+
+	public Set<Point> getAvailablePositions(Rectangle boundingBox, Set<IPackableRectangle<?>> packedRectangles, boolean restrictToBox)
+	{
+		Set<Point> positions = new LinkedHashSet<Point>();
+
+		for (IPackableRectangle<?> rect : packedRectangles)
+		{
+			if (!restrictToBox || boundingBox.contains((int) rect.getRectangle().getMaxX(), rect.getRectangle().y))
+			{
+				positions.add(new Point((int) rect.getRectangle().getMaxX(), rect.getRectangle().y));
+			}
+
+			if (!restrictToBox || boundingBox.contains((int) rect.getRectangle().getMaxX(), (int) rect.getRectangle().getMaxY()))
+			{
+				positions.add(new Point((int) rect.getRectangle().getMaxX(), (int) rect.getRectangle().getMaxY()));
+			}
+
+			if (!restrictToBox || boundingBox.contains(rect.getRectangle().x, (int) rect.getRectangle().getMaxY()))
+			{
+				positions.add(new Point(rect.getRectangle().x, (int) rect.getRectangle().getMaxY()));
+			}
+		}
+
+		return positions;
+	}
+
+	public void addRectangle(IPackableRectangle<?> rectangle)
+	{
+		freeRectangles.add(rectangle);
+	}
+
+	public RectanglePackMode getPackMode()
+	{
+		return packMode;
+	}
+
+	public enum RectanglePackMode
+	{
+		LINEAR, GREEDY
+	}
+
+	private class Line
+	{
+		private float startX;
+		private float startY;
+		private float endX;
+		private float endY;
+	}
+
+	public static interface IPackableRectangle<T> extends Comparable<T>
+	{
+		public Rectangle getRectangle();
+	}
+}

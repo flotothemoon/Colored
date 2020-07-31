@@ -1,0 +1,270 @@
+package com.unlogical.colored.particle;
+
+import java.util.Map;
+import java.util.Random;
+
+import org.newdawn.slick.Color;
+import org.newdawn.slick.geom.Vector2f;
+
+import com.unlogical.colored.collision.Hitbox;
+import com.unlogical.colored.level.Level;
+import com.unlogical.colored.util.LevelObject;
+import com.unlogical.colored.util.RealImage;
+
+public class EmitterWrapperConfiguration implements IEmitterWrapper
+{
+	private int emitterWidth;
+	private int emitterHeight;
+	private int maxParticles;
+
+	private float rotation;
+	private float emitterParallax = 1.0f;
+
+	private boolean limitToImage;
+
+	private Color tint;
+	private Level level;
+	private LevelObject wrappedObject;
+	private Hitbox hitbox;
+	private RealImage image;
+	private RealImage[][] sprites;
+	private ParticleEmitterImpl emitter;
+	private EmitterType type;
+
+	public EmitterWrapperConfiguration(LevelObject wrappedObject, EmitterType type, Hitbox hitbox, int emitterWidth, int emitterHeight, float rotation, int maxParticles, RealImage image, boolean limitToImage, Level level)
+	{
+		init(wrappedObject, type, hitbox, emitterWidth, emitterHeight, rotation, maxParticles, image, limitToImage, level);
+	}
+	
+	private EmitterWrapperConfiguration()
+	{
+		
+	}
+	
+	private void init(LevelObject wrappedObject, EmitterType type, Hitbox hitbox, int emitterWidth, int emitterHeight, float rotation, int maxParticles, RealImage image, boolean limitToImage, Level level)
+	{
+		this.tint = type.tint;
+		this.hitbox = hitbox;
+		this.emitterWidth = emitterWidth;
+		this.emitterHeight = emitterHeight;
+		this.sprites = type.sprites;
+		this.maxParticles = maxParticles;
+		this.level = level;
+		this.image = image;
+		this.limitToImage = limitToImage;
+		this.rotation = rotation;
+		this.wrappedObject = wrappedObject;
+		this.type = type;
+		
+		if (type == EmitterType.PIXELIFY)
+		{
+			this.maxParticles = (image.getWidth() / LevelObject.PIXELIFIED_PARTICLE_SIZE) * (image.getHeight() / LevelObject.PIXELIFIED_PARTICLE_SIZE);
+		}
+	}
+	
+	@Override
+	public IEmitterWrapper deepCopy(Map<Object, Object> copiedReferences)
+	{
+		EmitterWrapperConfiguration copy = new EmitterWrapperConfiguration();
+		
+		Level.putCopy(this, copy, copiedReferences);
+		
+		copy.init((LevelObject) Level.getCopy(wrappedObject, copiedReferences), type, (Hitbox) Level.getCopy(hitbox, copiedReferences), emitterWidth, emitterHeight, rotation, maxParticles, image, limitToImage, (Level) Level.getCopy(level, copiedReferences));
+		
+		return copy;
+	}
+	
+	@Override
+	public boolean shouldCopy()
+	{
+		return wrappedObject.shouldCopy();
+	}
+
+	@Override
+	public boolean canCreateParticleAt(float x, float y)
+	{		
+		return !limitToImage || getImage().getColor((int) (x / (hitbox.getRawWidth() / getImage().getWidth())), (int) (y / (hitbox.getRawHeight() / getImage().getHeight()))).a > 0.0f;
+	}
+
+	@Override
+	public float getSpawnScaleFactor(EmitterType emitterType)
+	{
+		return 1.0f;
+	}
+
+	@Override
+	public boolean shouldApplySpawnScaleFactor(EmitterType emitterType)
+	{
+		return true;
+	}
+
+	@Override
+	public boolean shouldCreateParticles()
+	{
+		return true;
+	}
+
+	@Override
+	public boolean isRotateable()
+	{
+		return true;
+	}
+
+	@Override
+	public float getCenterOfRotationX()
+	{
+		return hitbox.getCenterX();
+	}
+
+	@Override
+	public float getCenterOfRotationY()
+	{
+		return hitbox.getCenterY();
+	}
+
+	@Override
+	public RealImage getImage()
+	{
+		return this.image;
+	}
+
+	@Override
+	public IEmitterWrapper copy(Level level)
+	{
+		return null;
+	}
+
+	@Override
+	public Random getRNG()
+	{
+		return level.getPRNG(isShared(), emitter.getDimension());
+	}
+
+	@Override
+	public void setPosition(float x, float y)
+	{
+		wrappedObject.setPosition(x, y);
+	}
+
+	@Override
+	public Vector2f getPosition()
+	{
+		return wrappedObject.getPosition();
+	}
+
+	@Override
+	public Level getLevel()
+	{
+		return level;
+	}
+
+	@Override
+	public void setLevel(Level level)
+	{
+		this.level = level;
+	}
+
+	@Override
+	public RealImage[][] getEmitterSprites()
+	{
+		return sprites;
+	}
+
+	@Override
+	public Color getStartEmitterTint()
+	{
+		return tint;
+	}
+
+	@Override
+	public Color getEndEmitterTint()
+	{
+		return tint;
+	}
+	
+	@Override
+	public float getEmitterParallax()
+	{
+		return emitterParallax;
+	}
+
+	@Override
+	public int getEmitterWidth()
+	{
+		return emitterWidth;
+	}
+
+	@Override
+	public int getEmitterHeight()
+	{
+		return emitterHeight;
+	}
+
+	@Override
+	public int getMaxParticles()
+	{
+		return maxParticles;
+	}
+
+	@Override
+	public float getRotation()
+	{
+		return rotation;
+	}
+
+	@Override
+	public Hitbox getHitbox()
+	{
+		return hitbox;
+	}
+
+	@Override
+	public void setRotation(float rotation)
+	{
+		this.rotation = rotation;
+	}
+
+	@Override
+	public int getEmitterDepth()
+	{
+		return 0;
+	}
+
+	@Override
+	public boolean isInBackground()
+	{
+		return false;
+	}
+
+	public boolean isTimeEffected()
+	{
+		return true;
+	}
+
+	public boolean isShared()
+	{
+		return wrappedObject.isShared();
+	}
+
+	public ParticleEmitterImpl getEmitter()
+	{
+		return emitter;
+	}
+
+	public void setEmitter(ParticleEmitterImpl emitter)
+	{
+		this.emitter = emitter;
+	}
+
+	@Override
+	public boolean isTimeEffectedAnyWay()
+	{
+		return wrappedObject.isTimeEffectedAnyWay();
+	}
+	
+	@Override
+	public boolean isCircularEmitter()
+	{
+		return false;
+	}
+}

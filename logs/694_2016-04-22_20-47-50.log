@@ -1,0 +1,70 @@
+ -- General -- 
+Generated on: 2016-04-22_20-47-50
+Build: 694 from 09:40 PM - 21/04/16
+GameState: IN_LEVEL (previous: LOADING)
+Target FPS: 60
+Actual FPS: 10
+
+ -- Display -- 
+Target Width / Height: 1920 / 1080
+Actual Width / Height: 1920 / 1017 (windowed)
+
+ -- Environment -- 
+GPU: GeForce GTX 980 Ti/PCIe/SSE2 (NVIDIA Corporation)
+OpenGL Version: 4.5.0 NVIDIA 361.43
+Allocated Memory: 15MB
+Used Memory: 4MB
+"os.name": Windows 10
+"os.version": 10.0
+"os.arch": x86
+"java.version": 1.8.0_66
+"java.vendor": Oracle Corporation
+"sun.arch.data.model": 32
+
+ -- Level --
+ID: 20-04 (internal: 04)
+LevelType: NORMAL
+Dimension: LIGHT
+Location: ../worlds/maps/20-04
+
+ -- Stack Trace -- 
+java.lang.NullPointerException
+com.unlogical.colored.util.CustomVerticesSpriteBatch.draw(CustomVerticesSpriteBatch.java:737)
+com.unlogical.colored.terrain.tile.platform.TilePlatform.drawImage(TilePlatform.java:401)
+com.unlogical.colored.terrain.TerrainObject.drawImage(TerrainObject.java:295)
+com.unlogical.colored.terrain.TerrainObject.drawTextured(TerrainObject.java:279)
+com.unlogical.colored.terrain.TerrainObject.draw(TerrainObject.java:212)
+com.unlogical.colored.levelmanaging.MapManager.drawTile(MapManager.java:938)
+com.unlogical.colored.levelmanaging.MapManager.renderBehindAllEntities(MapManager.java:881)
+com.unlogical.colored.levelmanaging.LevelManager.renderGeometry(LevelManager.java:1181)
+com.unlogical.colored.levelmanaging.LevelManager.render(LevelManager.java:1140)
+com.unlogical.colored.GameLauncher.render(GameLauncher.java:464)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication.mainLoop(LwjglApplication.java:218)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication$1.run(LwjglApplication.java:123)
+
+ -- Last 20 Log Entries -- 
+@Log: Loading map ../worlds/maps/20-04 ... (8)
+@Log: Loading map files took 197ms. (8)
+@Log: Active save was saved to disk. (8)
+@Log: Level 20-04 cleared. (8)
+@Warning: Tried to load image(s) from path res/gui/icons/20_04, the resolved path res/gui/icons/20_04.png however does not exist. (8)
+@Warning: Couldn't load level icon for 20-04. (8)
+@Log: Fetching lights for level "20-04" ... (8)
+@Log: Lights fetched for level "20-04", 5 lights found. (8)
+@Log: Play sound CANNON_SHOOT_CLOUD at volume 0.17 and pitch 1.0 (once). (8)
+@Log: Play sound CANNON_SHOOT_CLOUD at volume 0.17 and pitch 1.0 (once). (8)
+@Log: Play sound CANNON_SHOOT_CLOUD at volume 0.17 and pitch 1.0 (once). (8)
+@Log: Play sound CANNON_SHOOT_CLOUD at volume 0.17 and pitch 1.0 (once). (8)
+@Log: Play sound CANNON_SHOOT_CLOUD at volume 0.17 and pitch 1.0 (once). (8)
+@Log: Play sound CANNON_SHOOT_CLOUD at volume 0.17 and pitch 1.0 (once). (8)
+@Log: Play sound CANNON_SHOOT_CLOUD at volume 0.17 and pitch 1.0 (once). (8)
+@Log: Play sound CANNON_SHOOT_CLOUD at volume 0.17 and pitch 1.0 (once). (8)
+@Log: Pre-simulating particles for 45000.0ms (300 x 150.0ms)... (8)
+@Log: Particle pre-simulation complete. Particles are now ahead of time by 45000.0ms. (8)
+@Log: Active save was saved to disk. (8)
+@Log: Loaded 20-04 (took 263ms). (8)
+
+ -- Last 3 Input Events -- 
+Key down: L-Ctrl (129) (355ms ago)
+Key up: M (41) (354ms ago)
+Key up: M (41) (284ms ago)

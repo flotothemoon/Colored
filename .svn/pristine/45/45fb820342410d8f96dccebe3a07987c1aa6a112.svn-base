@@ -1,0 +1,37 @@
+package com.unlogical.linked.entity.property;
+
+import java.util.HashMap;
+
+import com.unlogical.linked.entity.EntityAction;
+
+@SuppressWarnings("serial")
+public class SharedEntityProperties
+{
+	public static final EntityProperty PLAYER = new EntityProperty(0.0005f, 0.25f, 0.24f, 0.0016f, 0, 1, new HashMap<EntityAction, Integer>(){{
+		put(EntityAction.STANDING, 100);
+		put(EntityAction.WALKING, 100);
+		put(EntityAction.CLIMBING, 100);
+		put(EntityAction.FALLING, 100);
+		put(EntityAction.OPENING_CAGE, 250);
+	}});
+	
+	public static final EntityProperty FIRE_BALL = new EntityProperty(0.000375f, 0.4f, 0.0f, 0.0f, 4, 1, new HashMap<EntityAction, Integer>(){{
+		
+	}});
+
+	public static final EntityProperty GOOMBA = new EntityProperty(0.0006f, 0.20f, 0.0f, 0.0016f, 1, 1, new HashMap<EntityAction, Integer>(){{
+		put(EntityAction.STANDING, 200);
+		put(EntityAction.WALKING, 200);
+		put(EntityAction.FALLING, 200);
+		put(EntityAction.DEAD, 200);
+	}});
+	
+	public static final EntityProperty KEY = new EntityProperty(0.00014f, 0.08f, 0.0f, 0.0012f, 0, 1, new HashMap<EntityAction, Integer>(){{
+		put(EntityAction.STANDING, 100);
+		put(EntityAction.STANDING_V2, 100);
+	}});
+
+	public static final EntityProperty SHADOW_BALL = new EntityProperty(0.0f, 0.5f, 0.0f, 0.0f, 2, 1, new HashMap<EntityAction, Integer>(){{
+		put(EntityAction.STANDING, 100);
+	}});
+}

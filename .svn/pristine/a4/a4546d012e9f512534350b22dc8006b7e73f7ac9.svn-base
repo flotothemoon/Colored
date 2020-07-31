@@ -1,0 +1,130 @@
+package com.unlogical.colored.sound;
+
+import com.badlogic.gdx.audio.Sound;
+import com.unlogical.colored.sound.SoundManager.SoundType;
+import com.unlogical.colored.util.Dimension;
+
+public class SoundWrapper
+{
+	private static final int DEFAULT_ALIVE_TIME = 30000;
+
+	private SoundType type;
+	private Sound sound;
+	private float ownVolume;
+	private float ownPitch;
+	private float actualVolume;
+	private float actualPitch;
+	private long soundID;
+	private boolean playing = true;
+	private boolean looping;
+	private boolean soundShared;
+	private Dimension soundDimension;
+	private int aliveTime;
+
+	public SoundWrapper(SoundType type, Sound sound, long soundID, boolean looping, float ownVolume, float ownPitch, Dimension soundDimension, boolean soundShared)
+	{
+		this.type = type;
+		this.sound = sound;
+		this.soundID = soundID;
+		this.looping = looping;
+		this.aliveTime = DEFAULT_ALIVE_TIME;
+		this.ownPitch = ownPitch;
+		this.ownVolume = ownVolume;
+		this.soundDimension = soundDimension;
+		this.soundShared = soundShared;
+	}
+
+	public void update(float delta)
+	{
+		if (playing && !looping)
+		{
+			this.aliveTime -= delta;
+		}
+	}
+
+	public void pause()
+	{
+		playing = false;
+
+		this.sound.pause(soundID);
+	}
+
+	public void resume()
+	{
+		playing = true;
+
+		this.sound.resume(soundID);
+	}
+
+	public void stop()
+	{
+		playing = false;
+
+		this.sound.stop(soundID);
+	}
+
+	public void setPitch(float pitch)
+	{
+		if (pitch != actualPitch)
+		{
+			this.sound.setPitch(soundID, pitch);
+
+			actualPitch = pitch;
+		}
+	}
+
+	public void setLooping(boolean looping)
+	{
+		this.sound.setLooping(soundID, looping);
+	}
+
+	public void setVolume(float volume)
+	{
+		if (actualVolume != volume)
+		{
+			sound.setVolume(soundID, volume);
+
+			actualVolume = volume;
+		}
+	}
+
+	public SoundType getType()
+	{
+		return type;
+	}
+
+	public boolean isPlaying()
+	{
+		return playing && !isDead();
+	}
+
+	public boolean isLooping()
+	{
+		return looping;
+	}
+
+	public boolean isDead()
+	{
+		return aliveTime <= 0;
+	}
+
+	public float getOwnPitch()
+	{
+		return ownPitch;
+	}
+
+	public float getOwnVolume()
+	{
+		return ownVolume;
+	}
+
+	public boolean isSoundShared()
+	{
+		return soundShared;
+	}
+
+	public Dimension getSoundDimension()
+	{
+		return soundDimension;
+	}
+}

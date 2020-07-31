@@ -1,0 +1,177 @@
+package com.unlogical.linked.particle;
+
+import org.newdawn.slick.Color;
+import org.newdawn.slick.Image;
+
+import com.unlogical.linked.collision.Hitbox;
+import com.unlogical.linked.util.Dimension;
+import com.unlogical.linked.util.LevelObject;
+
+public abstract class ParticleEmitter
+{
+	public static final int RENDER_IDENTICAL = 0;
+	public static final int RENDER_PARTIAL = 1;
+	
+	private Image[][] images;
+	
+	protected ParticleSystem system;
+	
+	private Color color;
+	
+	protected Dimension dimension;
+	
+	private int particleCount = 0;
+	private int maxParticles;
+	
+	protected float emitterXOffset;
+	protected float emitterYOffset;
+	
+	private boolean enabled;
+	private boolean renderViaSystem = true;
+	
+	public ParticleEmitter(Dimension dimension, ParticleSystem system, Image[][] sprites, int maxParticles)
+	{
+		this.system = system;
+		this.images = sprites;
+		this.maxParticles = maxParticles;
+	}
+
+	public abstract void setImageFor(Particle particle);
+
+	public abstract void updateParticle(Particle particle, float delta);
+	
+	public abstract void update(ParticleSystem system, float delta);
+	
+	public abstract void stop();
+	
+	public abstract void resume();
+	
+	public abstract boolean addAttractor(Hitbox hitbox, AttractorConfiguration configuration);
+
+	public abstract void removeAttractor(Hitbox hitbox);
+	
+	public abstract void addParticleEater(LevelObject object);
+	
+	public abstract void pixelifyWrapper(ParticleSystem system, LevelObject wrapper);
+	
+	public abstract boolean isCompleted();
+	
+	public abstract boolean hasLimitedLength();
+	
+	public abstract boolean isTimeEffected();
+	
+	public abstract boolean isInBackground();
+	
+	public abstract int getDepth();
+	
+	public abstract int getRenderMode();
+	
+	public abstract IEmitterWrapper getWrapper();
+	
+	public abstract EmitterType getType();
+	
+	public Particle getParticle(int lifetime)
+	{
+		return this.system.getParticle(this, lifetime);
+	}
+	
+	public void setSystem(ParticleSystem system)
+	{
+		this.system = system;
+	}
+	
+	public void reset()
+	{
+		if (system != null)
+		{						
+			system.releaseAll(this);	
+		}
+	}
+	
+	public void moveParticles(float xChange, float yChange)
+	{
+		system.moveParticles(this, xChange, yChange);
+	}
+	
+	public abstract void rotate(float angle);
+	
+	public void enable()
+	{
+		this.enabled = true;
+	}
+	
+	public void disable()
+	{
+		this.enabled = false;
+	}
+
+	public boolean isEnabled()
+	{
+		return enabled;
+	}
+	
+	public boolean hasActiveParticles()
+	{
+		return system.hasActiveParticles(this);
+	}
+
+	public ParticleSystem getSystem()
+	{
+		return system;
+	}
+
+	public int getParticleCount()
+	{
+		return particleCount;
+	}
+
+	public int getMaxParticles()
+	{		
+		return maxParticles;
+	}
+
+	public Image[][] getImages()
+	{
+		return images;
+	}
+
+	public boolean renderViaSystem()
+	{
+		return this.renderViaSystem;
+	}
+	
+	public void ensureManualRendering()
+	{
+		this.renderViaSystem = false;
+	}
+
+	public void setColor(Color color)
+	{
+		this.color = color;
+	}
+	
+	public Color getColor()
+	{
+		return color;
+	}
+
+	public Dimension getDimension()
+	{
+		return dimension;
+	}
+
+	public boolean isShared()
+	{
+		return false;
+	}
+	
+	public float getEmitterXOffset()
+	{
+		return emitterXOffset;
+	}
+	
+	public float getEmitterYOffset()
+	{
+		return emitterYOffset;
+	}
+}

@@ -1,0 +1,10 @@
+package com.unlogical.colored.entity;
+
+public interface IEntityAction
+{
+	public boolean isLoopedAnimation(Entity entity);
+	
+	public boolean shouldContinueAnimation(Entity entity);
+	
+	public EntityAction getNextAction(Entity entity, boolean finishedAnimation);
+}

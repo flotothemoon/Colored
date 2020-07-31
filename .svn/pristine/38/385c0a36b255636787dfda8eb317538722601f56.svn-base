@@ -1,0 +1,11 @@
+package com.unlogical.linked.level;
+
+import com.unlogical.linked.terrain.tile.Tile;
+
+public class TileReference extends LevelObjectReference<Tile>
+{
+	public TileReference(Tile object, Level level)
+	{
+		super(object, level);
+	}
+}

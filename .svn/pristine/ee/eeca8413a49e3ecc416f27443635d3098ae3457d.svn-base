@@ -1,0 +1,2403 @@
+package com.unlogical.linked.entity;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Random;
+
+import org.newdawn.slick.Color;
+import org.newdawn.slick.GameContainer;
+import org.newdawn.slick.Graphics;
+import org.newdawn.slick.Image;
+import org.newdawn.slick.geom.Line;
+import org.newdawn.slick.geom.Point;
+import org.newdawn.slick.geom.Vector2f;
+
+import com.unlogical.linked.collision.Hitbox;
+import com.unlogical.linked.entity.boss.EntityBoss;
+import com.unlogical.linked.entity.goomba.EntityGoomba;
+import com.unlogical.linked.entity.key.EntityKey;
+import com.unlogical.linked.entity.key.EntityStickyKey;
+import com.unlogical.linked.entity.player.EntityPlayer;
+import com.unlogical.linked.entity.projectile.EntityIceSpike;
+import com.unlogical.linked.entity.projectile.EntityMiniIceSpike;
+import com.unlogical.linked.entity.projectile.EntityProjectile;
+import com.unlogical.linked.entity.projectile.EntityShadowBall;
+import com.unlogical.linked.entity.property.EntityProperty;
+import com.unlogical.linked.filesystem.FilePaths;
+import com.unlogical.linked.level.Level;
+import com.unlogical.linked.level.LevelType;
+import com.unlogical.linked.levelrendering.LevelRenderer;
+import com.unlogical.linked.particle.EmitterType;
+import com.unlogical.linked.resources.ResourceLoader;
+import com.unlogical.linked.terrain.TerrainObject;
+import com.unlogical.linked.terrain.TileType;
+import com.unlogical.linked.terrain.tile.Tile;
+import com.unlogical.linked.terrain.tile.properties.ITileBlockedFromAbove;
+import com.unlogical.linked.terrain.tile.properties.ITileCollissionNotifier;
+import com.unlogical.linked.terrain.tile.properties.ITileConveyorBelt;
+import com.unlogical.linked.terrain.tile.properties.ITileIntersectionNotifier;
+import com.unlogical.linked.terrain.tile.properties.ITileMoveable;
+import com.unlogical.linked.util.ColorHelper;
+import com.unlogical.linked.util.Dimension;
+import com.unlogical.linked.util.GameObject;
+import com.unlogical.linked.util.ICopyable;
+import com.unlogical.linked.util.IShareable;
+import com.unlogical.linked.util.LevelObject;
+import com.unlogical.linked.util.RealImage;
+import com.unlogical.linked.util.ScheduledEvent;
+import com.unlogical.linked.util.ShaderHandler;
+
+public abstract strictfp class Entity extends LevelObject implements ICopyable<Entity>, IShareable<Entity>
+{
+	public static final String CURRENT_ACTION_CHANGED = "currentActionChanged";
+
+	private static final Color colorBuffer = new Color(1.0f, 1.0f, 1.0f, 1.0f);
+
+	protected static HashMap<EntityType, HashMap<EntityAction, RealImage[][]>> bufferedImages = new HashMap<EntityType, HashMap<EntityAction, RealImage[][]>>();
+
+	protected HashMap<EntityAction, RealImage[][]> availableImages = new HashMap<EntityAction, RealImage[][]>();
+
+	protected RealImage[] imagesUnfocused;
+	protected RealImage[] imagesFocused;
+
+	private static Line otherLine = new Line(0.0f, 0.0f);
+	private static Line line = new Line(0.0f, 0.0f);
+
+	protected float maxGravity = 0.845f;
+
+	protected float horizontalBounceFactor = -0.55f;
+	protected float verticalBounceFactor = -0.5f;
+
+	protected int animationVersion;
+	private int durationPerImage;
+	private int timeToNextImage;
+
+	private boolean skipMainUpdate;
+	protected boolean passiveUpdate;
+	protected boolean focused;
+	protected boolean isLookingRight;
+	protected boolean forceAnimation;
+	protected boolean gravityActive = true;
+	protected boolean changedAction;
+	protected boolean shooting;
+	protected boolean suffocating;
+	protected boolean timeResistantSuffocating;
+	protected boolean jumping;
+
+	protected boolean canFall = true;
+	protected boolean onRightConnectedTile;
+	protected boolean onLeftConnectedTile;
+	protected boolean dontResetVertically;
+	protected boolean lastBelow;
+	protected boolean closeBelow;
+	protected boolean closeBelowBefore;
+	protected boolean closeAbove;
+
+	protected boolean resumeTimeResistance;
+	protected boolean hasMirror;
+	protected boolean outOfMap;
+	protected boolean holded;
+	protected boolean climbing;
+	protected boolean climbingOnGround;
+	protected boolean onClimbable;
+	protected boolean onLadder;
+	protected boolean frozen;
+	protected boolean tryMoveRight;
+	protected boolean tryMoveLeft;
+
+	private boolean render = true;
+
+	private Tile nextTileBelowRight;
+	private Tile nextTileBelowLeft;
+
+	protected Tile tileBelow;
+	protected Tile climbedTile;
+
+	protected Entity mirroredEntity;
+	protected EntityLiving holdingEntity;
+
+	protected EntityProperty properties;
+	protected EntityAction currentAction;
+	protected EntityAction lastAction;
+	protected EntityType type;
+
+	protected Entity(EntityType type, Vector2f position, Level level, Dimension dimension, boolean allowMirrors)
+	{
+		super(null, position, dimension, level);
+
+		this.dimensionUnique = true;
+		this.type = type;
+
+		this.properties = getEntityProperty();
+
+		if (level != null)
+		{
+			this.focused = getDefaultFocus();
+
+			this.currentAction = EntityAction.STANDING;
+
+			this.durationPerImage = properties.getImageDuration(this.currentAction);
+			this.currentImage = 0;
+			this.timeToNextImage = durationPerImage;
+			this.availableImages = bufferedImages.get(type);
+
+			this.imagesFocused = availableImages.get(currentAction)[dimension.code() * Dimension.count()];
+			this.imagesUnfocused = availableImages.get(currentAction)[1 + dimension.code() * Dimension.count()];
+
+			this.setImageFocus(focused);
+
+			this.hitbox = new Hitbox(position.x, position.y, this.image.getWidth(), this.image.getHeight());
+
+			if (shouldCreateMirror(allowMirrors))
+			{
+				createMirror(level.getLevelType());
+			}
+
+			this.updateHitbox();
+		}
+	}
+
+	@Override
+	public LevelObject deepCopy(Map<Object, Object> copiedReferences)
+	{
+		Entity copy = (Entity) super.deepCopy(copiedReferences);
+
+		copy.maxGravity = this.maxGravity;
+		copy.horizontalBounceFactor = this.horizontalBounceFactor;
+		copy.verticalBounceFactor = this.verticalBounceFactor;
+
+		copy.animationVersion = this.animationVersion;
+		copy.durationPerImage = this.durationPerImage;
+		copy.timeToNextImage = this.timeToNextImage;
+		copy.currentImage = this.currentImage;
+		copy.image = this.image;
+		copy.beforeCurrentImage = this.beforeCurrentImage;
+		copy.beforeInnerType = this.beforeInnerType;
+		copy.imagesFocused = this.imagesFocused;
+		copy.imagesUnfocused = this.imagesUnfocused;
+
+		copy.skipMainUpdate = this.skipMainUpdate;
+		copy.passiveUpdate = this.passiveUpdate;
+		copy.setFocused(this.focused);
+		copy.isLookingRight = this.isLookingRight;
+		copy.forceAnimation = this.forceAnimation;
+		copy.gravityActive = this.gravityActive;
+		copy.changedAction = this.changedAction;
+		copy.shooting = this.shooting;
+		copy.suffocating = this.suffocating;
+		copy.timeResistantSuffocating = this.timeResistantSuffocating;
+		copy.jumping = this.jumping;
+
+		copy.canFall = this.canFall;
+		copy.onRightConnectedTile = this.onRightConnectedTile;
+		copy.onLeftConnectedTile = this.onLeftConnectedTile;
+		copy.lastBelow = this.lastBelow;
+		copy.closeBelow = this.closeBelow;
+		copy.closeBelowBefore = this.closeBelowBefore;
+		copy.closeAbove = this.closeAbove;
+
+		copy.resumeTimeResistance = this.resumeTimeResistance;
+		copy.hasMirror = this.hasMirror;
+		copy.outOfMap = this.outOfMap;
+		copy.holded = this.holded;
+		copy.climbing = this.climbing;
+		copy.climbingOnGround = this.climbingOnGround;
+		copy.onClimbable = this.onClimbable;
+		copy.onLadder = this.onLadder;
+		copy.frozen = this.frozen;
+		copy.tryMoveLeft = this.tryMoveLeft;
+		copy.tryMoveRight = this.tryMoveRight;
+		copy.render = this.render;
+
+		copy.nextTileBelowRight = (Tile) Level.getCopy(this.nextTileBelowRight, copiedReferences);
+		copy.nextTileBelowLeft = (Tile) Level.getCopy(this.nextTileBelowLeft, copiedReferences);
+
+		copy.tileBelow = (Tile) Level.getCopy(this.tileBelow, copiedReferences);
+		copy.climbedTile = (Tile) Level.getCopy(this.climbedTile, copiedReferences);
+
+		copy.mirroredEntity = (Entity) Level.getCopy(this.mirroredEntity, copiedReferences);
+		copy.holdingEntity = (EntityLiving) Level.getCopy(this.holdingEntity, copiedReferences);
+
+		copy.properties = this.properties.copy();
+
+		copy.currentAction = this.currentAction;
+		copy.lastAction = this.lastAction;
+		copy.type = this.type;
+
+		return copy;
+	}
+
+	public Entity shallowCopy(Level level)
+	{
+		return copy(level);
+	}
+
+	public Entity copy(Level level)
+	{
+		Entity copy = Entity.createEntity(this.type, this.position.copy(), level, this.dimension, false);
+
+		copy.setShared(this.shared);
+		copy.setTimeEffected(this.timeEffected);
+
+		return copy;
+	}
+
+	public void createMirror(LevelType levelType)
+	{
+		this.mirroredEntity = Entity.createEntity(type, new Vector2f(position.x, position.y), level, Dimension.SHADOW, true);
+		this.mirroredEntity.setMirroredEntity(this);
+
+		this.hasMirror = true;
+
+		level.addEntity(this.mirroredEntity);
+	}
+
+	public final boolean shouldCreateMirror(boolean allowMirrors)
+	{
+		return level.shouldCreateMirrors() && allowMirrors && this.dimension == Dimension.LIGHT && !this.shared;
+	}
+
+	public void initMirror(Entity mirroredEntity, LevelType levelType)
+	{
+		this.mirroredEntity.wasCreatedFromFile = this.wasCreatedFromFile;
+	}
+
+	public static Image getMainImage(EntityType type)
+	{
+		return bufferedImages.get(type).get(EntityAction.STANDING)[0][0];
+	}
+
+	public static void loadAll()
+	{
+		for (EntityType type : EntityType.values())
+		{
+			bufferedImages.put(type, ResourceLoader.getEntityImages(type));
+		}
+	}
+
+	public final static Entity createEntity(EntityType type, Vector2f position, Level level, Dimension dimension, boolean allowMirrors)
+	{
+		if (type == EntityType.PLAYER)
+		{
+			return new EntityPlayer(position, level, dimension, allowMirrors);
+		}
+		else if (type == EntityType.GOOMBA)
+		{
+			return new EntityGoomba(position, level, dimension, allowMirrors);
+		}
+		else if (type == EntityType.KEY)
+		{
+			return new EntityKey(position, level, dimension, allowMirrors);
+		}
+		else if (type == EntityType.STICKYKEY)
+		{
+			return new EntityStickyKey(position, level, dimension, allowMirrors);
+		}
+		else if (type == EntityType.SHADOWBALL)
+		{
+			return new EntityShadowBall(type, position, level, dimension, allowMirrors);
+		}
+		else if (type == EntityType.ICE_SPIKE)
+		{
+			return new EntityIceSpike(type, position, level, dimension, allowMirrors);
+		}
+		else if (type == EntityType.MINI_ICE_SPIKES)
+		{
+			return new EntityMiniIceSpike(type, position, level, dimension, allowMirrors);
+		}
+		else if (type == EntityType.BOSS)
+		{
+			return EntityBoss.createBoss(position, level, dimension, allowMirrors);
+		}
+
+		return null;
+	}
+
+	public final void tryMove(Vector2f distance)
+	{
+		if (distance.x > 0)
+		{
+			if (!collidedRight)
+			{
+				if (hitbox.canMoveRight(distance.x))
+				{
+					this.setX((position.x + distance.x));
+				}
+				else
+				{
+					this.setX((position.x + hitbox.getDistanceToBlockRight()));
+					distance.x = hitbox.getDistanceToBlockRight();
+
+					onCloseMoveToBlockRight(distance.x);
+				}
+			}
+			else
+			{
+				distance.x = 0.0f;
+			}
+		}
+		else if (distance.x < 0)
+		{
+			if (!collidedLeft)
+			{
+				if (hitbox.canMoveLeft(-distance.x))
+				{
+					this.setX((position.x + distance.x));
+				}
+				else
+				{
+					this.setX((position.x - hitbox.getDistanceToBlockLeft()));
+					distance.x = -hitbox.getDistanceToBlockLeft();
+
+					onCloseMoveToBlockLeft(distance.x);
+				}
+			}
+			else
+			{
+				distance.x = 0.0f;
+			}
+		}
+
+		if (distance.y > 0)
+		{
+			if (!collidedBelow || ((hitbox.isLeftBottom() && hitbox.getLeftAngle() != 0.0f) ^ (hitbox.isRightBottom() && hitbox.getRightAngle() != 0.0f)))
+			{
+				Tile nextTile;
+				float distanceToBlockBelow = 0.0f;
+
+				if (distance.x > 0 && hitbox.getLeftAngle() != 0)
+				{
+					distanceToBlockBelow = hitbox.getDistanceToBlockBelowRight();
+					nextTile = nextTileBelowRight;
+				}
+				else if (distance.x < 0 && hitbox.getRightAngle() != 0)
+				{
+					distanceToBlockBelow = hitbox.getDistanceToBlockBelowLeft();
+					nextTile = nextTileBelowLeft;
+				}
+				else
+				{
+					distanceToBlockBelow = hitbox.getDistanceToBlockBelow();
+
+					if (!hitbox.isCheckedBelowRight())
+					{
+						nextTile = nextTileBelowRight;
+					}
+					else if (!hitbox.isCheckedBelowLeft())
+					{
+						nextTile = nextTileBelowLeft;
+					}
+					else
+					{
+						nextTile = hitbox.getDistanceToBlockBelowLeft() < hitbox.getDistanceToBlockBelowLeft() ? nextTileBelowLeft : nextTileBelowRight;
+					}
+				}
+
+				if (!(hitbox.isCheckedBelowLeft() || hitbox.isCheckedBelowRight()) || distance.y <= distanceToBlockBelow)
+				{
+					this.setY(position.y + distance.y);
+				}
+				else
+				{
+					this.setY((position.y + distanceToBlockBelow));
+
+					if (nextTile != null && nextTile.isMoveable() && nextTile.isMoving())
+					{
+						additionalVelocity.y = nextTile.getVelocity().y;
+						dontResetVertically = true;
+					}
+
+					this.collidedBelow = true;
+					this.gravityActive = false;
+					this.closeBelow = true;
+
+					distance.y = distanceToBlockBelow;
+
+					onCloseMoveToBlockBelow(nextTile, distanceToBlockBelow);
+				}
+			}
+			else
+			{
+				distance.y = 0.0f;
+			}
+		}
+		else if (distance.y < 0)
+		{
+			if (!collidedAbove)
+			{
+				if (hitbox.canMoveUp(-distance.y))
+				{
+					this.setY(this.position.y + distance.y);
+				}
+				else
+				{
+					this.setY((this.position.y - hitbox.getDistanceToBlockAbove()));
+					this.velocity.y = 0.0f;
+					this.closeAbove = true;
+					this.collidedAbove = true;
+
+					distance.y = -hitbox.getDistanceToBlockAbove();
+
+					onCloseMoveToBlockAbove(distance.y);
+				}
+			}
+			else
+			{
+				distance.y = 0.0f;
+			}
+		}
+	}
+
+	protected void onCloseMoveToBlockBelow(Tile nextTile, float distanceToBlockBelow)
+	{
+
+	}
+
+	protected void onCloseMoveToBlockAbove(float distance)
+	{
+
+	}
+
+	protected void onCloseMoveToBlockLeft(float distance)
+	{
+
+	}
+
+	protected void onCloseMoveToBlockRight(float distance)
+	{
+
+	}
+
+	public abstract boolean isBlocked();
+
+	public abstract void updateEntity(GameContainer container, float delta, Random rng);
+
+	public final void update(GameContainer container, float delta)
+	{
+		boolean addAdditionalDistance = true, bouncedHorizontally = false, bounceVertically = false;
+		boolean pushLeft = false, pushRight = false, pushUp = false, pushDown = false;
+		float additionalHorizontalDelta = 0.0f;
+		float additionalVerticalDelta = 0.0f;
+
+		if (skipMainUpdate)
+		{
+			updateEntity(container, delta, level.getRNG(this));
+		}
+
+		if (!skipMainUpdate || passiveUpdate)
+		{
+			hitbox.resetCache();
+
+			tileBelow = null;
+			climbedTile = null;
+			nextTileBelowLeft = null;
+			nextTileBelowRight = null;
+			additionalVelocity.x *= 0.8f;
+			if (!dontResetVertically)
+			{
+				additionalVelocity.y *= 0.8f;
+			}
+
+			collidedAbove = false;
+			collidedBelow = false;
+			collidedLeft = false;
+			collidedRight = false;
+			onRightConnectedTile = false;
+			onLeftConnectedTile = false;
+			onClimbable = false;
+			onLadder = false;
+			suffocating = false;
+
+			gravityActive = isGravityEffected();
+
+			if (collidesWithTerrain())
+			{
+				boolean bounceHorizontally = true;
+
+				for (Tile tile : level.getTiles())
+				{
+					if (tile.isEnabled() && isNearby(tile.getHitbox(), getAdditionalCheckDistance(tile.getVelocity())) && inSameDimension(tile))
+					{
+						if (isBlocked(tile, velocity))
+						{
+							boolean beforeRight = this.collidedRight, beforeLeft = this.collidedLeft;
+
+							if (this.hitbox.collides(tile.getHitbox(), true))
+							{
+								if (!(tile instanceof ITileBlockedFromAbove))
+								{
+									if (hitbox.collidedRight() && (!tile.isMoveable() || !((ITileMoveable) tile).isVerticallyMoveable() || this.hitbox.getMaxY() - tile.getHitbox().getMinY() > 2.0f))
+									{
+										collidedRight = true;
+
+										if (this instanceof IEntityCollisionNotifier)
+										{
+											((IEntityCollisionNotifier) this).onCollisionWithTile(tile, false, false, true, false, false);
+										}
+
+										if (tile instanceof ITileCollissionNotifier)
+										{
+											((ITileCollissionNotifier) tile).onCollisionWithEntity(this, false, false, false, true);
+										}
+
+										if (!tile.entitiesBounceHorizontally())
+										{
+											bounceHorizontally = false;
+										}
+									}
+
+									if (hitbox.collidedLeft() && (!tile.isMoveable() || !((ITileMoveable) tile).isVerticallyMoveable() || this.hitbox.getMaxY() - tile.getHitbox().getMinY() > 2.0))
+									{
+										collidedLeft = true;
+
+										if (this instanceof IEntityCollisionNotifier)
+										{
+											((IEntityCollisionNotifier) this).onCollisionWithTile(tile, false, false, false, true, false);
+										}
+
+										if (tile instanceof ITileCollissionNotifier)
+										{
+											((ITileCollissionNotifier) tile).onCollisionWithEntity(this, false, false, true, false);
+										}
+
+										if (!tile.entitiesBounceHorizontally())
+										{
+											bounceHorizontally = false;
+										}
+									}
+
+									if (hitbox.collidedTop())
+									{
+										collidedAbove = true;
+
+										if (velocity.y < 0)
+										{
+											velocity.y *= verticalBounceFactor;
+										}
+
+										if (this instanceof IEntityCollisionNotifier)
+										{
+											((IEntityCollisionNotifier) this).onCollisionWithTile(tile, true, false, false, false, false);
+										}
+
+										if (tile instanceof ITileCollissionNotifier)
+										{
+											((ITileCollissionNotifier) tile).onCollisionWithEntity(this, false, true, false, false);
+										}
+									}
+								}
+
+								if (hitbox.collidedBottom() && !(tile.isMoveable() && ((ITileMoveable) tile).isHorizontallyMoveable() && this.hitbox.getMaxY() - tile.getHitbox().getMinY() > 1))
+								{
+									tileBelow = tile;
+									collidedBelow = true;
+
+									if (velocity.y > 0.0f)
+									{
+										if (shouldBounceOnGround() && velocity.y > 0.3f)
+										{
+											bounceVertically = true;
+										}
+										else
+										{
+											velocity.y = 0.0f;
+										}
+									}
+
+									if (tile.getHitbox().isConnectedLeft())
+									{
+										onLeftConnectedTile = true;
+									}
+
+									if (tile.getHitbox().isConnectedRight())
+									{
+										onRightConnectedTile = true;
+									}
+
+									gravityActive = false;
+
+									if (this instanceof IEntityCollisionNotifier)
+									{
+										((IEntityCollisionNotifier) this).onCollisionWithTile(tile, false, true, false, false, false);
+									}
+
+									if (tile instanceof ITileCollissionNotifier)
+									{
+										((ITileCollissionNotifier) tile).onCollisionWithEntity(this, true, false, false, false);
+									}
+								}
+							}
+
+							boolean checkedRight = hitbox.isCheckedRight();
+							boolean checkedLeft = hitbox.isCheckedLeft();
+							boolean checkedAbove = hitbox.isCheckedAbove();
+							float beforeRightDistance = hitbox.getDistanceToBlockRight();
+							float beforeLeftDistance = hitbox.getDistanceToBlockLeft();
+							float beforeAboveDistance = hitbox.getDistanceToBlockAbove();
+
+							if (tile != tileBelow && (tileBelow == null || tile != tileBelow.getLeftConnectedTile() && tile != tileBelow.getRightConnectedTile()))
+							{
+								hitbox.checkCollision(tile.getHitbox(), getAdditionalCheckDistance(tile.getVelocity()), this.rotation != 0.0f);
+							}
+
+							if (hitbox.isClosestBelowLeft())
+							{
+								nextTileBelowLeft = tile;
+							}
+
+							if (hitbox.isClosestBelowRight())
+							{
+								nextTileBelowRight = tile;
+							}
+
+							if (checkAdditionalSuffocation() && tile.isChangeable() && !(tile instanceof ITileBlockedFromAbove) && this.hitbox.reallyIntersects(tile.getHitbox()))
+							{
+								suffocating = true;
+
+								if (!tile.isTimeEffected())
+								{
+									timeResistantSuffocating = true;
+								}
+							}
+
+							if (hitbox.collidedBottom() || (this.hitbox.getCenterX() > tile.getCenterX() && this.hitbox.getMaxY() == tile.getHitbox().getPoints()[tile.getHitbox().getSecondPointIndex() + 1]) || (this.hitbox.getCenterX() < tile.getCenterX() && this.hitbox.getMaxY() == tile.getHitbox().getPoints()[tile.getHitbox().getTopLeftIndex() + 1]) || tile instanceof ITileBlockedFromAbove)
+							{
+								hitbox.setCheckedRight(checkedRight);
+								hitbox.setCheckedLeft(checkedLeft);
+
+								if (tile.getRotation() % 90 == 0.0f && tile.getHitbox().getMinY() >= this.hitbox.getMaxY() - 0.5f)
+								{
+									this.collidedLeft = beforeLeft;
+									this.collidedRight = beforeRight;
+								}
+
+								if (tile instanceof ITileBlockedFromAbove)
+								{
+									hitbox.setDistanceToBlockRight(beforeRightDistance);
+									hitbox.setDistanceToBlockLeft(beforeLeftDistance);
+									hitbox.setDistanceToBlockAbove(beforeAboveDistance);
+									hitbox.setCheckedAbove(checkedAbove);
+								}
+							}
+
+							if (tile.isMoveable())
+							{
+								if (!((ITileMoveable) tile).isRotatable() && tile.isMoving())
+								{
+									if (hitbox.collidedBottom())
+									{
+										if (Math.abs(tile.getVelocity().x) * tile.getLatestDelta() > Math.abs(additionalVelocity.x) * additionalHorizontalDelta)
+										{
+											additionalHorizontalDelta = tile.getLatestDelta();
+											this.additionalVelocity.x = tile.getVelocity().x;
+										}
+
+										if (Math.abs(tile.getVelocity().y) * tile.getLatestDelta() > Math.abs(additionalVelocity.y) * additionalVerticalDelta)
+										{
+											additionalVerticalDelta = tile.getLatestDelta();
+											this.additionalVelocity.y = tile.getVelocity().y;
+										}
+
+										if (tile.getVelocity().y < 0.0f)
+										{
+											pushUp = true;
+										}
+
+										if (((ITileMoveable) tile).isVerticallyMoveable())
+										{
+											collidedBelow = true;
+
+											if (velocity.y > 0.0f)
+											{
+												velocity.y = 0.0f;
+											}
+										}
+									}
+									else if (this.hitbox.intersects(tile.getHitbox()) && !(tile instanceof ITileBlockedFromAbove))
+									{
+										if (tile.getVelocity().x * tile.getLatestDelta() < 0.0f && this.hitbox.getCenterX() < tile.getHitbox().getCenterX())
+										{
+											pushLeft = true;
+											collidedRight = true;
+										}
+										else if (tile.getVelocity().x * tile.getLatestDelta() > 0.0f && this.hitbox.getCenterX() > tile.getHitbox().getCenterX())
+										{
+											pushRight = true;
+											collidedLeft = true;
+										}
+
+										additionalVelocity.x = tile.getVelocity().x;
+										additionalHorizontalDelta = tile.getLatestDelta();
+
+										if (Math.abs(tile.getVelocity().y) * tile.getLatestDelta() > Math.abs(additionalVelocity.y) * additionalVerticalDelta)
+										{
+											additionalVerticalDelta = tile.getLatestDelta();
+											this.additionalVelocity.y = tile.getVelocity().y;
+
+											if (this.additionalVelocity.y > 0.0f)
+											{
+												pushDown = true;
+											}
+										}
+									}
+								}
+
+								if (((ITileMoveable) tile).isRotatable())
+								{
+									if (((ITileMoveable) tile).getRotationChange() != 0.0f)
+									{
+										addAdditionalDistance = false;
+
+										float pointX = 0.0f, pointY = 0.0f;
+
+										if (hitbox.collidedBottom())
+										{
+											if (((ITileMoveable) tile).getRotationChange() > 0.0f)
+											{
+												pointX = this.hitbox.getMinX();
+											}
+											else
+											{
+												pointX = this.hitbox.getMaxX();
+											}
+
+											pointY = this.hitbox.getMaxY();
+
+											Hitbox tHitbox = tile.getHitbox();
+
+											otherLine.set(tHitbox.getPoints()[tHitbox.getTopLeftIndex()], tHitbox.getPoints()[tHitbox.getTopLeftIndex() + 1], tHitbox.getPoints()[tHitbox.nextPoint(tHitbox.getTopLeftIndex())], tHitbox.getPoints()[tHitbox.nextPoint(tHitbox.getTopLeftIndex()) + 1]);
+
+											float xPos;
+
+											if (tHitbox.contains(this.hitbox.getMinX(), this.hitbox.getMaxY()))
+											{
+												if (tHitbox.contains(this.hitbox.getMaxX(), this.hitbox.getMaxY()))
+												{
+													xPos = this.hitbox.getMinX();
+												}
+												else
+												{
+													if (((ITileMoveable) tile).getRotationChange() > 0.0f)
+													{
+														xPos = this.hitbox.getMinX();
+													}
+													else
+													{
+														xPos = this.hitbox.getMaxX();
+													}
+												}
+											}
+											else
+											{
+												xPos = this.hitbox.getMaxX();
+											}
+
+											line.set(xPos, this.hitbox.getMinY(), xPos, this.hitbox.getMaxY());
+
+											Vector2f intersection = otherLine.intersect(line, true);
+
+											if (intersection != null)
+											{
+												pointY = intersection.y;
+											}
+
+											Point result = Hitbox.rotatePoint(pointX, pointY, tile.getCenterOfRotationX(), tile.getCenterOfRotationY(), ((ITileMoveable) tile).getRotationChange());
+
+											this.additionalVelocity.x = (result.getX() - pointX) / tile.getLatestDelta();
+											this.additionalVelocity.y = (result.getY() - pointY) / tile.getLatestDelta();
+
+											additionalHorizontalDelta = additionalVerticalDelta = tile.getLatestDelta();
+										}
+										else if (this.hitbox.intersects(tile.getHitbox()))
+										{
+											if (this.hitbox.getCenterX() > tile.getHitbox().getCenterX())
+											{
+												pointX = this.hitbox.getMaxX();
+											}
+											else
+											{
+												pointX = this.hitbox.getMinX();
+											}
+
+											pointY = this.hitbox.getCenterY();
+
+											Point result = Hitbox.rotatePoint(pointX, pointY, tile.getCenterOfRotationX(), tile.getCenterOfRotationY(), ((ITileMoveable) tile).getRotationChange());
+
+											this.additionalVelocity.x = (result.getX() - pointX) / delta;
+											this.additionalVelocity.y = (result.getY() - pointY) / delta;
+
+											additionalHorizontalDelta = additionalVerticalDelta = tile.getLatestDelta();
+
+											if ((hitbox.isLeftTop() || hitbox.isRightTop()) && this.additionalVelocity.y > 0.0f)
+											{
+												pushDown = true;
+											}
+										}
+									}
+								}
+							}
+
+							if (hitbox.collidedBottom() && tile instanceof ITileConveyorBelt)
+							{
+								this.additionalVelocity.x = ((ITileConveyorBelt) tile).getHorizontalVelocity();
+								additionalHorizontalDelta = tile.getLatestDelta();
+							}
+						}
+
+						if (tile.isClimbable() && (tile.getHitbox().intersects(this.hitbox) || tile.getHitbox().contains(this.hitbox)))
+						{
+							onClimbable = true;
+
+							if (tile.getType() == TileType.LADDER)
+							{
+								onLadder = true;
+							}
+
+							climbedTile = tile;
+						}
+
+						if (tile.isIntersectionNotifier() || this instanceof IEntityCollisionNotifier)
+						{
+							if (this.hitbox.intersects(tile.getHitbox()) || tile.getHitbox().contains(this.hitbox))
+							{
+								if (tile.isIntersectionNotifier())
+								{
+									((ITileIntersectionNotifier) tile).onEntityIntersection(this);
+								}
+
+								if (this instanceof IEntityCollisionNotifier)
+								{
+									((IEntityCollisionNotifier) this).onCollisionWithTile(tile, false, false, false, false, true);
+								}
+							}
+						}
+					}
+				}
+
+				if (collidedAbove && canWalkSlopes())
+				{
+					if (hitbox.isLeftBottom() && !hitbox.isRightBottom() && hitbox.getLeftAngle() != 0.0f)
+					{
+						if (velocity.x < 0.0f && hitbox.isLeftTop())
+						{
+							collidedLeft = true;
+						}
+						else if (hitbox.isRightTop())
+						{
+							collidedRight = true;
+						}
+					}
+
+					if (hitbox.isRightBottom() && !hitbox.isLeftBottom() && hitbox.getRightAngle() != 0.0f)
+					{
+						if (velocity.x > 0.0f && hitbox.isRightTop())
+						{
+							collidedRight = true;
+						}
+						else if (hitbox.isLeftTop())
+						{
+							collidedLeft = true;
+						}
+					}
+				}
+
+				if (bounceVertically && shouldBounceOnGround())
+				{
+					velocity.y *= verticalBounceFactor;
+				}
+
+				if (collidedRight && velocity.x > 0.0f || collidedLeft && velocity.x < 0.0f)
+				{
+					if (bounceHorizontally && Math.abs(velocity.x) > 0.05f)
+					{
+						velocity.x *= horizontalBounceFactor;
+						velocity.x += collidedRight ? -0.03f : 0.03f;
+
+						bouncedHorizontally = true;
+					}
+					else
+					{
+						velocity.x = 0.0f;
+					}
+				}
+			}
+
+			if (checkEntityCollisions())
+			{
+				for (Entity entity : level.getEntities())
+				{
+					if (this != entity && entity.enabled && !entity.removed && canInteractWith(entity) && inSameDimension(entity) && isNearby(entity.getHitbox(), getAdditionalCheckDistance(entity.getVelocity())))
+					{
+						if (entity.isBlocked())
+						{
+							if (this.hitbox.intersects(entity.getHitbox()))
+							{
+								boolean collideTop = false, collideBottom = false, collideRight = false, collideLeft = false;
+								boolean beforeLeft = collidedLeft, beforeRight = collidedRight, beforeAbove = collidedAbove, beforeBelow = collidedBelow;
+
+								if (this.hitbox.getMaxY() < ((entity.getHitbox().getCenterY() + entity.getHitbox().getMaxY()) / 2) && !this.collidedBelow)
+								{
+									if (this.shouldBounceFromEntities() && entity.canBeBouncedOff() && this.velocity.y >= 0.0f)
+									{
+										onBounceOff(entity);
+									}
+
+									collideBottom = true;
+								}
+								else
+								{
+									if (this.hitbox.contains(entity.hitbox.getCenterX(), entity.hitbox.getMaxY() - 20))
+									{
+										if (this.canBeBouncedOff() && entity.shouldBounceFromEntities() && entity.velocity.y >= 0.0f)
+										{
+											entity.onBounceOff(this);
+										}
+
+										collideTop = true;
+									}
+									else
+									{
+										if (this.hitbox.contains(entity.hitbox.getMinX() + 18, entity.hitbox.getCenterY()))
+										{
+											collideRight = true;
+										}
+										else if (this.hitbox.contains(entity.hitbox.getMaxX() - 18, entity.hitbox.getCenterY()))
+										{
+											collideLeft = true;
+										}
+									}
+								}
+
+								if (collidesWithEntities())
+								{
+									collidedAbove = collidedAbove || collideTop;
+									collidedBelow = collidedBelow || collideBottom;
+									collidedLeft = collidedLeft || collideLeft;
+									collidedRight = collidedRight || collideRight;
+								}
+
+								if (this instanceof IEntityCollisionNotifier || entity instanceof IEntityCollisionNotifier)
+								{
+									((IEntityCollisionNotifier) this).onCollisionWithEntity(entity, collideTop, collideBottom, collideRight, collideLeft);
+
+									if (!((IEntityCollisionNotifier) entity).onCollisionWithEntity(this, collideBottom, collideTop, collideLeft, collideRight))
+									{
+										collidedBelow = beforeBelow;
+										collidedAbove = beforeAbove;
+										collidedRight = beforeRight;
+										collidedLeft = beforeLeft;
+									}
+									else if (checkEntitySuffocation() && checkSuffocation())
+									{
+										suffocating = true;
+									}
+								}
+
+								if (collidedBelow && velocity.y > 0.0f || collidedAbove && velocity.y < 0.0f)
+								{
+									velocity.y = 0.0f;
+								}
+
+								if (collidedRight && velocity.x > 0.0f || collidedLeft && velocity.x < 0.0f)
+								{
+									velocity.x = 0.0f;
+								}
+							}
+
+							if (checkEntitySuffocation() && checkSuffocation() && (this.hitbox.reallyIntersects(entity.hitbox) || entity instanceof EntityProjectile && entity.getDimension() != level.getForegroundDimension() && entity.isMoving() && level.getType() == LevelType.FROZEN && isNearby0(entity.hitbox, 20.0f)))
+							{
+								suffocating = true;
+							}
+						}
+					}
+				}
+			}
+		}
+
+		outOfMap = level.isOutOfMap(this.hitbox);
+
+		if (!onClimbable && climbing)
+		{
+			climbing = false;
+		}
+
+		if ((collidedBelow || closeBelow || climbing) && !skipMainUpdate)
+		{
+			gravityActive = false;
+			canFall = true;
+		}
+
+		if (collidedBelow && !jumping)
+		{
+			canFall = !(((onRightConnectedTile && velocity.x > 0.0f) || (onLeftConnectedTile && velocity.x < 0.0f)));
+		}
+
+		if ((level.getType() == LevelType.FROZEN || level.getType() == LevelType.TIME_SCALE) && collidedBelow && tileBelow != null)
+		{
+			if (!tileBelow.isTimeEffected() && this.velocity.x > 0 && tileBelow.getHitbox().isConnectedRight() && tileBelow.getRightConnectedTile() != null && !tileBelow.getRightConnectedTile().isTimeEffected() || this.velocity.x < 0.0f && tileBelow.getHitbox().isConnectedLeft() && tileBelow.getLeftConnectedTile() != null && !tileBelow.getLeftConnectedTile().isTimeEffected())
+			{
+				resumeTimeResistance = true;
+			}
+			else if (!tileBelow.isTimeEffected() && !tileBelow.isMoveable() && (this.velocity.x > 0 && this.velocity.x * delta + this.hitbox.getWidth() < this.hitbox.getDistanceToRightEnd() || this.velocity.x < 0 && -this.velocity.x * delta < this.hitbox.getDistanceToLeftEnd()))
+			{
+				resumeTimeResistance = true;
+			}
+			else
+			{
+				resumeTimeResistance = false;
+			}
+
+			if (!tileBelow.isTimeEffected() && this.timeEffected)
+			{
+				this.resumeOrAddEmitter(EmitterType.TIME_RESISTANT_ENTITY, this.dimension);
+
+				delta = 0.0f;
+				this.timeEffected = false;
+
+				onTimeResistantStart(tileBelow);
+			}
+
+			if (tileBelow.isTimeEffected() && !this.timeEffected)
+			{
+				this.stopAndRemoveEmitter(EmitterType.TIME_RESISTANT_ENTITY, this.dimension);
+				this.timeEffected = true;
+
+				delta = level.getDelta(this.dimension);
+
+				onTimeResistantEnd(tileBelow);
+			}
+		}
+
+		if (!timeResistant && !collidedBelow && !timeEffected && !resumeTimeResistance)
+		{
+			this.stopAndRemoveEmitter(EmitterType.TIME_RESISTANT_ENTITY, this.dimension);
+			this.timeEffected = true;
+
+			delta = level.getDelta(this.dimension);
+		}
+
+		if (jumping)
+		{
+			canFall = true;
+			resumeTimeResistance = false;
+		}
+
+		if (climbing)
+		{
+			jumping = false;
+		}
+
+		if (Math.abs(velocity.x) < 0.0001f)
+		{
+			velocity.x = 0.0f;
+		}
+
+		if (Math.abs(velocity.y) < 0.0001f)
+		{
+			velocity.y = 0.0f;
+		}
+
+		if (Math.abs(additionalVelocity.x) < 0.0001f)
+		{
+			additionalVelocity.x = 0.0f;
+		}
+
+		if (Math.abs(additionalVelocity.y) < 0.0001f)
+		{
+			additionalVelocity.y = 0.0f;
+		}
+
+		if (holded)
+		{
+			gravityActive = false;
+		}
+
+		oldVelocity.x = velocity.x;
+		oldVelocity.y = velocity.y;
+
+		if ((pushLeft && collidedLeft) || (pushRight && collidedRight) || (pushUp && collidedAbove) || (pushDown && collidedBelow))
+		{
+			if (additionalHorizontalDelta > 0.0f && (pushLeft || pushRight) || additionalVerticalDelta > 0.0f && (pushUp || pushDown))
+			{
+				timeResistantSuffocating = true;
+			}
+
+			suffocating = true;
+		}
+
+		removeFinishedEmitters();
+
+		if (!skipMainUpdate)
+		{
+			if (collidedBelow && !this.holded && hitbox.getHitboxBelow() != null && shouldPositionBeFixed())
+			{
+				if (!(tileBelow instanceof ITileBlockedFromAbove) && hitbox.getHitboxBelow().getRotation() % 90 == 0.0f && this.hitbox.getMinY() + this.hitbox.getHeight() - this.hitbox.getHitboxBelow().getMinY() > 0.0f && this.hitbox.getMinY() + this.hitbox.getHeight() - this.hitbox.getHitboxBelow().getMinY() < 10.0f)
+				{
+					this.position.y = this.hitbox.getHitboxBelow().getMinY() - this.hitbox.getHeight();
+				}
+
+				if (tileBelow != null && tileBelow.getRotation() % 90.0f != 0.0f && canWalkSlopes() && (tileBelow.getHitbox().isTiltLeft() && this.velocity.x >= 0.0f || tileBelow.getHitbox().isTiltRight() && this.velocity.x <= 0.0f))
+				{
+					otherLine.set(tileBelow.getHitbox().getPoints()[tileBelow.getHitbox().getTopLeftIndex()], tileBelow.getHitbox().getPoints()[tileBelow.getHitbox().getTopLeftIndex() + 1], tileBelow.getHitbox().getPoints()[tileBelow.getHitbox().getSecondPointIndex()], tileBelow.getHitbox().getPoints()[tileBelow.getHitbox().getSecondPointIndex() + 1]);
+
+					line.set(this.hitbox.getPoints()[0], this.hitbox.getPoints()[1], this.hitbox.getPoints()[6], this.hitbox.getPoints()[7]);
+
+					Vector2f intersection = line.intersect(otherLine, true);
+
+					if (intersection != null && this.hitbox.getMaxY() - intersection.y > 0.0f)
+					{
+						this.position.y = intersection.y - this.hitbox.getHeight() + 0.0002f;
+					}
+
+					line.set(this.hitbox.getPoints()[2], this.hitbox.getPoints()[3], this.hitbox.getPoints()[4], this.hitbox.getPoints()[5]);
+
+					intersection = line.intersect(otherLine, true);
+
+					if (intersection != null && this.hitbox.getMaxY() - intersection.y > 0.0f)
+					{
+						this.position.y = intersection.y - this.hitbox.getHeight() + 0.0002f;
+					}
+				}
+			}
+
+			tryMoveRight = false;
+			tryMoveLeft = false;
+
+			if (checkSuffocation() && suffocating)
+			{
+				onSuffocation(timeResistantSuffocating);
+			}
+
+			updateEntity(container, delta, level.getRNG(this));
+		}
+
+		if (gravityActive && enabled)
+		{
+			if (velocity.y < maxGravity)
+			{
+				velocity.y += properties.getGravity(delta);
+			}
+			else
+			{
+				if (shooting)
+				{
+					velocity.y -= 0.00033f * delta;
+				}
+				else
+				{
+					velocity.y = maxGravity;
+				}
+			}
+		}
+
+		applyFrameValues(delta, additionalHorizontalDelta, additionalVerticalDelta);
+
+		float dx = 0.0f, dy = 0.0f;
+
+		if (!(level.getType() == LevelType.TIME_TRAVEL && this.dimension == Dimension.SHADOW && !this.shouldHandleAsShared()))
+		{
+			dx = (((velocity.x + oldVelocity.x) / 2.0f) * delta) + (additionalVelocity.x * additionalHorizontalDelta);
+			dy = (((velocity.y + oldVelocity.y) / 2.0f) * delta) + (additionalVelocity.y * additionalVerticalDelta);
+
+			if (level.getType() == LevelType.FROZEN && level.getDelta(this.dimension) == 0.0f && !this.timeEffected && this.collidedBelow && this.tileBelow instanceof ITileMoveable && !this.tileBelow.isTimeEffected())
+			{
+				if (this.velocity.x > 0.0f == this.additionalVelocity.x > 0.0f || this.additionalVelocity.x == 0.0f)
+				{
+					if (dx > 0.0f && dx > this.hitbox.getDistanceToRightEnd() && this.hitbox.getMaxX() > this.tileBelow.getHitbox().getMaxX())
+					{
+						dx = this.hitbox.getDistanceToRightEnd();
+					}
+					else if (dx < 0.0f && dx < -this.hitbox.getDistanceToLeftEnd() && this.hitbox.getMinX() < this.tileBelow.getHitbox().getMinX())
+					{
+						dx = -this.hitbox.getDistanceToLeftEnd();
+					}
+				}
+			}
+
+			if (!skipMainUpdate)
+			{
+				if (pushRight && velocity.x < 0.0f)
+				{
+					dx -= velocity.x * delta;
+				}
+				else if (pushLeft && velocity.x > 0.0f)
+				{
+					dx -= velocity.x * delta;
+				}
+
+				if (collidedBelow)
+				{
+					if (this.hitbox.getLeftAngle() > 45 && hitbox.isLeftBottom() && !hitbox.isRightBottom())
+					{
+						this.velocity.x += properties.getAcceleration(delta) * this.hitbox.getLeftAngle() * 3.5f / 45.0f;
+					}
+					else if (-this.hitbox.getRightAngle() > 45 && hitbox.isRightBottom() && !hitbox.isLeftBottom())
+					{
+						this.velocity.x += properties.getAcceleration(delta) * this.hitbox.getRightAngle() * 3.5f / 45.0f;
+					}
+				}
+
+				if (canWalkSlopes() && !bouncedHorizontally)
+				{
+					boolean rightOverflow = dx > hitbox.getDistanceToRightEnd() && collidedBelow && onRightConnectedTile && !hitbox.isOnCorner();
+					boolean leftOverflow = dx < 0 && -dx > hitbox.getDistanceToLeftEnd() && collidedBelow && onLeftConnectedTile && !hitbox.isOnCorner();
+					boolean blockedAbove = collidedAbove || closeAbove;
+
+					float odx = rightOverflow ? dx - hitbox.getDistanceToRightEnd() : dx + hitbox.getDistanceToLeftEnd();
+					float sinRight = (float) -Math.sin(Math.toRadians(-hitbox.getRightAngle()));
+					float cosRight = (float) Math.cos(Math.toRadians(-hitbox.getRightAngle()));
+					float sinLeft = (float) -Math.sin(Math.toRadians(-hitbox.getLeftAngle()));
+					float cosLeft = (float) Math.cos(Math.toRadians(-hitbox.getLeftAngle()));
+
+					if (hitbox.isLeftBottom() && !hitbox.isRightBottom() && hitbox.isCheckedRight() && dx > 0 && dx > hitbox.getDistanceToBlockRight() && !(hitbox.getHitboxBelow() != null && hitbox.getHitboxBelow().getHitboxRight() != null && hitbox.getHitboxBelow().getHitboxRight().getRotation() == 0.0f))
+					{
+						onCloseMoveToBlockRight(hitbox.getDistanceToBlockRight());
+						dx = hitbox.getDistanceToBlockRight();
+					}
+					else if (rightOverflow && hitbox.getDistanceToRightEnd() != 0.0f && !hitbox.isLeftBottom() && !hitbox.getHitboxBelow().isRoughRight())
+					{
+						dx = hitbox.getDistanceToRightEnd();
+					}
+
+					if (hitbox.isRightBottom() && !hitbox.isLeftBottom() && hitbox.isCheckedLeft() && dx < 0 && -dx > hitbox.getDistanceToBlockLeft() && !(hitbox.getHitboxBelow() != null && hitbox.getHitboxBelow().getHitboxLeft() != null && hitbox.getHitboxBelow().getHitboxLeft().getRotation() == 0.0f))
+					{
+						onCloseMoveToBlockLeft(hitbox.getDistanceToBlockLeft());
+						dx = hitbox.getDistanceToBlockLeft();
+					}
+					else if (leftOverflow && hitbox.getDistanceToLeftEnd() != 0.0f && !hitbox.isRightBottom() && !hitbox.getHitboxBelow().isRoughLeft())
+					{
+						dx = -hitbox.getDistanceToLeftEnd();
+					}
+
+					if (dx > 0 && !collidedRight)
+					{
+						if (hitbox.isRightBottom())
+						{
+							if (blockedAbove && -hitbox.getRightAngle() > 0.0f)
+							{
+								dx = 0.0f;
+							}
+							else
+							{
+								dy += dx * sinRight;
+								dx *= cosRight;
+							}
+						}
+						else if (hitbox.isLeftBottom() && hitbox.getLeftAngle() < 45 && addAdditionalDistance)
+						{
+							dy += dx * sinLeft;
+							dx *= cosLeft;
+						}
+					}
+					else if (dx < 0 && !collidedLeft)
+					{
+						if (hitbox.isLeftBottom())
+						{
+							if (blockedAbove && hitbox.getLeftAngle() > 0.0f)
+							{
+								dx = 0.0f;
+							}
+							else
+							{
+								dy += dx * sinLeft;
+								dx *= cosLeft;
+							}
+						}
+						else if (hitbox.isRightBottom() && -hitbox.getRightAngle() < 45 && addAdditionalDistance)
+						{
+							dy += dx * sinRight;
+							dx *= cosRight;
+						}
+					}
+
+					if ((rightOverflow && hitbox.getHitboxBelow().getHitboxRight() != null) || (leftOverflow && hitbox.getHitboxBelow().getHitboxLeft() != null))
+					{
+						float rightAngle = 0.0f;
+						float leftAngle = 0.0f;
+
+						if (rightOverflow)
+						{
+							rightAngle = hitbox.getHitboxBelow().getHitboxRight().getRotation();
+							rightAngle = (rightAngle > 0 ? -90 - rightAngle : rightAngle);
+
+							if (-rightAngle > 45)
+							{
+								rightAngle = 0.0f;
+							}
+						}
+
+						if (leftOverflow)
+						{
+							leftAngle = hitbox.getHitboxBelow().getHitboxLeft().getRotation();
+							leftAngle = (leftAngle < 0 ? leftAngle + 90 : leftAngle);
+
+							if (leftAngle > 45)
+							{
+								leftAngle = 0.0f;
+							}
+						}
+
+						if ((odx > 0 && !collidedRight))
+						{
+							if (hitbox.isRightBottom() && !blockedAbove)
+							{
+								dy += odx * -Math.sin(Math.toRadians(-rightAngle));
+								odx *= Math.cos(Math.toRadians(-rightAngle));
+							}
+							else if (hitbox.isLeftBottom())
+							{
+								dy += odx * -Math.sin(Math.toRadians(-leftAngle));
+								odx *= Math.cos(Math.toRadians(-leftAngle));
+							}
+						}
+						else if (odx < 0 && !collidedLeft)
+						{
+							if (hitbox.isLeftBottom() && !blockedAbove)
+							{
+								dy += odx * -Math.sin(Math.toRadians(-leftAngle));
+								odx *= Math.cos(Math.toRadians(-leftAngle));
+							}
+							else if (hitbox.isRightBottom())
+							{
+								dy += odx * -Math.sin(Math.toRadians(-rightAngle));
+								odx *= Math.cos(Math.toRadians(rightAngle));
+							}
+						}
+
+						dx += odx;
+					}
+
+					if (hitbox.isOnCorner() && (tileBelow == null || !tileBelow.isMoveable()))
+					{
+						dy -= hitbox.getCornerDistance();
+					}
+				}
+			}
+
+			if (canWalkSlopes() && !bouncedHorizontally)
+			{
+				if (hitbox.isCheckedBelowLeft() && nextTileBelowLeft.getHitbox().isTiltRight())
+				{
+					hitbox.setDistanceToBlockBelowLeft((float) (hitbox.getDistanceToBlockBelowLeft() + dx * Math.tan(Math.toRadians(nextTileBelowLeft.getRotation() % 90 < 0 ? nextTileBelowLeft.getRotation() % 90 + 90 : nextTileBelowLeft.getRotation() % 90))));
+
+					if (nextTileBelowLeft == nextTileBelowRight)
+					{
+						hitbox.setDistanceToBlockBelowRight(hitbox.getDistanceToBlockBelowLeft());
+					}
+				}
+
+				if (hitbox.isCheckedBelowRight() && nextTileBelowRight.getHitbox().isTiltLeft())
+				{
+					hitbox.setDistanceToBlockBelowRight((float) (hitbox.getDistanceToBlockBelowRight() + dx * Math.tan(Math.toRadians(nextTileBelowRight.getRotation() % 90 > 0 ? -90 + nextTileBelowRight.getRotation() % 90 : nextTileBelowRight.getRotation() % 90))));
+
+					if (nextTileBelowLeft == nextTileBelowRight)
+					{
+						hitbox.setDistanceToBlockBelowLeft(hitbox.getDistanceToBlockBelowRight());
+					}
+				}
+			}
+		}
+
+		updateScheduledEvents();
+
+		dontResetVertically = false;
+		closeBelowBefore = closeBelow;
+		lastBelow = this.collidedBelow;
+		closeBelow = false;
+		closeAbove = false;
+
+		float absBeforePositionX = position.x - level.getCameraOffset().x;
+		float absBeforePositionY = position.y - level.getCameraOffset().y;
+
+		if (level.getType() != LevelType.TIME_TRAVEL || this.dimension == Dimension.LIGHT || this.shouldHandleAsShared())
+		{
+			tryMove(movingDistance.set(dx, dy));
+		}
+
+		onPostMovement(delta);
+
+		updateFrameLimits(Math.max((dx != 0.0f || dy != 0.0f) ? Math.max(additionalHorizontalDelta, additionalVerticalDelta) : 0.0f, delta));
+
+		if (level.getType() != LevelType.FROZEN && level.getType() != LevelType.TIME_TRAVEL || (level.getType() == LevelType.TIME_TRAVEL && this.dimension == Dimension.LIGHT) || (level.getLevelType() == LevelType.FROZEN && (delta > 0.0f || additionalHorizontalDelta > 0.0f || additionalVerticalDelta > 0.0f) && shouldRecordRecentPositions()))
+		{
+			if (level.getType() == LevelType.TIME_TRAVEL && hasMirror && mirroredEntity.holdingEntity instanceof EntityPlayer)
+			{
+				position.x = this.mirroredEntity.position.x;
+				position.y = this.mirroredEntity.position.y;
+				rotation = this.mirroredEntity.rotation;
+			}
+
+			updateFrameRecords(Math.max((dx != 0.0f || dy != 0.0f) ? Math.max(additionalHorizontalDelta, additionalVerticalDelta) : 0.0f, delta), absBeforePositionX, absBeforePositionY);
+		}
+
+		if (!skipMainUpdate)
+		{
+			if (collidedBelow && !climbingOnGround)
+			{
+				climbing = false;
+			}
+
+			float xVelocity = Math.abs(velocity.x);
+
+			if (level.getType() == LevelType.TIME_TRAVEL && this.dimension == Dimension.SHADOW && level.getForegroundDimension() == Dimension.LIGHT)
+			{
+				xVelocity = movingDistance.x / delta;
+				xVelocity -= additionalVelocity.x;
+
+				if (xVelocity < 0 ^ movingDistance.x < 0)
+				{
+					xVelocity = 0;
+				}
+				else
+				{
+					xVelocity = Math.abs(xVelocity);
+				}
+			}
+
+			lastAction = currentAction;
+
+			if (!useAutomaticAnimations())
+			{
+				currentAction = getCustomAction();
+			}
+
+			if (enabled)
+			{
+				if (useAutomaticAnimations())
+				{
+					if (onClimbable && climbing)
+					{
+						currentAction = EntityAction.CLIMBING;
+					}
+					else if (xVelocity < 0.01f && !gravityActive)
+					{
+						currentAction = animationVersion == 0 ? EntityAction.STANDING : EntityAction.STANDING_V2;
+					}
+					else if (xVelocity >= 0.01f && !gravityActive)
+					{
+						currentAction = animationVersion == 0 ? EntityAction.WALKING : EntityAction.WALKING_V2;
+					}
+					else if (movingDistance.y / delta > 0.1f && gravityActive && canFall)
+					{
+						currentAction = animationVersion == 0 ? EntityAction.FALLING : EntityAction.FALLING_V2;
+					}
+				}
+
+				if (collidedBelow)
+				{
+					if (jumping && velocity.y >= 0.0f)
+					{
+						jumping = false;
+					}
+				}
+
+				moving = checkForMovement();
+			}
+
+			if (lastAction != currentAction)
+			{
+				onActionChanged(currentAction);
+
+				if (level.getLevelType() == LevelType.TIME_TRAVEL)
+				{
+					scheduleMirroredEvent(new ScheduledEvent(CURRENT_ACTION_CHANGED, currentAction));
+				}
+
+				changedAction = true;
+			}
+		}
+
+		updateAnimation(delta);
+
+		updateHitbox();
+
+		if (this.dimension == level.getForegroundDimension() && this.hasMirror)
+		{
+			updateMirror(delta);
+		}
+	}
+
+	protected void onScheduledEvent(ScheduledEvent event)
+	{
+		if (event.type == CURRENT_ACTION_CHANGED)
+		{
+			this.changedAction = event.object != this.currentAction;
+			this.currentAction = (EntityAction) event.object;
+		}
+
+		if (event.type == GameObject.ENABLE_RENDERING_EVENT)
+		{
+			this.render = true;
+		}
+	}
+
+	@Override
+	public boolean checkPreReSimulation()
+	{
+		if (this.shared)
+		{
+			return true;
+		}
+
+		if (!this.hasMirror)
+		{
+			level.removeEntity(this);
+		}
+
+		return this.hasMirror;
+	}
+
+	@Override
+	protected boolean shouldCreateReSimulationParticles()
+	{
+		return true;
+	}
+
+	@Override
+	protected boolean canChangeOnReSimulation()
+	{
+		return true;
+	}
+
+	@Override
+	public void onReSimulation()
+	{
+		super.onReSimulation();
+
+		if (!shared)
+		{
+			this.shooting = this.mirroredEntity.shooting;
+		}
+	}
+
+	protected boolean shouldPositionBeFixed()
+	{
+		return true;
+	}
+
+	protected abstract boolean canInteractWith(Entity entity);
+
+	@Override
+	public LevelObject getMirror()
+	{
+		return this.mirroredEntity;
+	}
+
+	protected void setImageFocus(boolean focus)
+	{
+		if (currentImage >= imagesFocused.length)
+		{
+			currentImage = 0;
+		}
+
+		if (focus)
+		{
+			this.setImage(imagesFocused[currentImage]);
+		}
+		else
+		{
+			this.setImage(imagesUnfocused[currentImage]);
+		}
+
+		this.focused = focus;
+	}
+
+	@Override
+	public boolean isHolded()
+	{
+		return holded;
+	}
+
+	protected void onTimeResistantEnd(Tile tileBelow)
+	{
+
+	}
+
+	protected void onTimeResistantStart(Tile tileBelow)
+	{
+
+	}
+
+	protected boolean shouldUseFittingTextures()
+	{
+		return false;
+	}
+
+	protected boolean canInterruptAnimation(EntityAction action)
+	{
+		return true;
+	}
+
+	protected abstract EntityProperty getEntityProperty();
+
+	public String getTextureDirectory()
+	{
+		return FilePaths.ENTITY_MOB;
+	}
+
+	public boolean getDefaultFocus()
+	{
+		return false;
+	}
+
+	protected boolean useDefaultTextureLoader()
+	{
+		return true;
+	}
+
+	public abstract boolean checkEntityCollisions();
+
+	public abstract boolean collidesWithEntities();
+
+	public abstract boolean collidesWithTerrain();
+
+	protected void onBounceOff(Entity entity)
+	{
+		this.velocity.y *= -1.055f;
+		this.velocity.y -= 0.05f + 0.1f * (1.0f - (Math.abs(this.velocity.y) / this.maxGravity) * (Math.abs(this.velocity.y) / this.maxGravity));
+	}
+
+	protected void onPostMovement(float delta)
+	{
+
+	}
+
+	protected abstract boolean canWalkSlopes();
+
+	protected boolean useAutomaticAnimations()
+	{
+		return true;
+	}
+
+	protected EntityAction getCustomAction()
+	{
+		return null;
+	}
+
+	protected void updateMirror(float delta)
+	{
+
+	}
+
+	protected void onActionChanged(EntityAction action)
+	{
+
+	}
+
+	public abstract boolean supportsAction(EntityAction action);
+
+	protected boolean isBlocked(TerrainObject tile, Vector2f myVelocity)
+	{
+		if (tile.isBlocked())
+		{
+			if (tile instanceof ITileBlockedFromAbove)
+			{
+				if (!this.climbing && myVelocity.y >= 0.0f)
+				{
+					otherLine.set(tile.getHitbox().getPoints()[tile.getHitbox().getTopLeftIndex()], tile.getHitbox().getPoints()[tile.getHitbox().getTopLeftIndex() + 1], tile.getHitbox().getPoints()[tile.getHitbox().getSecondPointIndex()], tile.getHitbox().getPoints()[tile.getHitbox().getSecondPointIndex() + 1]);
+
+					line.set(this.hitbox.getPoints()[0], this.hitbox.getPoints()[1], this.hitbox.getPoints()[6], this.hitbox.getPoints()[7]);
+
+					Vector2f intersection = line.intersect(otherLine, true);
+
+					if (intersection != null && this.hitbox.getMaxY() - intersection.y > 1.0f)
+					{
+						return false;
+					}
+
+					line.set(this.hitbox.getPoints()[2], this.hitbox.getPoints()[3], this.hitbox.getPoints()[4], this.hitbox.getPoints()[5]);
+
+					intersection = line.intersect(otherLine, true);
+
+					if (intersection != null && this.hitbox.getMaxY() - intersection.y > 1.0f)
+					{
+						return false;
+					}
+
+					return true;
+				}
+			}
+			else
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	protected boolean setEntityAction(EntityAction action)
+	{
+		if (this.currentAction != action)
+		{
+			this.currentAction = action;
+			this.changedAction = true;
+
+			return true;
+		}
+
+		return false;
+	}
+
+	protected boolean shouldRecordRecentPositions()
+	{
+		return true;
+	}
+
+	protected boolean shouldDrawRecentPositions()
+	{
+		return true;
+	}
+
+	public boolean checkSuffocation()
+	{
+		return false;
+	}
+
+	public boolean checkAdditionalSuffocation()
+	{
+		return false;
+	}
+
+	public boolean checkEntitySuffocation()
+	{
+		return false;
+	}
+
+	protected boolean canBeBouncedOff()
+	{
+		return false;
+	}
+
+	protected boolean isGravityEffected()
+	{
+		return true;
+	}
+
+	protected float getFrictionFactor()
+	{
+		return 0.8f;
+	}
+
+	protected void onTerrainNearby(TerrainObject object, Vector2f distance)
+	{
+	}
+
+	protected int getTileCheckRadius()
+	{
+		return 5;
+	}
+
+	protected boolean notifyOnNearbyTerrain()
+	{
+		return false;
+	}
+
+	protected boolean shouldBounceOnGround()
+	{
+		return false;
+	}
+
+	protected boolean isNearby(Hitbox other, float additionalCheckDistance)
+	{
+		return isNearby0(other, Hitbox.MIN_CHECK_DISTANCE + additionalCheckDistance);
+	}
+
+	private boolean isNearby0(Hitbox other, float checkDistance)
+	{
+		if (other.getMinX() > hitbox.getMaxX() + checkDistance || other.getMaxX() < hitbox.getMinX() - (checkDistance))
+		{
+			return false;
+		}
+
+		if (other.getMinY() > hitbox.getMaxY() + checkDistance || other.getMaxY() < hitbox.getMinY() - (checkDistance))
+		{
+			return false;
+		}
+
+		return true;
+	}
+
+	protected float getAdditionalCheckDistance(Vector2f otherVelocity)
+	{
+		return (this.velocity.length() + otherVelocity.length()) * 50.0f; // magic
+	}
+
+	@Override
+	protected void onDimensionChanged(Dimension newDimension)
+	{
+		this.imagesFocused = availableImages.get(currentAction)[dimension.code() * Dimension.count()];
+		this.imagesUnfocused = availableImages.get(currentAction)[1 + dimension.code() * Dimension.count()];
+
+		if (focused)
+		{
+			this.setImage(imagesFocused[currentImage]);
+		}
+		else
+		{
+			this.setImage(imagesUnfocused[currentImage]);
+		}
+	}
+
+	protected void onCurrentActionChanged()
+	{
+		this.imagesFocused = availableImages.get(currentAction)[dimension.code() * Dimension.count()];
+		this.imagesUnfocused = availableImages.get(currentAction)[1 + dimension.code() * Dimension.count()];
+
+		this.currentImage = 0;
+	}
+
+	private void updateAnimation(float delta)
+	{
+		timeToNextImage -= getAnimatedDelta(delta, velocity);
+
+		if (shouldUseFittingTextures())
+		{
+			if (changedAction)
+			{
+				this.durationPerImage = properties.getImageDuration(this.currentAction);
+
+				if (canInterruptAnimation(lastAction) && supportsAction(currentAction) || currentImage == 0)
+				{
+					onCurrentActionChanged();
+				}
+
+				changedAction = false;
+			}
+		}
+
+		if (timeToNextImage <= 0 && shouldUpdateAnimation(currentAction, velocity))
+		{
+			currentImage++;
+
+			timeToNextImage = durationPerImage;
+		}
+
+		if (currentImage >= imagesFocused.length)
+		{
+			currentImage = 0;
+		}
+
+		if (focused)
+		{
+			this.setImage(imagesFocused[currentImage]);
+		}
+		else
+		{
+			this.setImage(imagesUnfocused[currentImage]);
+		}
+	}
+
+	protected void synchronizeAnimation(Entity mirroredEntity)
+	{
+		if (mirroredEntity.focused != this.focused)
+		{
+			mirroredEntity.setImageFocus(this.focused);
+		}
+
+		mirroredEntity.currentImage = currentImage;
+
+		if (mirroredEntity.currentAction != this.currentAction)
+		{
+			mirroredEntity.currentAction = this.currentAction;
+			mirroredEntity.changedAction = true;
+		}
+	}
+
+	@Override
+	public void updateHitbox()
+	{
+		hitbox.setLocation(position.x, position.y);
+		hitbox.update();
+	}
+
+	@Override
+	public boolean isRotateable()
+	{
+		return false;
+	}
+
+	@Override
+	public EntityLiving getHoldingEntity()
+	{
+		return holdingEntity;
+	}
+
+	public Image getImage(Dimension dimension)
+	{
+		if (focused)
+		{
+			return availableImages.get(currentAction)[dimension.code() * Dimension.count()][currentImage];
+		}
+		else
+		{
+			return availableImages.get(currentAction)[1 + dimension.code() * Dimension.count()][currentImage];
+		}
+	}
+
+	public Image getLightImage()
+	{
+		return getImage(Dimension.LIGHT);
+	}
+
+	public Image getShadowImage()
+	{
+		return getImage(Dimension.SHADOW);
+	}
+
+	@Override
+	public void draw(Graphics g)
+	{
+		if (!hidden && isRendered())
+		{
+			ShaderHandler.applyLights(0);
+
+			drawEmitters(false, g);
+
+			if (renderImage)
+			{
+				if (!shared)
+				{
+					if (level.getType() == LevelType.NORMAL && this.dimension == level.getForegroundDimension())
+					{
+						drawTextured(this.dimension.getOpposite(), g);
+					}
+
+					drawTextured(this.dimension, g);
+
+					if (level.getType() == LevelType.NORMAL && this.dimension != level.getForegroundDimension())
+					{
+						drawTextured(this.dimension.getOpposite(), g);
+					}
+				}
+				else
+				{
+					level.drawAsShared(this, g);
+				}
+			}
+
+			drawEmitters(true, g);
+
+			// drawScheduledEvents(g);
+		}
+	}
+
+	private void drawTextured(Dimension dimension, Graphics g)
+	{
+		Color color = getDrawColor(dimension, colorBuffer);
+
+		color = customModifiyDrawColor(color);
+
+		ColorHelper.copy(color, colorBuffer);
+
+		Image image = getImage(dimension);
+
+		if (LevelRenderer.isCheckpointing() && (!this.holded || this.holdingEntity.type != EntityType.PLAYER) || level.getLevelType() == LevelType.FROZEN && shouldDrawRecentPositions() && (!(this.holdingEntity != null && this.holdingEntity.shared || this.holdingEntity instanceof EntityPlayer) && (this.dimension == level.getForegroundDimension() || this.dimension == level.getBackgroundDimension() && level.isTransitioning()) && this.timeEffected && level.getControllingPlayer() != null && level.getControllingPlayer().isRawTimeEffected()))
+		{
+			// drawTrailImage(image, (int) (level.getType() == LevelType.FROZEN
+			// && shouldDrawRecentPositions() ? 16 : ((int) 16 *
+			// LevelRenderer.getCheckpointingFactor())), 15,
+			// ColorHelper.copy(colorBuffer, ColorHelper.buffer), 0.4f, g);
+		}
+		
+		drawImage(image, colorBuffer, g);
+	}
+
+	@Override
+	protected Color getFinalDrawColor()
+	{
+		return ColorHelper.multiplyAndCopy(this.customModifiyDrawColor(this.getDrawColor(this.dimension, ColorHelper.buffer)), this.shared ? level.getFinalSharedColor() : Color.white);
+	}
+
+	@Override
+	public final void drawImage(Image image, Color color, Graphics g)
+	{
+		drawImage(image, this.rotation, this.position.x, this.position.y, color, g);
+	}
+
+	@Override
+	public final void drawBlurryImage(Image image, Color color, Graphics g)
+	{
+		drawImage(image, this.rotation, this.position.x, this.position.y, color, g);
+	}
+
+	@Override
+	protected final void drawImage(Image image, float rotation, float x, float y, Color color, Graphics g)
+	{
+		image.setCenterOfRotation(hitbox.getRawWidth() / 2, hitbox.getRawHeight() / 2);
+		image.setRotation(rotation);
+
+		setImageColor(color, image);
+			
+		g.drawImage(image, x + level.getXOffset(this.dimension), y + level.getYOffset(this.dimension), color);
+	}
+
+	protected void setImageColor(Color color, Image image)
+	{
+		image.setImageColor(color.r, color.g, color.b, color.a);
+	}
+
+	protected Color getDrawColor(Dimension dimension, Color colorBuffer)
+	{
+		if (!this.hasMirror || this.position.x != this.mirroredEntity.position.x || this.position.y != this.mirroredEntity.position.y)
+		{
+			return level.getDimensionColor(dimension);
+		}
+		else
+		{
+			ColorHelper.copy(level.getDimensionColor(dimension), colorBuffer);
+
+			colorBuffer.a = level.getWrapperAlpha(dimension);
+
+			return colorBuffer;
+		}
+	}
+
+	public void jump()
+	{
+		velocity.y -= getJumpSpeed();
+	}
+
+	public Vector2f getDistanceTo(Entity entity)
+	{
+		bufferedVector.set(entity.getPosition());
+		bufferedVector.sub(this.position);
+
+		return bufferedVector;
+	}
+
+	public void removeMirror()
+	{
+		if (this.hasMirror)
+		{
+			this.level.removeEntity(this.mirroredEntity);
+			this.hasMirror = false;
+			this.mirroredEntity = null;
+		}
+	}
+
+	public void setVelocity(float x, float y)
+	{
+		this.velocity.x = x;
+		this.velocity.y = y;
+	}
+
+	protected void onSuffocation(boolean timeResistantSuffocation)
+	{
+
+	}
+
+	public void readMetadata()
+	{
+
+	}
+
+	public void writeMetadata()
+	{
+
+	}
+
+	public void setFocused(boolean focused)
+	{
+		if (this.focused != focused)
+		{
+			this.setImageFocus(focused);
+		}
+
+		this.focused = focused;
+	}
+
+	public void setMirroredEntity(Entity mirroredEntity)
+	{
+		this.mirroredEntity = mirroredEntity;
+		this.hasMirror = this.mirroredEntity != null;
+
+		if (this.hasMirror && !this.mirroredEntity.hasMirror)
+		{
+			this.mirroredEntity.mirroredEntity = this;
+			this.mirroredEntity.hasMirror = true;
+		}
+	}
+
+	public boolean isSuffocating()
+	{
+		return suffocating;
+	}
+
+	protected boolean shouldBePushedByTiles()
+	{
+		return true;
+	}
+
+	protected boolean shouldBounceFromEntities()
+	{
+		return false;
+	}
+
+	public boolean canJump()
+	{
+		return true;
+	}
+
+	public int getMaxJumpHeight()
+	{
+		return 3;
+	}
+
+	public void setMetadata(String metadata)
+	{
+		this.metadata = metadata;
+
+		readMetadata();
+	}
+
+	public float getMaxX()
+	{
+		return this.hitbox.getMaxX();
+	}
+
+	public float getMinX()
+	{
+		return this.hitbox.getMinX();
+	}
+
+	public float getMaxY()
+	{
+		return this.hitbox.getMaxY();
+	}
+
+	public float getMinY()
+	{
+		return this.hitbox.getMinY();
+	}
+
+	public float getAbsDistanceTo(Entity entity)
+	{
+		return Math.abs(getDistanceTo(entity).length());
+	}
+
+	protected float getJumpSpeed()
+	{
+		return 0.15f;
+	}
+
+	protected float getAnimatedDelta(float delta, Vector2f velocity)
+	{
+		return delta;
+	}
+
+	protected boolean shouldUpdateAnimation(EntityAction currentAction, Vector2f velocity)
+	{
+		return true;
+	}
+
+	public boolean isOnClimbable()
+	{
+		return onClimbable;
+	}
+
+	public static Vector2f getBufferedVector()
+	{
+		return bufferedVector;
+	}
+
+	public boolean isImageFocused()
+	{
+		return this.isLookingRight;
+	}
+
+	public boolean isOnGround()
+	{
+		return collidedBelow || closeBelow || lastBelow;
+	}
+
+	public boolean isClimbing()
+	{
+		return climbing;
+	}
+
+	public void setMaxSpeed(float speed)
+	{
+		this.properties.setMaxSpeed(speed);
+	}
+
+	public void setLookingRight(boolean isLookingRight)
+	{
+		this.isLookingRight = isLookingRight;
+	}
+
+	public boolean checkForMovement()
+	{
+		return movingDistance.length() > 0.05f;
+	}
+
+	public boolean isBlockedAbove()
+	{
+		return collidedAbove;
+	}
+
+	public boolean isBlockedBelow()
+	{
+		return collidedBelow;
+	}
+
+	public void setBlockedBelow(boolean blockedBelow)
+	{
+		this.collidedBelow = blockedBelow;
+	}
+
+	public boolean isBlockedLeft()
+	{
+		return collidedLeft;
+	}
+
+	public boolean isBlockedRight()
+	{
+		return collidedRight;
+	}
+
+	public boolean isFocused()
+	{
+		return focused;
+	}
+
+	public boolean isGravityActive()
+	{
+		return gravityActive;
+	}
+
+	public boolean isOutOfMap()
+	{
+		return outOfMap;
+	}
+
+	public EntityProperty getProperties()
+	{
+		return properties;
+	}
+
+	public void setProperties(EntityProperty properties)
+	{
+		this.properties = properties;
+	}
+
+	public Vector2f getVelocity()
+	{
+		return velocity;
+	}
+
+	public void setVelocity(Vector2f velocity)
+	{
+		this.velocity = velocity;
+	}
+
+	public Hitbox getHitbox()
+	{
+		return hitbox;
+	}
+
+	public void setHitbox(Hitbox hitbox)
+	{
+		this.hitbox = hitbox;
+	}
+
+	public boolean isLookingRight()
+	{
+		return isLookingRight;
+	}
+
+	public boolean isMoving()
+	{
+		return moving;
+	}
+
+	public EntityType getType()
+	{
+		return type;
+	}
+
+	public boolean isInteractable()
+	{
+		return this instanceof IEntityInteractable;
+	}
+
+	public EntityAction getCurrentAction()
+	{
+		return this.currentAction;
+	}
+
+	public boolean isOnLadder()
+	{
+		return onLadder;
+	}
+
+	public Entity getMirroredEntity()
+	{
+		return mirroredEntity;
+	}
+
+	public boolean isJumping()
+	{
+		return jumping;
+	}
+
+	public String getMetadata()
+	{
+		return metadata;
+	}
+
+	public void setRotation(float rotation)
+	{
+		this.rotation = rotation;
+	}
+
+	public boolean hasMirror()
+	{
+		return this.hasMirror;
+	}
+
+	public void setSkipMainUpdate(boolean skipMainUpdate)
+	{
+		this.skipMainUpdate = skipMainUpdate;
+	}
+
+	public boolean isSkipMainUpdate()
+	{
+		return skipMainUpdate;
+	}
+
+	public void setRender(boolean render)
+	{
+		this.render = render;
+	}
+
+	public boolean isRendered()
+	{
+		return render;
+	}
+
+	public float getRotation()
+	{
+		return rotation;
+	}
+
+	public float getCenterX()
+	{
+		return this.hitbox.getCenterX();
+	}
+
+	public float getCenterY()
+	{
+		return this.hitbox.getCenterY();
+	}
+
+	public boolean isRawTimeEffected()
+	{
+		return this.timeEffected;
+	}
+
+	public Tile getTileBelow()
+	{
+		return tileBelow;
+	}
+}

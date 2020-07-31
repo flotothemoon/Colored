@@ -1,0 +1,90 @@
+ -- General -- 
+Generated on: 2016-06-19_16-42-55
+Build: 759 from 10:18 PM - 18/06/16
+GameState: IN_LEVEL (previous: PLAY_MAP_SELECTION)
+Target FPS: 60
+Actual FPS: 61
+
+ -- Display -- 
+Target Width / Height: 1920 / 1080
+Actual Width / Height: 1920 / 1017 (windowed)
+
+ -- Environment -- 
+GPU: GeForce GTX 980 Ti/PCIe/SSE2 (NVIDIA Corporation)
+OpenGL Version: 4.5.0 NVIDIA 361.43
+Allocated Memory: 123MB
+Used Memory: 37MB
+"os.name": Windows 10
+"os.version": 10.0
+"os.arch": x86
+"java.version": 1.8.0_66
+"java.vendor": Oracle Corporation
+"sun.arch.data.model": 32
+
+ -- Level --
+ID: 21-01 (internal: 01)
+LevelType: REVERSAL
+Dimension: COLORED
+Location: ../worlds/maps/21-01
+
+ -- Stack Trace -- 
+java.lang.NullPointerException
+com.unlogical.colored.audio.AudioManager.play(AudioManager.java:76)
+com.unlogical.colored.audio.AudioManager.play(AudioManager.java:64)
+com.unlogical.colored.entity.player.EntityPlayer.onUpdate(EntityPlayer.java:452)
+com.unlogical.colored.entity.EntityLiving.updateEntity(EntityLiving.java:109)
+com.unlogical.colored.entity.Entity.update(Entity.java:1249)
+com.unlogical.colored.entity.player.EntityPlayer.updateEntryDoorPosition(EntityPlayer.java:222)
+com.unlogical.colored.levelmanaging.LevelManager.initLevel(LevelManager.java:271)
+com.unlogical.colored.levelmanaging.LevelManager.initLevel(LevelManager.java:130)
+com.unlogical.colored.gui.menu.MapSelection.onSelect(MapSelection.java:25)
+com.unlogical.colored.gui.menu.SelectionMenu.update(SelectionMenu.java:289)
+com.unlogical.colored.gui.menu.MenuHandler.update(MenuHandler.java:181)
+com.unlogical.colored.GameLauncher.update(GameLauncher.java:389)
+com.unlogical.colored.GameLauncher.render(GameLauncher.java:460)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication.mainLoop(LwjglApplication.java:218)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication$1.run(LwjglApplication.java:123)
+
+ -- Last 20 Log Entries -- 
+@Warning: Error while updating level / physics - jumping back to menu screen. (tid: 12)
+@Warning: java.lang.NullPointerException (tid: 12)
+@Warning: com.unlogical.colored.audio.AudioManager.play(AudioManager.java:76) (tid: 12)
+@Warning: com.unlogical.colored.audio.AudioManager.play(AudioManager.java:64) (tid: 12)
+@Warning: com.unlogical.colored.entity.player.EntityPlayer.onUpdate(EntityPlayer.java:452) (tid: 12)
+@Warning: com.unlogical.colored.entity.EntityLiving.updateEntity(EntityLiving.java:109) (tid: 12)
+@Warning: com.unlogical.colored.entity.Entity.update(Entity.java:1249) (tid: 12)
+@Warning: com.unlogical.colored.levelmanaging.EntityManager.updateEntities(EntityManager.java:29) (tid: 12)
+@Warning: com.unlogical.colored.levelmanaging.LevelManager.updateLevel(LevelManager.java:764) (tid: 12)
+@Warning: com.unlogical.colored.levelmanaging.LevelManager.update(LevelManager.java:626) (tid: 12)
+@Warning: com.unlogical.colored.GameLauncher.update(GameLauncher.java:398) (tid: 12)
+@Warning: com.unlogical.colored.GameLauncher.render(GameLauncher.java:460) (tid: 12)
+@Warning: com.badlogic.gdx.backends.lwjgl.LwjglApplication.mainLoop(LwjglApplication.java:218) (tid: 12)
+@Warning: com.badlogic.gdx.backends.lwjgl.LwjglApplication$1.run(LwjglApplication.java:123) (tid: 12)
+@Warning: Currently in session entity, cannot end levelmng (tid: 12)
+@Warning: Currently in session levelmng, cannot end update (tid: 12)
+@Log    : Play sound MENU_CLICK at volume 1.0, pitch 1.0 and pan 0.0 (once). (tid: 12)
+@Log    : Play sound MENU_CLICK at volume 1.0, pitch 1.0 and pan 0.0 (once). (tid: 12)
+@Log    : Loading map ../worlds/maps/21-01 ... (tid: 12)
+@Log    : Loading map files took 16ms. (tid: 12)
+
+ -- Last 20 Input Events -- 
+Key typed: s (charcode: 115) (16861ms ago)
+Key typed: s (charcode: 115) (16760ms ago)
+Key typed: s (charcode: 115) (16644ms ago)
+Key typed: s (charcode: 115) (16544ms ago)
+Key typed: s (charcode: 115) (16444ms ago)
+Key typed: s (charcode: 115) (16327ms ago)
+Key typed: s (charcode: 115) (16227ms ago)
+Key typed: s (charcode: 115) (16127ms ago)
+Key up: S (47) (16043ms ago)
+Touch up: 0 (pointer: 0) at x:641 y: 641 (15977ms ago)
+Key down: Space (62) (15944ms ago)
+Key down: D (32) (15761ms ago)
+Key up: Space (62) (15694ms ago)
+Key up: D (32) (15411ms ago)
+Mouse scrolled: 1 (1036ms ago)
+Mouse scrolled: 1 (986ms ago)
+Mouse scrolled: 1 (870ms ago)
+Touch down: 0 (pointer: 0) at x:973 y: 466 (128ms ago)
+Touch up: 0 (pointer: 0) at x:973 y: 466 (87ms ago)
+Touch down: 0 (pointer: 0) at x:973 y: 466 (20ms ago)

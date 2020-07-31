@@ -1,0 +1,55 @@
+ -- General -- 
+Generated on: 2016-06-06_15-42-30
+Build: 756 from 05:47 PM - 05/06/16
+GameState: IN_LEVEL (previous: LOADING)
+Target FPS: 60
+Actual FPS: 29
+
+ -- Display -- 
+Target Width / Height: 1920 / 1080
+Actual Width / Height: 1920 / 1053 (windowed)
+
+ -- Environment -- 
+GPU: GeForce GTX 980 Ti/PCIe/SSE2 (NVIDIA Corporation)
+OpenGL Version: 4.5.0 NVIDIA 361.43
+Allocated Memory: 123MB
+Used Memory: 79MB
+"os.name": Windows 10
+"os.version": 10.0
+"os.arch": x86
+"java.version": 1.8.0_66
+"java.vendor": Oracle Corporation
+"sun.arch.data.model": 32
+
+ -- Stack Trace -- 
+java.lang.RuntimeException: Level path for 20-01 not found! Fatal, aborting...
+com.unlogical.colored.level.Level.getMapPathByID(Level.java:702)
+com.unlogical.colored.GameLauncher.goToLastVisitedLevel(GameLauncher.java:815)
+com.unlogical.colored.GameLauncher.update(GameLauncher.java:376)
+com.unlogical.colored.GameLauncher.render(GameLauncher.java:460)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication.mainLoop(LwjglApplication.java:218)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication$1.run(LwjglApplication.java:123)
+
+ -- Last 20 Log Entries -- 
+@Log    : Fetching chapters / worlds... (tid: 12)
+@Log    : Requesting available map files... (tid: 12)
+@Log    : 9 found. (tid: 12)
+@Log    : Loading resources, entity textures... (1 / 3) (tid: 12)
+@Log    : Loading resources, terrain textures... (2 / 3) (tid: 12)
+@Log    : Loading resources, misc... (3 / 3) (tid: 12)
+@Log    : Initializing shaders... (tid: 12)
+@Log    : Loading save states... (tid: 12)
+@Log    : SaveState 1.dat found and read successfully. (tid: 12)
+@Log    : Active save state selected, last accessed on Mon Jun 06 15:42:19 CEST 2016 (tid: 12)
+@Log    : Initializing animation handler... (tid: 12)
+@Log    : Fetching maps... (tid: 12)
+@Log    : Initializing map editor... (tid: 12)
+@Log    : Initialising levelrenderer... (tid: 12)
+@Log    : Initializing menus... (tid: 12)
+@Log    : SaveState 1.dat found and read successfully. (tid: 12)
+@Log    : Initializing story handler... (tid: 12)
+@Log    : Initializing credits screen... (tid: 12)
+@Log    : Resizing contents to current window size... (tid: 12)
+@Log    : Finished loading, took 631ms. (tid: 12)
+
+ -- Last 0 Input Events -- 

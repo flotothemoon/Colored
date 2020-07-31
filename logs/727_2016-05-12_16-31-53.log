@@ -1,0 +1,86 @@
+ -- General -- 
+Generated on: 2016-05-12_16-31-53
+Build: 727 from 02:49 PM - 12/05/16
+GameState: IN_LEVEL (previous: MAP_EDITOR)
+Target FPS: 60
+Actual FPS: 61
+
+ -- Display -- 
+Target Width / Height: 1920 / 1080
+Actual Width / Height: 1920 / 1017 (windowed)
+
+ -- Environment -- 
+GPU: GeForce GTX 980 Ti/PCIe/SSE2 (NVIDIA Corporation)
+OpenGL Version: 4.5.0 NVIDIA 361.43
+Allocated Memory: 15MB
+Used Memory: 8MB
+"os.name": Windows 10
+"os.version": 10.0
+"os.arch": x86
+"java.version": 1.8.0_66
+"java.vendor": Oracle Corporation
+"sun.arch.data.model": 32
+
+ -- Level --
+ID: 20-03 (internal: 03)
+LevelType: NORMAL
+Dimension: COLORED
+Location: ../worlds/maps/20-03
+
+ -- Stack Trace -- 
+java.lang.ArrayIndexOutOfBoundsException: -5
+com.unlogical.colored.util.LevelObject.drawTrailImage(LevelObject.java:477)
+com.unlogical.colored.entity.Entity.drawTextured(Entity.java:2076)
+com.unlogical.colored.entity.Entity.drawTextured(Entity.java:2032)
+com.unlogical.colored.entity.Entity.draw(Entity.java:2007)
+com.unlogical.colored.levelmanaging.EntityManager.renderEntity(EntityManager.java:52)
+com.unlogical.colored.levelmanaging.EntityManager.renderEntities(EntityManager.java:43)
+com.unlogical.colored.levelmanaging.LevelManager.renderGeometry(LevelManager.java:1227)
+com.unlogical.colored.levelmanaging.LevelManager.render(LevelManager.java:1174)
+com.unlogical.colored.GameLauncher.render(GameLauncher.java:501)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication.mainLoop(LwjglApplication.java:218)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication$1.run(LwjglApplication.java:123)
+
+ -- Last 20 Log Entries -- 
+@Log: Play sound MENU_CLICK at volume 0.0, pitch 1.0 and pan 0.0 (once). (11)
+@Log: Fetching lights for level "20-03" ... (11)
+@Log: Lights fetched for level "20-03", 9 lights found. (11)
+@Log: Loaded map Up (20-03, ../worlds/maps/20-03), took 49ms. (11)
+@Log: Loading map ../worlds/maps/20-03 ... (11)
+@Log: Loading map files took 11ms. (11)
+@Log: Active save was saved to disk. (11)
+@Log: Level 20-03 cleared. (11)
+@Warning: Tried to load image(s) from path res/gui/icons/20_03, the resolved path res/gui/icons/20_03.png however does not exist. (11)
+@Warning: Couldn't load level icon for 20-03. (11)
+@Log: Fetching lights for level "20-03" ... (11)
+@Log: Lights fetched for level "20-03", 9 lights found. (11)
+@Log: Pre-simulating particles for 45000.0ms (300 x 150.0ms)... (11)
+@Log: Particle pre-simulation complete. Particles are now ahead of time by 45000.0ms. (11)
+@Log: Active save was saved to disk. (11)
+@Log: Loaded 20-03 (took 46ms). (11)
+@Log: Play sound CANNON_SHOOT_CREATURE at volume 0.0, pitch 1.0 and pan 0.39074746 (once). (11)
+@Log: Play sound CANNON_SHOOT_CREATURE at volume 0.0, pitch 1.0 and pan 0.58264786 (once). (11)
+@Log: Play sound CANNON_SHOOT_CREATURE at volume 0.0, pitch 1.0 and pan 0.5412339 (once). (11)
+@Log: Play sound JUMP at volume 0.0, pitch 1.0 and pan 0.0 (once). (11)
+
+ -- Last 20 Input Events -- 
+Touch up: 0 (pointer: 0) at x:767 y: 321 (17038ms ago)
+Touch down: 0 (pointer: 0) at x:767 y: 321 (17004ms ago)
+Touch up: 0 (pointer: 0) at x:767 y: 321 (16923ms ago)
+Key down: F11 (254) (15906ms ago)
+Key up: F11 (254) (15848ms ago)
+Key down: D (32) (15302ms ago)
+Key typed: d (charcode: 100) (14885ms ago)
+Key typed: d (charcode: 100) (14785ms ago)
+Key typed: d (charcode: 100) (14668ms ago)
+Key typed: d (charcode: 100) (14568ms ago)
+Key up: D (32) (14552ms ago)
+Key down: D (32) (11568ms ago)
+Key typed: d (charcode: 100) (11152ms ago)
+Key typed: d (charcode: 100) (11052ms ago)
+Key typed: d (charcode: 100) (10935ms ago)
+Key up: Space (62) (10768ms ago)
+Key up: D (32) (10718ms ago)
+Key up: Delete (67) (10635ms ago)
+Key down: Up (19) (8268ms ago)
+Key up: Up (19) (7918ms ago)

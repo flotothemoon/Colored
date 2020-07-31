@@ -1,0 +1,83 @@
+ -- General -- 
+Generated on: 2016-03-18_19-53-02
+Build: 658 from 07:11 PM - 17/03/16
+GameState: MAP_EDITOR (previous: IN_LEVEL)
+Target FPS: 60
+Actual FPS: 59
+
+ -- Display -- 
+Target Width / Height: 1920 / 1080
+Actual Width / Height: 1920 / 1053 (windowed)
+
+ -- Environment -- 
+GPU: GeForce GTX 980 Ti/PCIe/SSE2 (NVIDIA Corporation)
+OpenGL Version: 4.5.0 NVIDIA 361.43
+Allocated Memory: 15MB
+Used Memory: 0MB
+"os.name": Windows 10
+"os.version": 10.0
+"os.arch": x86
+"java.version": 1.8.0_66
+"java.vendor": Oracle Corporation
+"sun.arch.data.model": 32
+
+ -- Level --
+ID: 20-02 (internal: 02)
+LevelType: NORMAL
+Dimension: LIGHT
+Location: ../worlds/maps/20-02
+
+ -- Stack Trace -- 
+java.lang.RuntimeException: Level path for 20-01 not found! Fatal, aborting...
+com.unlogical.colored.level.Level.getMapPathByID(Level.java:663)
+com.unlogical.colored.gui.panel.DoorPanel.init(DoorPanel.java:459)
+com.unlogical.colored.mapeditor.MapEditor.onSelectTile(MapEditor.java:3003)
+com.unlogical.colored.mapeditor.MapEditor.update(MapEditor.java:2049)
+com.unlogical.colored.GameLauncher.update(GameLauncher.java:372)
+com.unlogical.colored.GameLauncher.render(GameLauncher.java:430)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication.mainLoop(LwjglApplication.java:218)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication$1.run(LwjglApplication.java:123)
+
+ -- Last 20 Log Entries -- 
+@Log: Loading map ../worlds/maps/20-02 ... (11)
+@Log: Loading map files took 210ms. (11)
+@Log: Fetching lights for level "20-02" ... (11)
+@Log: Lights fetched for level "20-02", 4 lights found. (11)
+@Log: Pre-simulating particles for 45000.0ms (300 x 150.0ms)... (11)
+@Log: Particle pre-simulation complete. Particles are now ahead of time by 45000.0ms. (11)
+@Log: Active save was saved to disk. (11)
+@Log: Loaded 20-02 (took 279ms). (11)
+@Log: Play sound JUMP at volume 0.0 and pitch 1.0 (once). (11)
+@Log: Fetching lights for level "20-02" ... (11)
+@Log: Lights fetched for level "20-02", 4 lights found. (11)
+@Log: Loaded map Easy Steps (20-02, ../worlds/maps/20-02), took 39ms. (11)
+@Log: Clicked "Save" and called its onClick(). (11)
+@Log: Play sound MENU_CLICK at volume 0.0 and pitch 1.0 (once). (11)
+@Log: Fetching lights for level "20-03" ... (11)
+@Log: Lights fetched for level "20-03", 4 lights found. (11)
+@Log: Loaded map Up (20-03, ../worlds/maps/20-03), took 45ms. (11)
+@Log: Fetching lights for level "20-02" ... (11)
+@Log: Lights fetched for level "20-02", 4 lights found. (11)
+@Log: Loaded map Easy Steps (20-02, ../worlds/maps/20-02), took 38ms. (11)
+
+ -- Last 20 Input Events -- 
+Key typed:  (charcode: 1) (2571ms ago)
+Key typed:  (charcode: 1) (2471ms ago)
+Key typed:  (charcode: 1) (2371ms ago)
+Key typed:  (charcode: 1) (2271ms ago)
+Key typed:  (charcode: 1) (2155ms ago)
+Key typed:  (charcode: 1) (2055ms ago)
+Key typed:  (charcode: 1) (1955ms ago)
+Key up: A (29) (1871ms ago)
+Key up: L-Ctrl (129) (1838ms ago)
+Touch down: 0 (pointer: 0) at x:671 y: 513 (1571ms ago)
+Touch up: 0 (pointer: 0) at x:671 y: 513 (1488ms ago)
+Touch down: 1 (pointer: 0) at x:671 y: 513 (1355ms ago)
+Touch up: 1 (pointer: 0) at x:671 y: 513 (1271ms ago)
+Touch down: 1 (pointer: 0) at x:671 y: 513 (1205ms ago)
+Touch up: 1 (pointer: 0) at x:671 y: 513 (1100ms ago)
+Key down: L-Ctrl (129) (833ms ago)
+Key down: A (29) (783ms ago)
+Key up: A (29) (683ms ago)
+Key up: L-Ctrl (129) (517ms ago)
+Touch down: 0 (pointer: 0) at x:939 y: 526 (16ms ago)

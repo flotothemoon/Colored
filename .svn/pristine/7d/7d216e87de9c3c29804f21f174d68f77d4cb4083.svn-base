@@ -1,0 +1,42 @@
+package com.unlogical.colored.gui.menu;
+
+import java.io.File;
+
+import com.unlogical.colored.filesystem.FilePaths;
+import com.unlogical.colored.filesystem.organisation.MusicOrganisation;
+import com.unlogical.colored.gui.selection.MapSelectionMenu;
+
+
+
+
+public abstract class MusicSelection extends MapSelectionMenu
+{
+	private static SelectionState[] music;
+	private static MusicOrganisation organisation;
+	private static String chosenMusic = "";
+
+	public MusicSelection(int yOffset, int width, int height)
+	{
+		super(loadMusic(), yOffset, width, height);
+	}
+
+	public static SelectionState[] loadMusic()
+	{
+		organisation = new MusicOrganisation(new File(FilePaths.MUSIC));
+		music = organisation.getBackgroundSaveStates();
+
+		return music;
+	}
+
+	protected abstract void close();
+
+	public static String getChosenMusic()
+	{
+		return chosenMusic;
+	}
+
+	public static void setChosenMusic(String chosenMusic)
+	{
+		MusicSelection.chosenMusic = chosenMusic;
+	}
+}

@@ -1,0 +1,1110 @@
+package com.unlogical.colored.wrapper;
+
+import java.util.Map;
+import java.util.Random;
+
+import org.newdawn.slick.Color;
+import org.newdawn.slick.GameContainer;
+import org.newdawn.slick.Graphics;
+import org.newdawn.slick.Image;
+import org.newdawn.slick.geom.Vector2f;
+
+import com.unlogical.colored.GameLauncher;
+import com.unlogical.colored.collision.Hitbox;
+import com.unlogical.colored.configuration.Resolutions;
+import com.unlogical.colored.filesystem.FilePaths;
+import com.unlogical.colored.level.Level;
+import com.unlogical.colored.level.LevelType;
+import com.unlogical.colored.particle.EmitterType;
+import com.unlogical.colored.particle.IEmitterWrapper;
+import com.unlogical.colored.particle.ParticleEmitterImpl;
+import com.unlogical.colored.terrain.tile.Tile;
+import com.unlogical.colored.util.ColorHelper;
+import com.unlogical.colored.util.Dimension;
+import com.unlogical.colored.util.GameObject;
+import com.unlogical.colored.util.ICopyable;
+import com.unlogical.colored.util.RealImage;
+
+public class WrapperTexture extends GameObject implements IEmitterWrapper, Comparable<WrapperTexture>, ICopyable<WrapperTexture>
+{
+	private static final Color drawColor = new Color(1.0f, 1.0f, 1.0f, 1.0f);
+
+	private static Color particleAreaColor = new Color(0.8f, 0.8f, 1.0f, 0.1f);
+
+	private boolean visible;
+	private boolean inBackground;
+	private boolean animated;
+	private boolean isParticleWrapper;
+	private boolean flippedVertically;
+	private boolean flippedHorizontally;
+	private boolean drawSubImages;
+	private boolean circularEmitter;
+	private boolean shouldClip;
+	
+	private int innerType;
+	private float rotation;
+	private float scale = 1.0f;
+
+	private int timePerImage = 50;
+	private int timeToSwitch;
+	private int currentImage;
+
+	private int width = 400;
+	private int height = 400;
+
+	private String simpleName;
+	private String group;
+
+	private Color tint = new Color(1.0f, 1.0f, 1.0f, 1.0f);
+
+	private ParticleEmitterImpl emitter;
+
+	private RealImage[][] originalImages;
+	private RealImage[][] availableImages;
+	private RealImage[] animationImages;
+	private RealImage[] backgroundAnimationImages;
+	private RealImage backgroundImage;
+
+	private int depth = 0;
+	private float parallax = 1.0f;
+
+	private String path;
+
+	private Level level;
+
+	private Hitbox hitbox;
+	private Hitbox[] borders;
+
+	public WrapperTexture(String relativePath, String simpleName, Vector2f position, boolean visible, boolean inBackground, int innerType, float rotation, float scale, Color tint, int depth, float parallax, RealImage[][] availableImages, int timePerImage, Level level, boolean drawSubImages, boolean circularEmitter, boolean shouldClip, boolean flippedVertically, boolean flippedHorizontally, int width, int height, ParticleEmitterImpl particleEmitter)
+	{
+		super(availableImages[innerType][0], position);
+
+		this.visible = visible;
+		this.inBackground = inBackground;
+		this.innerType = innerType;
+		this.rotation = rotation;
+		this.scale = scale;
+		this.timePerImage = timePerImage;
+		this.tint = tint;
+		this.depth = depth;
+		this.parallax = parallax;
+		this.path = relativePath;
+		this.level = level;
+		this.simpleName = simpleName;
+		this.flippedHorizontally = flippedHorizontally;
+		this.flippedVertically = flippedVertically;
+		this.width = width;
+		this.height = height;
+		this.circularEmitter = circularEmitter;
+		this.shouldClip = shouldClip;
+						
+		this.setEmitter(particleEmitter);
+		this.setImages(relativePath, simpleName, availableImages);
+	}
+
+	public WrapperTexture(String relativePath, RealImage[][] availableImages)
+	{
+		this(relativePath, getSimpleName(relativePath), null, true, false, 0, 0.0f, 1.0f, new Color(1.0f, 1.0f, 1.0f), 0, 1.0f, availableImages, 0, null, false, false, false, false, false, availableImages[0][0].getWidth(), availableImages[0][0].getHeight(), null);
+	}
+
+	@Override
+	public boolean shouldCopy()
+	{
+		return false;
+	}
+
+	@Override
+	public IEmitterWrapper deepCopy(Map<Object, Object> copiedReferences)
+	{
+		return this;
+	}
+
+	public void setImages(String relativePath, String simpleName, RealImage[][] availableImages)
+	{
+		float beforeX = Float.NaN, beforeY = Float.NaN;
+		boolean changedImages = this.availableImages != null;
+
+		if (changedImages)
+		{
+			beforeX = this.hitbox.getCenterX();
+			beforeY = this.hitbox.getCenterY();
+		}
+
+		this.path = relativePath;
+		this.simpleName = simpleName;
+		this.availableImages = new RealImage[availableImages.length][];
+
+		for (int i = 0; i < availableImages.length; i++)
+		{
+			this.availableImages[i] = new RealImage[availableImages[i].length];
+
+			for (int p = 0; p < availableImages[i].length; p++)
+			{
+				this.availableImages[i][p] = availableImages[i][p].copy();
+			}
+		}
+
+		this.animated = availableImages[innerType].length > 1 && !isParticleWrapper;
+
+		if (this.tint == null)
+		{
+			this.tint = new Color(1.0f, 1.0f, 1.0f, 1.0f);
+		}
+
+		this.originalImages = new RealImage[availableImages.length][availableImages[0].length];
+
+		for (int i = 0; i < availableImages.length; i++)
+		{
+			for (int p = 0; p < availableImages[i].length; p++)
+			{
+				this.originalImages[i][p] = availableImages[i][p].copy();
+			}
+		}
+
+		this.animationImages = availableImages[innerType * Dimension.count() + (level == null ? 0 : level.getForegroundDimension().code())];
+		this.backgroundAnimationImages = availableImages[innerType * Dimension.count() + (level == null ? 1 : level.getBackgroundDimension().code())];
+
+		this.image = this.animationImages[0];
+		this.backgroundImage = this.backgroundAnimationImages[0];
+
+		if (position != null)
+		{
+			if (this.isParticleWrapper)
+			{
+				this.hitbox = new Hitbox(position.x, position.y, width, height);
+				this.hitbox.setRotation(rotation, this.hitbox.getCenterX() - this.hitbox.getMinX(), this.hitbox.getCenterY() - this.hitbox.getMinY());
+			}
+			else
+			{
+				this.hitbox = new Hitbox(position.x, position.y, image.getWidth(), image.getHeight());
+			}
+		}
+
+		if (this.hitbox != null)
+		{
+			this.updateImages();
+		}
+
+		if (changedImages)
+		{
+			if (beforeX == Float.NaN || beforeY == Float.NaN)
+			{
+				throw new RuntimeException("Wooooohhhh this shouldn't happen... well... whatevs.");
+			}
+
+			this.adjustX((beforeX - this.hitbox.getCenterX()) / 2.0f);
+			this.adjustY((beforeY - this.hitbox.getCenterY()) / 2.0f);
+		}
+
+		this.group = WrapperTextureFinder.getGroup(this);
+	}
+
+	public void setImages(WrapperTexture wrapper)
+	{
+		this.setImages(wrapper.path, wrapper.simpleName, wrapper.originalImages);
+	}
+
+	public boolean shouldCreateMirror(boolean allowMirrors)
+	{
+		return false;
+	}
+
+	public void createMirror(LevelType levelType)
+	{
+
+	}
+
+	public static String getSimpleName(String relativePath)
+	{
+		String simpleName = relativePath.replace('\\', '/');
+
+		if (simpleName.endsWith("-1.png"))
+		{
+			simpleName = simpleName.substring(0, simpleName.length() - 6);
+		}
+
+		if (simpleName.contains(FilePaths.WRAPPER_IMAGES))
+		{
+			simpleName = simpleName.substring(FilePaths.WRAPPER_IMAGES.length() + 1);
+		}
+
+		return simpleName;
+	}
+
+	@Override
+	public void draw(Graphics g)
+	{
+		if (visible)
+		{
+			if (isParticleWrapper)
+			{
+				if (level.shouldShowParticleAreas())
+				{
+					g.setColor(particleAreaColor);
+					g.fill(hitbox);
+
+					ColorHelper.applyAlphaAndCopy(Color.orange, 0.2f, g);
+					g.draw(hitbox);
+				}
+
+				emitter.getSystem().renderEmitter(emitter, g);
+
+				if (emitter.hasMirror())
+				{
+					emitter.getSystem().renderEmitter(emitter.getMirroredEmitter(), g);
+				}
+			}
+			else if (this.hitbox.getMaxX() >= 0 && this.hitbox.getMinX() <= GameLauncher.getWidth() && this.hitbox.getMaxY() >= 0 && this.hitbox.getMinY() <= GameLauncher.getHeight())
+			{
+				Image backgroundImage, image;
+
+				if (level.getForegroundDimension() == Dimension.LIGHT)
+				{
+					image = this.image;
+					backgroundImage = this.backgroundImage;
+				}
+				else
+				{
+					image = this.backgroundImage;
+					backgroundImage = this.image;
+				}
+
+				if (level.getDimensionColor(level.getForegroundDimension()).a != 1.0f || level.getStoryHandler().isShattering())
+				{
+					drawDimension(backgroundImage, level.getBackgroundDimension(), g);
+				}
+
+				drawDimension(image, level.getForegroundDimension(), g);
+			}
+		}
+	}
+
+	private void drawDimension(Image image, Dimension dimension, Graphics g)
+	{
+		Color dimensionColor = level.getDimensionColor(dimension);
+
+		drawColor.a = tint.a * level.getWrapperAlpha(dimension);
+
+		if (dimension == Dimension.LIGHT)
+		{
+			drawColor.r = tint.r;
+			drawColor.g = tint.g;
+			drawColor.b = tint.b;
+		}
+		else
+		{
+			drawColor.r = (tint.r + tint.g + tint.b) / 3.0f;
+			drawColor.g = drawColor.r;
+			drawColor.b = drawColor.r;
+		}
+
+		drawColor.r *= dimensionColor.r;
+		drawColor.g *= dimensionColor.g;
+		drawColor.b *= dimensionColor.b;
+
+		image.setRotation(rotation);
+
+		if (this.width != image.getWidth() || this.height != image.getHeight())
+		{
+			RealImage.fillArea(image, this.position.x + level.getXOffset(dimension), this.position.y + level.getYOffset(dimension), this.width, this.height, 0, 0, getCenterOfRotationX() + level.getXOffset(dimension), getCenterOfRotationY() + level.getYOffset(dimension), drawColor, drawSubImages, g);
+		}
+		else
+		{
+			image.draw(position.x + level.getXOffset(dimension), position.y + level.getYOffset(dimension), drawColor);
+		}
+	}
+
+	public void updateAnimation(int delta)
+	{
+		timeToSwitch -= delta;
+
+		if (timeToSwitch <= 0)
+		{
+			currentImage++;
+
+			if (currentImage >= animationImages.length)
+			{
+				currentImage = 0;
+			}
+
+			this.image = animationImages[currentImage];
+			this.backgroundImage = backgroundAnimationImages[currentImage];
+
+			this.timeToSwitch = timePerImage;
+		}
+	}
+
+	@Override
+	public void updateHitbox()
+	{
+		hitbox.setLocation(position.x, position.y);
+		hitbox.update();
+	}
+
+	@Override
+	public boolean isRotateable()
+	{
+		return true;
+	}
+
+	public boolean hasBorders()
+	{
+		return this.borders != null;
+	}
+
+	public final void createBorders()
+	{
+		if (!this.hasBorders())
+		{
+			this.borders = new Hitbox[4];
+
+			this.borders[0] = new Hitbox(0.0f, 0.0f, 0.0f, 0.0f);
+			this.borders[1] = new Hitbox(0.0f, 0.0f, 0.0f, 0.0f);
+			this.borders[2] = new Hitbox(0.0f, 0.0f, 0.0f, 0.0f);
+			this.borders[3] = new Hitbox(0.0f, 0.0f, 0.0f, 0.0f);
+
+			this.updateBorders();
+		}
+	}
+
+	public void updateBorders()
+	{
+		if (!this.hasBorders())
+		{
+			this.createBorders();
+		}
+
+		float borderFactor = Math.min(this.hitbox.getRawWidth(), this.hitbox.getRawHeight()) / (Resolutions.TILE_SIZE * 3);
+
+		if (borderFactor > 1.0f)
+		{
+			borderFactor = 1.0f;
+		}
+
+		float borderWidth = Tile.MIN_BORDER_WIDTH + (Tile.MAX_BORDER_WIDTH - Tile.MIN_BORDER_WIDTH) * borderFactor;
+
+		this.borders[0].set(this.position.x, this.position.y, this.hitbox.getRawWidth(), borderWidth);
+		this.borders[1].set(this.position.x + this.hitbox.getRawWidth() - borderWidth, this.position.y, borderWidth, this.hitbox.getRawHeight());
+		this.borders[2].set(this.position.x, this.position.y + this.hitbox.getRawHeight() - borderWidth, this.hitbox.getRawWidth(), borderWidth);
+		this.borders[3].set(this.position.x, this.position.y, borderWidth, this.hitbox.getRawHeight());
+
+		Hitbox.rotate(this.borders, getCenterOfRotationX(), getCenterOfRotationY(), this.rotation);
+	}
+
+	public void mouseDragged(int oldX, int oldY, int newX, int newY, float mouseXChange, float mouseYChange)
+	{
+		if (!shouldClip && !isParticleWrapper)
+		{
+			return;
+		}
+		
+		float minSize = Resolutions.TILE_SIZE / 2.0f;
+
+		Vector2f absMouseChange = new Vector2f(mouseXChange, mouseYChange);
+		absMouseChange.setTheta(absMouseChange.getTheta() - rotation);
+
+		mouseXChange = absMouseChange.x;
+		mouseYChange = absMouseChange.y;
+
+		float actRotation = this.rotation;
+
+		boolean rotateTop = this.borders[0].contains(oldX, oldY) && (this.hitbox.getHeight() - mouseYChange >= minSize || mouseYChange < 0);
+		boolean rotateRight = this.borders[1].contains(oldX, oldY) && (this.hitbox.getWidth() - mouseXChange >= minSize || mouseXChange > 0);
+		boolean rotateBottom = this.borders[2].contains(oldX, oldY) && (this.hitbox.getHeight() - mouseYChange >= minSize || mouseYChange > 0);
+		boolean rotateLeft = this.borders[3].contains(oldX, oldY) && (this.hitbox.getWidth() - mouseXChange >= minSize || mouseXChange < 0);
+
+		float[] points = this.hitbox.getPoints();
+
+		int pIndex = -1;
+
+		if (rotateTop)
+		{
+			if (rotateRight)
+			{
+				pIndex = 1;
+			}
+			else
+			{
+				pIndex = 0;
+			}
+		}
+		else if (rotateBottom)
+		{
+			if (rotateRight)
+			{
+				pIndex = 2;
+			}
+			else
+			{
+				pIndex = 3;
+			}
+		}
+		else if (rotateRight)
+		{
+			pIndex = 1;
+		}
+		else if (rotateLeft)
+		{
+			pIndex = 0;
+		}
+
+		if (pIndex >= 0)
+		{
+			pIndex = (pIndex + points.length / 4) % (points.length / 2);
+
+			Vector2f referencePos = new Vector2f(points[pIndex * 2], points[pIndex * 2 + 1]);
+
+			this.setRotation(0.0f);
+
+			if (rotateTop)
+			{
+				this.adjustY(mouseYChange);
+				this.adjustHeight(-mouseYChange);
+			}
+
+			if (rotateRight)
+			{
+				this.adjustWidth(mouseXChange);
+			}
+
+			if (rotateBottom)
+			{
+				this.adjustHeight(mouseYChange);
+			}
+
+			if (rotateLeft)
+			{
+				this.adjustX(mouseXChange);
+				this.adjustWidth(-mouseXChange);
+			}
+
+			this.setRotation(actRotation);
+			this.hitbox.update();
+			points = this.hitbox.getPoints();
+
+			Vector2f newReferencePos = new Vector2f(points[pIndex * 2], points[pIndex * 2 + 1]);
+
+			newReferencePos.sub(referencePos);
+
+			this.adjustX(-newReferencePos.x);
+			this.adjustY(-newReferencePos.y);
+		}
+
+		this.updateBorders();
+	}
+
+	public void adjustWidth(float widthChange)
+	{
+		this.width += widthChange;
+		this.setWidth(this.width);
+	}
+
+	public void adjustHeight(float heightChange)
+	{
+		this.height += heightChange;
+		this.setHeight(this.height);
+	}
+
+	public void drawBorders(GameContainer container, Graphics g)
+	{
+		if (!shouldClip && !isParticleWrapper)
+		{
+			return;
+		}
+		
+		for (int i = 0; i < borders.length; i++)
+		{
+			if (borders[i].contains(container.getInput().getMouseX(), container.getInput().getMouseY()))
+			{
+				g.setColor(Tile.hoverColor);
+			}
+			else
+			{
+				g.setColor(Tile.borderColor);
+			}
+
+			g.fill(borders[i]);
+		}
+	}
+
+	public boolean bordersContain(int mouseX, int mouseY)
+	{
+		for (int i = 0; i < borders.length; i++)
+		{
+			if (borders[i].contains(mouseX, mouseY))
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	public float getCenterOfRotationY()
+	{
+		return hitbox.getCenterY();
+	}
+
+	public float getCenterOfRotationX()
+	{
+		return hitbox.getCenterX();
+	}
+
+	@Override
+	public int compareTo(WrapperTexture object)
+	{
+		if (this.depth == object.getDepth())
+		{
+			if (this.parallax == object.getEmitterParallax())
+			{
+				return 0;
+			}
+			else if (this.parallax > object.getEmitterParallax())
+			{
+				return 1;
+			}
+			else
+			{
+				return -1;
+			}
+		}
+		else if (this.depth < object.getDepth())
+		{
+			return -1;
+		}
+		else
+		{
+			return 1;
+		}
+	}
+
+	public void rotate(float degrees)
+	{
+		this.image.rotate(degrees);
+		this.hitbox.rotate(degrees, hitbox.getCenterX(), hitbox.getCenterY());
+		this.rotation += degrees;
+
+		if (Math.abs(this.rotation) >= 360.0f)
+		{
+			this.rotation %= 360.0f;
+		}
+	}
+
+	public void setRotation(float degrees)
+	{
+		this.rotation = degrees;
+
+		if (Math.abs(this.rotation) >= 360.0f)
+		{
+			this.rotation %= 360.0f;
+		}
+
+		this.updateImages();
+	}
+
+	public void setInnerType(int innerType)
+	{
+		if (this.innerType != innerType)
+		{
+			if (innerType < availableImages.length)
+			{
+				this.innerType = innerType;
+
+				if (animated)
+				{
+					this.currentImage = 0;
+
+					this.animationImages = availableImages[innerType * Dimension.count() + level.getForegroundDimension().code()];
+					this.backgroundAnimationImages = availableImages[innerType * Dimension.count() + level.getBackgroundDimension().code()];
+
+					this.image = animationImages[0];
+					this.backgroundImage = animationImages[0];
+				}
+
+				this.image.setRotation(this.rotation);
+			}
+		}
+	}
+
+	private void updateImages()
+	{
+		updateScale(this.scale);
+
+		if (!isParticleWrapper)
+		{
+			for (int i = 0; i < availableImages.length; i++)
+			{
+				for (int p = 0; p < availableImages[i].length; p++)
+				{
+					this.availableImages[i][p] = availableImages[i][p].getFlippedCopy(flippedHorizontally, flippedVertically);
+				}
+			}
+		}
+
+		this.image = availableImages[innerType * Dimension.count() + level.getForegroundDimension().code()][currentImage];
+		this.backgroundImage = availableImages[innerType * Dimension.count() + level.getBackgroundDimension().code()][currentImage];
+	}
+
+	public void updateScale(float scale)
+	{
+		if (!isParticleWrapper)
+		{
+			for (int i = 0; i < availableImages.length; i++)
+			{
+				for (int p = 0; p < availableImages[i].length; p++)
+				{
+					this.originalImages[i][p].setFilter(Image.FILTER_LINEAR);
+					this.availableImages[i][p] = originalImages[i][p].getScaledCopy(scale);
+				}
+			}
+		}
+
+		this.image = availableImages[innerType * Dimension.count() + level.getForegroundDimension().code()][0];
+		this.backgroundImage = availableImages[innerType * Dimension.count() + level.getBackgroundDimension().code()][0];
+
+		float x = position.x;
+		float y = position.y;
+
+		this.hitbox.set(x, y, this.width, this.height);
+		this.hitbox.setRotation(rotation, this.hitbox.getCenterX() - this.hitbox.getMinX(), this.hitbox.getCenterY() - this.hitbox.getMinY());
+
+		this.image.setCenterOfRotation(this.hitbox.getCenterX() - this.hitbox.getMinX(), this.hitbox.getCenterY() - this.hitbox.getMinY());
+		this.image.setRotation(rotation);
+
+		this.animationImages = availableImages[innerType * Dimension.count() + level.getForegroundDimension().code()];
+		this.backgroundAnimationImages = availableImages[innerType * Dimension.count() + level.getBackgroundDimension().code()];
+	}
+
+	public void resetParticleState()
+	{
+		if (this.isParticleWrapper)
+		{
+			this.emitter.reset();
+
+			if (this.emitter.hasMirror())
+			{
+				this.emitter.getMirroredEmitter().reset();
+			}
+		}
+	}
+
+	public String getPath()
+	{
+		return path;
+	}
+
+	public void updateBoundary(float xAdjustment, float yAdjustment)
+	{
+		this.adjustX(xAdjustment);
+		this.adjustY(yAdjustment);
+	}
+
+	@Override
+	public float getSpawnScaleFactor(EmitterType emitterType)
+	{
+		return 1.0f;
+	}
+
+	@Override
+	public boolean shouldApplySpawnScaleFactor(EmitterType emitterType)
+	{
+		return true;
+	}
+
+	@Override
+	public boolean canCreateParticleAt(float x, float y)
+	{
+		return true;
+	}
+
+	public void setEmitter(ParticleEmitterImpl emitter)
+	{
+		if (this.isParticleWrapper)
+		{
+			level.removeParticleEmitter(this.emitter);
+		}
+
+		this.isParticleWrapper = emitter != null;
+		this.emitter = emitter;
+
+		if (this.isParticleWrapper)
+		{
+			if (hitbox != null)
+			{
+				hitbox.set(position.x, position.y, width, height);
+				hitbox.setRotation(rotation, this.hitbox.getCenterX() - this.hitbox.getMinX(), this.hitbox.getCenterY() - this.hitbox.getMinY());
+			}
+
+			level.addParticleEmitter(emitter);
+		}
+	}
+
+	@Override
+	public boolean shouldCreateParticles()
+	{
+		return true;
+	}
+
+	@Override
+	public strictfp String toString()
+	{
+		return "[" + this.getClass().getSimpleName() + ": name:" + this.simpleName + " group:" + (group == null ? "null" : (group.isEmpty() ? "none" : group)) + " path:" + this.path + " width: " + this.width + " height: " + this.height + "]";
+	}
+
+	@Override
+	public Random getRNG()
+	{
+		return level.getPRNG(false, dimension);
+	}
+
+	@Override
+	public WrapperTexture copy(Level level)
+	{
+		return duplicate(level);
+	}
+
+	public WrapperTexture duplicate(Level level)
+	{
+		WrapperTexture wrapper = new WrapperTexture(path, simpleName, position.copy(), visible, inBackground, innerType, rotation, scale, new Color(tint.r, tint.g, tint.b, tint.a), depth, parallax, originalImages, timePerImage, level, drawSubImages, circularEmitter, shouldClip, flippedVertically, flippedHorizontally, width, height, duplicateEmitter(emitter));
+
+		wrapper.setWidth(this.width);
+		wrapper.setHeight(this.height);
+		wrapper.setDrawSubImages(this.drawSubImages);
+
+		if (wrapper.isParticleWrapper)
+		{
+			wrapper.getEmitter().setWrapper(wrapper);
+			level.removeParticleEmitter(wrapper.getEmitter());
+
+			if (wrapper.getEmitter().hasMirror())
+			{
+				level.removeParticleEmitter(wrapper.getEmitter().getMirroredEmitter());
+			}
+		}
+
+		return wrapper;
+	}
+
+	public ParticleEmitterImpl duplicateEmitter(ParticleEmitterImpl emitter)
+	{
+		if (emitter == null)
+		{
+			return null;
+		}
+		else
+		{
+			return emitter.copy(level);
+		}
+	}
+
+	public void softReset()
+	{
+		this.setScale(1.0f);
+		this.setWidth(this.image.getWidth());
+		this.setHeight(this.image.getHeight());
+		this.updateBorders();
+	}
+
+	public void hardReset()
+	{
+		this.setScale(1.0f);
+		this.setRotation(0);
+		this.setParallax(1.0f);
+		this.setDepth(0);
+		this.level.sortWrappers();
+		this.setTint(new Color(1.0f, 1.0f, 1.0f, 1.0f));
+		this.setWidth(this.image.getWidth());
+		this.setHeight(this.image.getHeight());
+		this.updateBorders();
+	}
+
+	@Override
+	public RealImage[][] getEmitterSprites()
+	{
+		return availableImages;
+	}
+
+	@Override
+	public int getMaxParticles()
+	{
+		return 500;
+	}
+
+	@Override
+	public int getEmitterDepth()
+	{
+		return depth;
+	}
+
+	@Override
+	public boolean isTimeEffected()
+	{
+		return true;
+	}
+
+	@Override
+	public boolean isTimeEffectedAnyWay()
+	{
+		return false;
+	}
+
+	public boolean hasMirror()
+	{
+		return false;
+	}
+
+	public float getImageRotation()
+	{
+		return this.image.getRotation();
+	}
+
+	public float getRotation()
+	{
+		return this.rotation;
+	}
+
+	public void setPath(String relativePath)
+	{
+		this.path = relativePath;
+	}
+
+	public Hitbox getHitbox()
+	{
+		return hitbox;
+	}
+
+	public void setHitbox(Hitbox hitbox)
+	{
+		this.hitbox = hitbox;
+	}
+
+	public boolean isInBackground()
+	{
+		return inBackground;
+	}
+
+	public boolean isInForeground()
+	{
+		return !inBackground;
+	}
+
+	public void setInBackground(boolean inBackground)
+	{
+		this.inBackground = inBackground;
+	}
+
+	public Level getLevel()
+	{
+		return level;
+	}
+
+	public void setLevel(Level level)
+	{
+		this.level = level;
+	}
+
+	public boolean isVisible()
+	{
+		return visible;
+	}
+
+	public void setVisible(boolean visible)
+	{
+		this.visible = visible;
+	}
+
+	public boolean isAnimated()
+	{
+		return animated;
+	}
+
+	public void setAnimated(boolean animated)
+	{
+		this.animated = animated;
+	}
+
+	public int getDepth()
+	{
+		return depth;
+	}
+
+	public void setDepth(int depth)
+	{
+		if (depth <= Level.MAX_DEPTH)
+		{
+			this.depth = depth;
+		}
+	}
+
+	public int getTimePerImage()
+	{
+		return timePerImage;
+	}
+
+	public float getEmitterParallax()
+	{
+		return parallax;
+	}
+
+	public void setParallax(float parallax)
+	{
+		this.parallax = parallax;
+	}
+
+	public String getRelativePath()
+	{
+		return path;
+	}
+
+	public int getInnerType()
+	{
+		return innerType;
+	}
+
+	public float getScale()
+	{
+		return scale;
+	}
+
+	public void setScale(float scale)
+	{
+		this.scale = Math.round(scale * 50);
+
+		this.scale = this.scale / 50.0f;
+
+		this.updateImages();
+	}
+
+	public Color getEmitterTint()
+	{
+		return tint;
+	}
+
+	public void setTint(Color tint)
+	{
+		this.tint = tint;
+	}
+
+	public RealImage[][] getAvailableImages()
+	{
+		return availableImages;
+	}
+
+	public String getSimpleName()
+	{
+		return simpleName;
+	}
+
+	public void setSimpleName(String simpleName)
+	{
+		this.simpleName = simpleName;
+	}
+
+	public boolean isParticleWrapper()
+	{
+		return isParticleWrapper;
+	}
+
+	public void setTimePerImage(int timePerImage)
+	{
+		this.timePerImage = timePerImage;
+	}
+
+	public boolean isFlippedVertically()
+	{
+		return flippedVertically;
+	}
+
+	public void setFlippedVertically(boolean flippedVertically)
+	{
+		this.flippedVertically = flippedVertically;
+
+		this.updateImages();
+	}
+
+	public boolean isFlippedHorizontally()
+	{
+		return flippedHorizontally;
+	}
+
+	public void setFlippedHorizontally(boolean flippedHorizontally)
+	{
+		this.flippedHorizontally = flippedHorizontally;
+
+		this.updateImages();
+	}
+
+	public int getEmitterHeight()
+	{
+		return height;
+	}
+
+	public int getHeight()
+	{
+		return height;
+	}
+
+	public void setHeight(int height)
+	{
+		this.height = height;
+
+		this.updateImages();
+	}
+
+	public int getWidth()
+	{
+		return width;
+	}
+
+	public int getEmitterWidth()
+	{
+		return width;
+	}
+
+	public void setWidth(int width)
+	{
+		this.width = width;
+
+		this.updateImages();
+	}
+
+	public ParticleEmitterImpl getEmitter()
+	{
+		return emitter;
+	}
+
+	public String getGroup()
+	{
+		return this.group;
+	}
+
+	public boolean isDrawSubImages()
+	{
+		return drawSubImages;
+	}
+
+	public void setDrawSubImages(boolean drawSubImages)
+	{
+		this.drawSubImages = drawSubImages;
+	}
+
+	public boolean isCircularEmitter()
+	{
+		return circularEmitter;
+	}
+
+	public void setCircularEmitter(boolean circularEmitter)
+	{
+		this.circularEmitter = circularEmitter;
+	}
+	
+	public boolean isShouldClip()
+	{
+		return shouldClip;
+	}
+	
+	public void setShouldClip(boolean shouldClip)
+	{
+		this.shouldClip = shouldClip;
+	}
+}

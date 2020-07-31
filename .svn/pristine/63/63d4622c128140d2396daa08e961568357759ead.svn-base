@@ -1,0 +1,108 @@
+package com.unlogical.linked.terrain.tile;
+
+import java.util.Random;
+
+import org.newdawn.slick.geom.Vector2f;
+
+import com.unlogical.linked.level.Level;
+import com.unlogical.linked.level.LevelType;
+import com.unlogical.linked.terrain.TileType;
+import com.unlogical.linked.terrain.property.TileProperty;
+import com.unlogical.linked.terrain.tile.properties.ITileConveyorBelt;
+import com.unlogical.linked.util.Dimension;
+
+public class TileConveyorBelt extends Tile implements ITileConveyorBelt
+{
+	private float speed;
+	private float textureOffset;
+
+	public TileConveyorBelt(TileType type, String metadata, int innerType, float rotation, Vector2f position, Level level, Dimension dimension, TileProperty properties, boolean allowMirrors)
+	{
+		super(type, metadata, innerType, rotation, position, level, dimension, properties, allowMirrors);
+	}
+
+	@Override
+	public void initMirror(Tile mirroredTile, LevelType levelType)
+	{
+		super.initMirror(mirroredTile, levelType);
+		
+		if (levelType == LevelType.REVERSAL)
+		{
+			((TileConveyorBelt) mirroredTile).speed = -speed;
+		}
+	}
+
+	@Override
+	public void onUpdate(float delta, Random rng)
+	{
+		//awesome hack for resimulation because textureOffset won't change
+		if (!reSimulating)
+		{
+			textureOffset += speed * delta;
+	
+			if (Math.abs(textureOffset) > this.image.getWidth())
+			{
+				this.textureOffset %= this.image.getWidth();
+			}
+		}
+	}
+	
+	@Override
+	public void readMetadata()
+	{
+		try
+		{
+			this.speed = Float.parseFloat(this.metadata);
+		}
+		catch (Exception e)
+		{
+			this.speed = 0.1f;
+		}
+	}
+	
+	@Override
+	public void writeMetadata()
+	{
+		this.metadata = speed + "";
+	}
+	
+	@Override
+	public float getTextureOffsetX()
+	{
+		return textureOffset;
+	}
+
+	@Override
+	public float getHorizontalVelocity()
+	{
+		return speed;
+	}
+
+	@Override
+	public boolean shouldUpdate()
+	{
+		return true;
+	}
+
+	@Override
+	public boolean renderStatic()
+	{
+		return true;
+	}
+
+	@Override
+	public boolean isReallyChangeable()
+	{
+		return false;
+	}
+	
+	public void setSpeed(float speed)
+	{
+		this.speed = speed;
+	}
+	
+	public float getSpeed()
+	{
+		return speed;
+	}
+}

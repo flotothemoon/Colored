@@ -1,0 +1,347 @@
+package com.unlogical.colored.gui.login;
+
+import org.newdawn.slick.Color;
+import org.newdawn.slick.GameContainer;
+import org.newdawn.slick.Graphics;
+import org.newdawn.slick.geom.RoundedRectangle;
+
+import com.unlogical.colored.GameLauncher;
+import com.unlogical.colored.gui.UserInputLine;
+import com.unlogical.colored.gui.button.Button;
+import com.unlogical.colored.gui.loading.LoadingBar;
+import com.unlogical.colored.network.ClientProcessor;
+import com.unlogical.colored.util.GameStatus;
+
+public class LoginScreen
+{
+	private UserInputLine loginPassword;
+	private UserInputLine loginName;
+	private LoginButton loginButton;
+	private PlayButton playButton;
+	private UpdateButton updateButton;
+	private DownloadBar downloadBar;
+	// private UnicodeFont titleFont = new UnicodeFont(new Font("Papyrus",
+	// Font.BOLD, 120));
+	// private UnicodeFont textFont = new UnicodeFont(new Font("Papyrus",
+	// Font.BOLD, 30));
+	// private UnicodeFont linkFont = new UnicodeFont(new Font("Papyrus",
+	// Font.ITALIC, 25));
+	private int xOffset;
+	private int yOffset;
+	private int width;
+	private int height;
+	private int titlePositionX;
+	private int titlePositionY;
+	private static final int BUTTON_WIDTH = 220;
+	private static final int BUTTON_HEIGHT = 50;
+	private static final String PH = "E7lLGhFGcROMMGqCJrcFdiByhyewruOM71clL2SJBUdj7boTc5Odbmvigco6";
+	private boolean allowInput = true;
+	private ClientProcessor defCommunication;
+
+	public LoginScreen(int xOffset, int yOffset, int width, int height, boolean centered)
+	{
+		if (centered)
+		{
+			this.xOffset = 0;
+			this.yOffset = 0;
+			this.width = GameLauncher.getWidth();
+			this.height = GameLauncher.getHeight();
+		}
+		else
+		{
+			this.xOffset = xOffset;
+			this.yOffset = yOffset;
+			this.width = width;
+			this.height = height;
+		}
+
+		// try
+		// {
+		// titleFont.addAsciiGlyphs();
+		// titleFont.addGlyphs(400, 600);
+		// titleFont.getEffects().add(new ColorEffect(java.awt.Color.WHITE));
+		// titleFont.loadGlyphs();
+		//
+		// textFont.addAsciiGlyphs();
+		// textFont.addGlyphs(400, 600);
+		// textFont.getEffects().add(new ColorEffect(java.awt.Color.WHITE));
+		// textFont.loadGlyphs();
+		//
+		// linkFont.addAsciiGlyphs();
+		// linkFont.addGlyphs(400, 600);
+		// linkFont.getEffects().add(new ColorEffect(java.awt.Color.WHITE));
+		// linkFont.loadGlyphs();
+		// }
+		// catch (SlickException e)
+		// {
+		// DebugScreen.handle(new
+		// SlickException("Failed to load glyhps for required fonts"));
+		// }
+
+		defCommunication = new ClientProcessor();
+
+		downloadBar = new DownloadBar(GameLauncher.getWidth(), 10, 0, GameLauncher.getHeight() - 10);
+
+		updatePositions();
+
+		playButton.setActive(true);
+		loginButton.setActive(false);
+		updateButton.setShown(false);
+		updateButton.setActive(false);
+	}
+
+	public void update(GameContainer container, int delta)
+	{
+		loginButton.update(container, delta);
+		playButton.update(container, delta);
+		updateButton.update(container, delta);
+		loginName.update(container, delta);
+		loginPassword.update(container, delta);
+
+		if (!loginName.getInput().isEmpty() && !loginPassword.getInput().isEmpty() && allowInput)
+		{
+			loginButton.setActive(true);
+		}
+		else
+		{
+			loginButton.setActive(false);
+		}
+
+		if (defCommunication.isConnectionCancelled())
+		{
+			setAllowAdditionalInput(true);
+			updateButton.setActive(false);
+			updateButton.setShown(false);
+		}
+
+		if (defCommunication.isAuthFailed())
+		{
+			setAllowAdditionalInput(true);
+		}
+
+		if (defCommunication.wasUpdateFound() && !defCommunication.isUpdating())
+		{
+			updateButton.setShown(true);
+			updateButton.setActive(true);
+		}
+
+		if (defCommunication.isRequestingFiles())
+		{
+			downloadBar.setIsActive(true);
+			downloadBar.startBar();
+			downloadBar.setTotalWidth(GameLauncher.getWidth());
+		}
+
+		if (defCommunication.isFullyUpdated())
+		{
+			updateButton.setActive(false);
+			updateButton.setShown(false);
+			playButton.setActive(true);
+		}
+
+	}
+
+	public void render(GameContainer container, Graphics g)
+	{
+		g.setColor(Color.lightGray);
+		g.drawString(defCommunication.getStatus(), xOffset + 5, yOffset + height - g.getFont().getLineHeight());
+		loginButton.render(container, 1.0f, g);
+		playButton.render(container, 1.0f, g);
+		updateButton.render(container, 1.0f, g);
+		loginName.render(container, 1.0f, g);
+		loginPassword.render(container, 1.0f, g);
+		downloadBar.render(container, g);
+	}
+
+	public void updatePositions()
+	{
+		this.xOffset = 0;
+		this.yOffset = 0;
+		this.width = GameLauncher.getWidth();
+		this.height = GameLauncher.getHeight();
+
+		loginButton = new LoginButton("Login", BUTTON_WIDTH, BUTTON_HEIGHT, this.xOffset + this.width / 2 - BUTTON_WIDTH - 10, this.yOffset + this.height / 2 + BUTTON_HEIGHT + 20);
+		playButton = new PlayButton("Play Offline", BUTTON_WIDTH, BUTTON_HEIGHT, this.xOffset + this.width / 2 + 10, this.yOffset + this.height / 2 + BUTTON_HEIGHT + 20);
+		updateButton = new UpdateButton("Update", BUTTON_WIDTH * 2 + 20, BUTTON_HEIGHT, this.xOffset + this.width / 2 - BUTTON_WIDTH - 10, this.yOffset + this.height / 2 + BUTTON_HEIGHT * 2 + 30);
+
+		loginName = new UserInputLine(this.xOffset + this.width / 2 - BUTTON_WIDTH - 10, this.yOffset + this.height / 2 - BUTTON_HEIGHT, BUTTON_WIDTH * 2 + 20, BUTTON_HEIGHT);
+		loginPassword = new UserInputLine(this.xOffset + this.width / 2 - BUTTON_WIDTH - 10, this.yOffset + this.height / 2 + 10, BUTTON_WIDTH * 2 + 20, BUTTON_HEIGHT);
+
+		loginPassword.setProtectedInput(true);
+
+		loginName.setSuggestedInput("Username");
+		loginPassword.setSuggestedInput("Password");
+
+		loginName.setActive(true);
+		loginPassword.setActive(true);
+
+		loginButton.updateInterface();
+		playButton.updateInterface();
+		updateButton.updateInterface();
+
+		this.titlePositionX = this.xOffset + this.width / 2 - GameLauncher.getFont().getWidth("Bad Light") / 2;
+		this.titlePositionY = 30;
+	}
+
+	protected void setAllowAdditionalInput(boolean allowInput)
+	{
+		this.allowInput = allowInput;
+
+		loginName.setAllowUserInput(allowInput);
+		loginPassword.setAllowUserInput(allowInput);
+	}
+
+	private class LoginButton extends Button
+	{
+		private LoginButton(String label, int width, int height, int xOffset, int yOffset)
+		{
+			super(label, xOffset, yOffset, width, height);
+		}
+
+		@Override
+		public void onClick()
+		{
+			setAllowAdditionalInput(false);
+
+			defCommunication.setStartConnection(true);
+			defCommunication.setAuthFailed(false);
+
+			String encryptedUsername = new String(Encryption.encryptString(loginName.getInput(), PH));
+			String encryptedPassword = new String(Encryption.encryptString(loginPassword.getInput(), PH));
+
+			defCommunication.authenticate(encryptedUsername, encryptedPassword);
+		}
+	}
+
+	private class PlayButton extends Button
+	{
+		private PlayButton(String label, int width, int height, int xOffset, int yOffset)
+		{
+			super(label, xOffset, yOffset, width, height);
+		}
+
+		@Override
+		public void onClick()
+		{
+			GameLauncher.setStatus(GameStatus.LOADING);
+		}
+	}
+
+	private class UpdateButton extends Button
+	{
+		private UpdateButton(String label, int width, int height, int xOffset, int yOffset)
+		{
+			super(label, xOffset, yOffset, width, height);
+		}
+
+		@Override
+		public void onClick()
+		{
+			playButton.setActive(false);
+			updateButton.setActive(false);
+			defCommunication.startUpdate();
+		}
+	}
+
+	private class DownloadBar extends LoadingBar
+	{
+		private boolean isActive = false;
+		private boolean wasStarted = false;
+
+		private DownloadBar(int totalWidth, int totalHeight, int xOffset, int yOffset)
+		{
+			super(0, totalWidth, totalHeight, xOffset, yOffset);
+			this.setFillColor(new Color(0, 100, 0));
+		}
+
+		@Override
+		public void setTotalWidth(int width)
+		{
+		}
+
+		@Override
+		public void render(GameContainer container, Graphics g)
+		{
+			if (loadingBar != null && isActive)
+			{
+				oldColor = g.getColor();
+				g.setColor(fillColor);
+				g.fill(loadingBar);
+				g.setColor(oldColor);
+			}
+		}
+
+		@Override
+		public void update(int currentStep)
+		{
+			if (currentStep <= totalSteps)
+			{
+				this.currentStep = currentStep;
+				this.width = (int) ((((float) this.currentStep) / ((float) this.totalSteps)) * this.totalWidth);
+				this.loadingBar = new RoundedRectangle(this.xOffset, this.yOffset, this.width, this.height, 0);
+			}
+		}
+
+		public void setTotalSize(int totalSize)
+		{
+			this.setTotalSteps(totalSize);
+		}
+
+		public void setIsActive(boolean isActive)
+		{
+			this.isActive = isActive;
+		}
+
+		@Override
+		public void run()
+		{
+			while (currentStep <= totalSteps)
+			{
+				setTotalSize(defCommunication.getOutdatedFilesSize());
+				update(defCommunication.getDownloadedFilesSize());
+
+				try
+				{
+					sleep(10);
+				}
+				catch (InterruptedException e)
+				{
+					this.setIsActive(false);
+				}
+
+				if (defCommunication.getDownloadedFilesSize() >= defCommunication.getOutdatedFilesSize())
+				{
+					update(defCommunication.getOutdatedFilesSize());
+					break;
+				}
+
+			}
+		}
+
+		public void startBar()
+		{
+			if (!wasStarted)
+			{
+				start();
+				wasStarted = true;
+			}
+		}
+
+	}
+
+	public ClientProcessor getClient()
+	{
+		return this.defCommunication;
+	}
+
+	public int getTitlePositionX()
+	{
+		return titlePositionX;
+	}
+
+	public int getTitlePositionY()
+	{
+		return titlePositionY;
+	}
+
+}

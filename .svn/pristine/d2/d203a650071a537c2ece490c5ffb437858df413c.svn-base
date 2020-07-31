@@ -1,0 +1,29 @@
+package com.unlogical.linked.resources.font;
+
+import java.awt.Font;
+
+import org.newdawn.slick.TrueTypeFont;
+
+public class Fonts
+{
+	private static Font font = new Font("Times", Font.PLAIN, 34);
+	private static Font smallFont = new Font("Times", Font.PLAIN, 24);
+	private static TrueTypeFont gameFont;
+	private static TrueTypeFont smallGameFont;
+	
+	public static void init()
+	{
+		gameFont = new TrueTypeFont(font, true);
+		smallGameFont = new TrueTypeFont(smallFont, true);
+	}
+
+	public static TrueTypeFont getDefaultFont()
+	{
+		return gameFont;
+	}
+	
+	public static TrueTypeFont getSmallFont()
+	{
+		return smallGameFont;
+	}
+}

@@ -1,0 +1,155 @@
+package com.unlogical.colored.levelmanaging;
+
+import java.io.IOException;
+
+import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.g2d.Batch;
+import com.unlogical.colored.GameLauncher;
+import com.unlogical.colored.entity.player.EntityPlayer;
+import com.unlogical.colored.filesystem.FilePaths;
+import com.unlogical.colored.level.Level;
+import com.unlogical.colored.resources.font.Fonts;
+import com.unlogical.colored.resources.image.Images;
+import com.unlogical.colored.util.ColorHelper;
+import com.unlogical.colored.util.Renderer;
+import com.unlogical.colored.util.ShaderHandler;
+import com.unlogical.colored.util.Transitions;
+
+public final class GUIManager
+{
+	private static final int TEXT_DISPLAY_TIME = 3000;
+	private static final int TEXT_FADE_IN_TIME = 500;
+
+	private static final String RESUME_KEY_HINT = "resumeKeyHint";
+	private static final String RESUME_HINT = "resumeHint";
+	private static final String PREVIOUS_KEY_HINT = "previousKeyHint";
+	private static final String PREVIOUS_HINT = "previousHint";
+	private static final String NEXT_KEY_HINT = "nextKeyHint";
+	private static final String NEXT_HINT = "nextHint";
+
+	private static Level level;
+	private static int selectionTime;
+	private static int textDisplayTime;
+
+	public static void init() throws IOException
+	{
+		Images.registerAndLoad(RESUME_KEY_HINT, FilePaths.GUI + "/resumeKey.png");
+		Images.registerAndLoad(RESUME_HINT, FilePaths.GUI + "/continue.png");
+		Images.registerAndLoad(PREVIOUS_KEY_HINT, FilePaths.GUI + "/previousKey.png");
+		Images.registerAndLoad(NEXT_KEY_HINT, FilePaths.GUI + "/nextKey.png");
+		Images.registerAndLoad(NEXT_HINT, FilePaths.GUI + "/next.png");
+		Images.registerAndLoad(PREVIOUS_HINT, FilePaths.GUI + "/previous.png");
+	}
+
+	public static void initMap(Level level, boolean showText)
+	{
+		GUIManager.level = level;
+
+		if (showText)
+		{
+			textDisplayTime = TEXT_DISPLAY_TIME;
+		}
+	}
+
+	public static void update(int delta)
+	{
+		if (LevelManager.isInCheckpointSelectionMode())
+		{
+			selectionTime += delta;
+
+			if (selectionTime > 5000)
+			{
+				selectionTime = 5000;
+			}
+		}
+		else if (selectionTime > 0)
+		{
+			selectionTime -= delta * 8;
+		}
+
+		if (textDisplayTime > 0)
+		{
+			textDisplayTime -= delta;
+		}
+	}
+
+	public static void render(Batch batch)
+	{
+		level.getControllingPlayer().drawOverlay(batch);
+
+		if (level.getControllingPlayer().hasMirror())
+		{
+			((EntityPlayer) level.getControllingPlayer().getMirroredEntity()).drawOverlay(batch);
+		}
+
+		if (selectionTime > 0)
+		{
+			float scale = 1.5f;
+
+			int curX = 50;
+			int bottomYOffset = 60;
+			int topY = (int) (GameLauncher.getHeight() - Images.getHandler(RESUME_HINT).getHeight() * scale - 50 * scale);
+			int bottomY = GameLauncher.getHeight() - bottomYOffset;
+
+			float alpha = (float) (Math.sin(System.currentTimeMillis() / 200.0) + 1.0f) / 8.0f + 0.75f;
+
+			if (selectionTime <= 1000)
+			{
+				alpha *= Transitions.getFactor(selectionTime);
+			}
+
+			Color color = ColorHelper.multiplyAlphaAndCopy(Color.WHITE, alpha);
+
+			curX += Images.getHandler(RESUME_HINT).getWidth() / 2.0f * scale;
+
+			Images.draw(RESUME_HINT, curX, topY, scale, 0.0f, color, batch);
+			Images.draw(RESUME_KEY_HINT, curX, bottomY, scale, 0.0f, color, batch);
+
+			curX += Images.getHandler(PREVIOUS_HINT).getWidth() * scale;
+
+			color = ColorHelper.applyAlphaAndCopy(color, alpha * (LevelManager.isPreviousCheckpointAvailable() ? 1.0f : 0.4f));
+
+			Images.draw(PREVIOUS_HINT, curX, topY, scale, 0.0f, color, batch);
+			Images.draw(PREVIOUS_KEY_HINT, curX, bottomY, scale, 0.0f, color, batch);
+
+			curX += Images.getHandler(NEXT_HINT).getWidth() * scale;
+
+			color = ColorHelper.applyAlphaAndCopy(color, alpha * (LevelManager.isNextCheckpointAvailable() ? 1.0f : 0.4f));
+
+			Images.draw(NEXT_HINT, curX, topY, scale, 0.0f, color, batch);
+			Images.draw(NEXT_KEY_HINT, curX, bottomY, scale, 0.0f, color, batch);
+		}
+
+		if (textDisplayTime > 0)
+		{
+			ShaderHandler.disableLighting();
+
+			String chapter = level.getChapter();
+			String levelName = level.getName();
+			String chapterText = "- Chapter " + chapter + " -";
+			String levelText = levelName;
+
+			float alpha = textDisplayTime / ((float) TEXT_DISPLAY_TIME - TEXT_FADE_IN_TIME);
+
+			if (textDisplayTime > TEXT_DISPLAY_TIME - TEXT_FADE_IN_TIME)
+			{
+				alpha = ((float) TEXT_DISPLAY_TIME - textDisplayTime) / TEXT_FADE_IN_TIME;
+			}
+
+			alpha = Transitions.getFactor(alpha);
+
+			Renderer.setFont(Fonts.getBigGameFont());
+			batch.setColor(ColorHelper.applyAlphaAndCopy(Color.WHITE, alpha));
+
+			Renderer.useSpriteBatch();
+
+			Renderer.drawString(chapterText, batch.getColor(), GameLauncher.getWidth() / 2 - Renderer.getWidth(chapterText) / 2, GameLauncher.getHeight() / 2 - 20 - 20, 1.0f, batch);
+
+			Renderer.setFont(Fonts.getVeryBigGameFont());
+
+			Renderer.drawString(levelText, batch.getColor(), GameLauncher.getWidth() / 2 - Renderer.getWidth(levelText) / 2, GameLauncher.getHeight() / 2 + 10, 1.0f, batch);
+
+			ShaderHandler.enableLighting();
+		}
+	}
+}

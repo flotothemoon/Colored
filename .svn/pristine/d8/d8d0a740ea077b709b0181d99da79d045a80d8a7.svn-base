@@ -1,0 +1,428 @@
+package com.unlogical.colored.terrain.tile;
+
+import java.util.Random;
+
+import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
+import com.badlogic.gdx.graphics.glutils.ShapeRenderer.ShapeType;
+import com.badlogic.gdx.math.MathUtils;
+import com.badlogic.gdx.math.Vector2;
+import com.badlogic.gdx.utils.Pools;
+import com.unlogical.colored.GameLauncher;
+import com.unlogical.colored.audio.AudioManager.SoundType;
+import com.unlogical.colored.audio.SoundWrapper;
+import com.unlogical.colored.level.Level;
+import com.unlogical.colored.terrain.TileType;
+import com.unlogical.colored.terrain.property.TileProperty;
+import com.unlogical.colored.util.Dimension;
+
+public class TileSoundSource extends Tile
+{
+	private String soundType;
+	private boolean loop;
+	private float volume;
+	private float range;
+	private int intervalMin;
+	private int intervalMax;
+	private int currentIntervalCooldown;
+	private SoundPlayTimeType playType;
+	private SoundVolumeType volumeType;
+	private SoundRangeType rangeType;
+
+	private SoundWrapper lastPlayedSound;
+
+	public TileSoundSource(TileType type, String metadata, int innerType, float rotation, Vector2 position, Level level, Dimension dimension, TileProperty properties, boolean allowMirrors)
+	{
+		super(type, metadata, innerType, rotation, position, level, dimension, properties, allowMirrors);
+	}
+
+	@Override
+	public void init()
+	{
+		super.init();
+
+		this.resetIntervalCooldown();
+	}
+
+	@Override
+	public void onUpdate(float delta, Random rng)
+	{
+		super.onUpdate(delta, rng);
+
+		if (this.loop)
+		{
+			this.playOrUpdateSound();
+
+			return;
+		}
+
+		if (this.playType == SoundPlayTimeType.ONCE_IN_REACH)
+		{
+			if (this.getDistanceToPlayer() <= this.range)
+			{
+				if (this.currentIntervalCooldown > 2000)
+				{
+					this.playOrUpdateSound();
+				}
+
+				this.currentIntervalCooldown = 0;
+			}
+			else
+			{
+				this.currentIntervalCooldown += delta;
+			}
+		}
+		else if (this.playType == SoundPlayTimeType.RAND_INTERVAL_IN_REACH || this.playType == SoundPlayTimeType.RAND_INTERVAL_AMBIENT)
+		{
+			if (this.getDistanceToPlayer() <= this.range || this.playType == SoundPlayTimeType.RAND_INTERVAL_AMBIENT)
+			{
+				this.currentIntervalCooldown -= delta;
+
+				if (this.currentIntervalCooldown <= 0)
+				{
+					this.resetIntervalCooldown();
+
+					this.playOrUpdateSound();
+				}
+			}
+		}
+	}
+
+	private void playOrUpdateSound()
+	{
+		Vector2 position = Pools.get(Vector2.class).obtain();
+
+		position.set(this.getCenterX(), this.getCenterY());
+
+		if (this.rangeType == SoundRangeType.HORIZONTAL)
+		{
+			position.y = this.level.getControllingPlayer().getCenterY();
+		}
+		else if (this.rangeType == SoundRangeType.VERTICAL)
+		{
+			position.x = this.level.getControllingPlayer().getCenterX();
+		}
+
+		float distance = this.getDistanceToPlayer();
+		float relVolume = this.volume * GameLauncher.getLevelContext().getFadeFactor();
+		float rangeFactor = 1.0f - MathUtils.clamp(distance / this.range, 0.0f, 1.0f);
+
+		if (this.playType != SoundPlayTimeType.RAND_INTERVAL_AMBIENT)
+		{
+			if (this.volumeType == SoundVolumeType.LINEAR_DISTANCE)
+			{
+				relVolume *= rangeFactor;
+			}
+			else if (this.volumeType == SoundVolumeType.QUADRATIC_DISTANCE)
+			{
+				relVolume *= rangeFactor * rangeFactor;
+			}
+		}
+
+		Vector2 distanceToPlayer = Pools.get(Vector2.class).obtain();
+
+		distanceToPlayer.set(this.getCenterX(), this.getCenterY()).sub(this.level.getControllingPlayer().getCenterX(), this.level.getControllingPlayer().getCenterY());
+
+		float pan = MathUtils.clamp(-distanceToPlayer.x / 2500.0f, -1.0f, 1.0f);
+
+		SoundType type = SoundType.allSounds.get(this.soundType);
+
+		if (type != null)
+		{
+			if (this.lastPlayedSound != null && !this.lastPlayedSound.isDead())
+			{
+				if (Math.abs(this.lastPlayedSound.getActualVolume() - relVolume) > 0.01f)
+				{
+					this.lastPlayedSound.setVolume(relVolume);
+				}
+			}
+
+			if (this.loop && this.lastPlayedSound != null && !this.lastPlayedSound.isDead())
+			{
+				if (Math.abs(this.lastPlayedSound.getPan() - pan) > 0.02f)
+				{
+					this.lastPlayedSound.setPan(pan);
+				}
+
+				if (relVolume <= 0.0f)
+				{
+					this.lastPlayedSound.stop();
+					this.lastPlayedSound = null;
+				}
+			}
+			else
+			{
+				this.lastPlayedSound = this.level.getSoundManager().play(type, this.loop, relVolume, 1.0f, pan, this.getDimension(), false, this.level.getRNG(this));
+				this.lastPlayedSound.setVolumeSelfManaged(this.loop);
+			}
+		}
+	}
+
+	private void resetIntervalCooldown()
+	{
+		this.currentIntervalCooldown = (int) (this.intervalMin + Math.random() * (this.intervalMax - this.intervalMin));
+	}
+
+	private float getDistanceToPlayer()
+	{
+		Vector2 distanceToPlayer = Pools.get(Vector2.class).obtain();
+
+		distanceToPlayer.set(this.level.getControllingPlayer().getCenterX(), this.level.getControllingPlayer().getCenterY());
+		distanceToPlayer.sub(this.getCenterX(), this.getCenterY());
+
+		float distance;
+
+		if (this.rangeType == SoundRangeType.CIRCULAR)
+		{
+			distance = distanceToPlayer.len();
+		}
+		else if (this.rangeType == SoundRangeType.HORIZONTAL)
+		{
+			distance = Math.abs(distanceToPlayer.x);
+		}
+		else if (this.rangeType == SoundRangeType.VERTICAL)
+		{
+			distance = Math.abs(distanceToPlayer.y);
+		}
+		else
+		{
+			throw new RuntimeException("Unsupported range type: " + this.rangeType);
+		}
+
+		Pools.free(distanceToPlayer);
+
+		return distance;
+	}
+
+	@Override
+	public void writeMetadata()
+	{
+		this.metadata = this.soundType + ":" + this.volume + ":" + this.range + ":" + this.intervalMin + ":" + this.intervalMax + ":" + this.playType.name() + ":" + this.volumeType.name() + ":" + this.rangeType.name() + ":" + this.loop;
+	}
+
+	@Override
+	public void readMetadata()
+	{
+		String[] parts = this.metadata.split(":");
+
+		try
+		{
+			this.soundType = parts[0];
+			this.volume = Float.parseFloat(parts[1]);
+			this.range = Float.parseFloat(parts[2]);
+			this.intervalMin = Integer.parseInt(parts[3]);
+			this.intervalMax = Integer.parseInt(parts[4]);
+			this.playType = SoundPlayTimeType.valueOf(parts[5]);
+			this.volumeType = SoundVolumeType.valueOf(parts[6]);
+			this.rangeType = SoundRangeType.valueOf(parts[7]);
+			this.loop = Boolean.parseBoolean(parts[8]);
+		}
+		catch (Exception e)
+		{
+			this.soundType = SoundType.allSounds.firstEntry().getValue().name;
+			this.volume = 1.0f;
+			this.range = 300.0f;
+			this.intervalMin = 4000;
+			this.intervalMax = 6000;
+			this.playType = SoundPlayTimeType.RAND_INTERVAL_AMBIENT;
+			this.volumeType = SoundVolumeType.STATIC;
+			this.rangeType = SoundRangeType.CIRCULAR;
+			this.loop = true;
+		}
+	}
+
+	public void drawDebug(ShapeRenderer sr)
+	{
+		if (this.playType != SoundPlayTimeType.RAND_INTERVAL_AMBIENT)
+		{
+			sr.set(ShapeType.Line);
+
+			float innerAlpha = 0.05f;
+			float centerX = this.getCenterX();
+			float centerY = this.getCenterY();
+
+			if (this.rangeType == SoundRangeType.CIRCULAR)
+			{
+				sr.setColor(Color.ORANGE);
+				sr.circle(centerX, centerY, this.range);
+
+				sr.set(ShapeType.Filled);
+				sr.setColor(sr.getColor().mul(1.0f, 1.0f, 1.0f, innerAlpha));
+				sr.circle(centerX, centerY, this.range);
+			}
+			else if (this.rangeType == SoundRangeType.HORIZONTAL)
+			{
+				sr.setColor(Color.RED);
+				sr.line(centerX - this.range, -50, centerX - this.range, GameLauncher.getHeight() + 50);
+				sr.line(centerX + this.range, -50, centerX + this.range, GameLauncher.getHeight() + 50);
+
+				sr.set(ShapeType.Filled);
+				sr.setColor(sr.getColor().mul(1.0f, 1.0f, 1.0f, innerAlpha));
+				sr.rect(centerX - this.range, -50, this.range * 2, GameLauncher.getHeight() + 50);
+			}
+			else if (this.rangeType == SoundRangeType.VERTICAL)
+			{
+				sr.setColor(Color.YELLOW);
+				sr.line(-50, centerY - this.range, GameLauncher.getWidth() + 50, centerY - this.range);
+				sr.line(-50, centerY + this.range, GameLauncher.getWidth() + 50, centerY + this.range);
+
+				sr.set(ShapeType.Filled);
+				sr.setColor(sr.getColor().mul(1.0f, 1.0f, 1.0f, innerAlpha));
+				sr.rect(-50, centerY - this.range, GameLauncher.getWidth() + 50, this.range * 2);
+			}
+		}
+	}
+
+	@Override
+	public boolean shouldUpdate()
+	{
+		return true;
+	}
+
+	@Override
+	public boolean shouldRenderInGame()
+	{
+		return false;
+	}
+
+	@Override
+	public boolean shouldCopy()
+	{
+		return false;
+	}
+
+	public String getSoundType()
+	{
+		return this.soundType;
+	}
+
+	public void setSoundType(String soundType)
+	{
+		this.soundType = soundType;
+	}
+
+	public float getVolume()
+	{
+		return this.volume;
+	}
+
+	public void setVolume(float volume)
+	{
+		this.volume = volume;
+	}
+
+	public float getRange()
+	{
+		return this.range;
+	}
+
+	public void setRange(float range)
+	{
+		this.range = range;
+	}
+
+	public int getIntervalMin()
+	{
+		return this.intervalMin;
+	}
+
+	public void setIntervalMin(int intervalMin)
+	{
+		this.intervalMin = intervalMin;
+	}
+
+	public int getIntervalMax()
+	{
+		return this.intervalMax;
+	}
+
+	public void setIntervalMax(int intervalMax)
+	{
+		this.intervalMax = intervalMax;
+	}
+
+	public SoundPlayTimeType getPlayType()
+	{
+		return this.playType;
+	}
+
+	public void setPlayType(SoundPlayTimeType playType)
+	{
+		this.playType = playType;
+	}
+
+	public SoundVolumeType getVolumeType()
+	{
+		return this.volumeType;
+	}
+
+	public void setVolumeType(SoundVolumeType volumeType)
+	{
+		this.volumeType = volumeType;
+	}
+
+	public SoundRangeType getRangeType()
+	{
+		return this.rangeType;
+	}
+
+	public void setRangeType(SoundRangeType rangeType)
+	{
+		this.rangeType = rangeType;
+	}
+
+	public boolean isLoop()
+	{
+		return this.loop;
+	}
+
+	public void setLoop(boolean loop)
+	{
+		this.loop = loop;
+	}
+
+	public enum SoundPlayTimeType
+	{
+		ONCE_IN_REACH, RAND_INTERVAL_IN_REACH, RAND_INTERVAL_AMBIENT;
+
+		public static SoundPlayTimeType next(SoundPlayTimeType type)
+		{
+			return type.next();
+		}
+
+		public SoundPlayTimeType next()
+		{
+			return SoundPlayTimeType.values()[(this.ordinal() + 1) % SoundPlayTimeType.values().length];
+		}
+	}
+
+	public enum SoundVolumeType
+	{
+		STATIC, LINEAR_DISTANCE, QUADRATIC_DISTANCE;
+
+		public static SoundVolumeType next(SoundVolumeType type)
+		{
+			return type.next();
+		}
+
+		public SoundVolumeType next()
+		{
+			return SoundVolumeType.values()[(this.ordinal() + 1) % SoundVolumeType.values().length];
+		}
+	}
+
+	public enum SoundRangeType
+	{
+		CIRCULAR, HORIZONTAL, VERTICAL;
+
+		public static SoundRangeType next(SoundRangeType type)
+		{
+			return type.next();
+		}
+
+		public SoundRangeType next()
+		{
+			return SoundRangeType.values()[(this.ordinal() + 1) % SoundRangeType.values().length];
+		}
+	}
+}

@@ -1,0 +1,77 @@
+ -- General -- 
+Generated on: 2016-04-16_15-37-40
+Build: 689 from 07:20 PM - 13/04/16
+GameState: IN_LEVEL (previous: LOADING)
+Target FPS: 60
+Actual FPS: 46
+
+ -- Display -- 
+Target Width / Height: 1920 / 1080
+Actual Width / Height: 1920 / 1053 (windowed)
+
+ -- Environment -- 
+GPU: GeForce GTX 980 Ti/PCIe/SSE2 (NVIDIA Corporation)
+OpenGL Version: 4.5.0 NVIDIA 361.43
+Allocated Memory: 15MB
+Used Memory: 5MB
+"os.name": Windows 10
+"os.version": 10.0
+"os.arch": x86
+"java.version": 1.8.0_66
+"java.vendor": Oracle Corporation
+"sun.arch.data.model": 32
+
+ -- Level --
+ID: 20-04 (internal: 04)
+LevelType: NORMAL
+Dimension: LIGHT
+Location: ../worlds/maps/20-04
+
+ -- Stack Trace -- 
+com.badlogic.gdx.utils.GdxRuntimeException: Error writing file: screenshots\16\04\16 15:37:40.png (Local)
+com.badlogic.gdx.files.FileHandle.write(FileHandle.java:272)
+com.unlogical.colored.gui.panel.SanityPanel.takeAndStoreScreenshot(SanityPanel.java:308)
+com.unlogical.colored.gui.panel.SanityPanel.takeAndStoreScreenshot(SanityPanel.java:295)
+com.unlogical.colored.GameLauncher.render(GameLauncher.java:479)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication.mainLoop(LwjglApplication.java:218)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication$1.run(LwjglApplication.java:123)
+Caused by: java.io.FileNotFoundException: C:\Users\Flo\Desktop\Java\Colored\desktop\screenshots\16\04\16 15:37:40.png (The filename, directory name, or volume label syntax is incorrect)
+java.io.FileOutputStream.open0(Native Method)
+java.io.FileOutputStream.open(FileOutputStream.java:270)
+java.io.FileOutputStream.<init>(FileOutputStream.java:213)
+com.badlogic.gdx.files.FileHandle.write(FileHandle.java:268)
+com.unlogical.colored.gui.panel.SanityPanel.takeAndStoreScreenshot(SanityPanel.java:308)
+com.unlogical.colored.gui.panel.SanityPanel.takeAndStoreScreenshot(SanityPanel.java:295)
+com.unlogical.colored.GameLauncher.render(GameLauncher.java:479)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication.mainLoop(LwjglApplication.java:218)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication$1.run(LwjglApplication.java:123)
+
+ -- Last 20 Log Entries -- 
+@Log: Loading map files took 192ms. (8)
+@Log: Active save was saved to disk. (8)
+@Log: Level 20-04 cleared. (8)
+@Warning: Tried to load image(s) from path res/gui/icons/20_04, the resolved path res/gui/icons/20_04.png however does not exist. (8)
+@Warning: Couldn't load level icon for 20-04. (8)
+@Log: Fetching lights for level "20-04" ... (8)
+@Log: Lights fetched for level "20-04", 5 lights found. (8)
+@Log: Play sound CANNON_SHOOT_CLOUD at volume 0.0 and pitch 1.0 (once). (8)
+@Log: Play sound CANNON_SHOOT_CLOUD at volume 0.0 and pitch 1.0 (once). (8)
+@Log: Play sound CANNON_SHOOT_CLOUD at volume 0.0 and pitch 1.0 (once). (8)
+@Log: Play sound CANNON_SHOOT_CLOUD at volume 0.0 and pitch 1.0 (once). (8)
+@Log: Play sound CANNON_SHOOT_CLOUD at volume 0.0 and pitch 1.0 (once). (8)
+@Log: Play sound CANNON_SHOOT_CLOUD at volume 0.0 and pitch 1.0 (once). (8)
+@Log: Play sound CANNON_SHOOT_CLOUD at volume 0.0 and pitch 1.0 (once). (8)
+@Log: Play sound CANNON_SHOOT_CLOUD at volume 0.0 and pitch 1.0 (once). (8)
+@Log: Pre-simulating particles for 45000.0ms (300 x 150.0ms)... (8)
+@Log: Particle pre-simulation complete. Particles are now ahead of time by 45000.0ms. (8)
+@Log: Active save was saved to disk. (8)
+@Log: Loaded 20-04 (took 238ms). (8)
+@Log: Play sound JUMP at volume 0.0 and pitch 1.0 (once). (8)
+
+ -- Last 6 Input Events -- 
+Touch down: 0 (pointer: 0) at x:813 y: 312 (2415ms ago)
+Touch dragged: pointer: 0 at x:813 y: 313 (2414ms ago)
+Touch up: 0 (pointer: 0) at x:813 y: 313 (2251ms ago)
+Touch down: 0 (pointer: 0) at x:1145 y: 485 (985ms ago)
+Touch up: 0 (pointer: 0) at x:1145 y: 485 (921ms ago)
+Key down: Y (53) (104ms ago)

@@ -1,0 +1,127 @@
+package com.unlogical.linked.terrain.tile;
+
+import java.util.Map;
+
+import org.newdawn.slick.geom.Vector2f;
+
+import com.unlogical.linked.level.Level;
+import com.unlogical.linked.levelrendering.map.MapRenderer;
+import com.unlogical.linked.terrain.TileType;
+import com.unlogical.linked.terrain.property.TileProperty;
+import com.unlogical.linked.util.Dimension;
+import com.unlogical.linked.util.LevelObject;
+
+public class TileCameraControl extends Tile
+{
+	private boolean limitsInteractionDistance;
+	private int cameraDirection;
+	
+	public TileCameraControl(TileType type, String metadata, int innerType, float rotation, Vector2f position, Level level, Dimension dimension, TileProperty properties, boolean allowMirrors)
+	{
+		super(type, metadata, innerType, rotation, position, level, dimension, properties, allowMirrors);
+	}
+
+	@Override
+	public LevelObject deepCopy(Map<Object, Object> copiedReferences)
+	{
+		TileCameraControl copy = (TileCameraControl) super.deepCopy(copiedReferences);
+		
+		copy.limitsInteractionDistance = this.limitsInteractionDistance;
+		
+		return copy;
+	}
+	
+	public boolean limitsCameraVelocity()
+	{
+		return !this.timeEffected; //used for convenience and laziness
+	}
+	
+	@Override
+	public boolean shouldCopy()
+	{
+		return false;
+	}
+	
+	@Override
+	public void writeMetadata()
+	{
+		this.metadata = this.limitsInteractionDistance + ":" + this.cameraDirection;
+	}
+
+	@Override
+	public void readMetadata()
+	{		
+		try
+		{
+			String[] data = this.metadata.split(":");
+			
+			this.limitsInteractionDistance = Boolean.parseBoolean(data[0]);
+			this.cameraDirection = Integer.parseInt(data[1]);
+		}
+		catch (Exception e)
+		{
+			this.limitsInteractionDistance = false;
+			this.cameraDirection = -1;
+		}
+	}
+
+	@Override
+	public boolean shouldUpdate()
+	{
+		return false;
+	}
+
+	@Override
+	public boolean shouldRenderInGame()
+	{
+		return false;
+	}
+	
+	@Override
+	public void setTimeEffected(boolean timeEffected)
+	{
+		this.timeEffected = timeEffected;
+	}
+	
+	@Override
+	public boolean isTimeEffected()
+	{
+		return this.timeEffected;
+	}
+
+	@Override
+	public boolean canBeRemoved()
+	{		
+		return MapRenderer.getCameraControllers().size() > 2;
+	}
+	
+	public boolean isTransitionController()
+	{
+		return this.innerType != 0;
+	}
+
+	public boolean isVerticalController()
+	{
+		return this.innerType != 1;
+	}
+
+	public boolean isHorizontalController()
+	{
+		return this.innerType != 2;
+	}
+
+	public boolean limitsInteractionDistance()
+	{
+		return this.limitsInteractionDistance;
+	}
+	
+	public int getCameraDirection()
+	{
+		return cameraDirection;
+	}
+	
+	public void setCameraDirection(int cameraDirection)
+	{
+		this.cameraDirection = cameraDirection;
+	}
+}

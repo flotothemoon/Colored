@@ -1,0 +1,183 @@
+package com.unlogical.linked.entity.boss;
+
+import java.util.HashSet;
+import java.util.Random;
+import java.util.Set;
+
+import org.newdawn.slick.Color;
+import org.newdawn.slick.GameContainer;
+import org.newdawn.slick.Graphics;
+import org.newdawn.slick.geom.Vector2f;
+
+import com.unlogical.linked.entity.Entity;
+import com.unlogical.linked.entity.EntityType;
+import com.unlogical.linked.entity.projectile.EntityProjectile;
+import com.unlogical.linked.level.Level;
+import com.unlogical.linked.resources.font.Fonts;
+import com.unlogical.linked.util.ColorHelper;
+import com.unlogical.linked.util.Dimension;
+import com.unlogical.linked.util.Renderer;
+import com.unlogical.linked.util.ShaderHandler;
+
+public class EntityReversalBoss extends EntityBoss
+{
+	private static final float MAX_TARGET_DISTANCE = 1200.0f;
+	private static final int IN_BETWEEN_SHOOTING_COOLDOWN = 250;
+	private static final int PROJECTILE_COUNT = 5;
+	private static final int SHOOT_COOLDOWN = 5000;
+
+	private boolean shootingProjectiles;
+	
+	private Set<EntityProjectile> projectiles = new HashSet<EntityProjectile>();
+	
+	private int betweenCooldown;
+	private int shotProjectilesCount;
+	private int shootCooldown = SHOOT_COOLDOWN;
+
+	public EntityReversalBoss(EntityType type, Vector2f position, Level level, Dimension dimension, boolean allowMirrors)
+	{
+		super(type, position, level, dimension, allowMirrors);
+	}
+
+	@Override
+	public void onUpdate(GameContainer container, float delta, Random rng)
+	{
+		super.onUpdate(container, delta, rng);
+		
+		if (this.dimension == level.getForegroundDimension())
+		{
+			if (Math.abs(distanceToPlayer.x) < MAX_TARGET_DISTANCE && Math.abs(distanceToPlayer.y) < 250)
+			{
+				if (!active)
+				{
+					active = true;
+					((EntityBoss) this.mirroredEntity).active = true;
+
+					shotProjectilesCount = 0;
+				}
+			}
+			else
+			{
+				active = false;
+				((EntityBoss) this.mirroredEntity).active = false;
+
+				shootCooldown = SHOOT_COOLDOWN;
+			}
+
+			if (active)
+			{
+				movingRight = distanceToPlayer.x > 0.0f;
+
+				this.velocity.x += this.properties.getAcceleration(delta) * (this.movingRight ? 1 : -1);
+
+				if (Math.abs(this.velocity.x) > this.properties.getMaxSpeed())
+				{
+					this.velocity.x = this.properties.getMaxSpeed() * Math.signum(this.velocity.x);
+				}
+
+				if (!shootingProjectiles)
+				{
+					if (shootCooldown <= 0)
+					{
+						shootingProjectiles = true;
+
+						shotProjectilesCount = 0;
+						shootCooldown = SHOOT_COOLDOWN;
+						betweenCooldown = IN_BETWEEN_SHOOTING_COOLDOWN;
+					}
+					else
+					{
+						shootCooldown -= delta;
+					}
+				}
+				else
+				{
+					betweenCooldown -= delta;
+
+					if (betweenCooldown <= 0)
+					{
+						if (++shotProjectilesCount > PROJECTILE_COUNT)
+						{
+							shootingProjectiles = false;
+						}
+						else
+						{
+							EntityProjectile projectile = shootProjectile(EntityType.SHADOWBALL);
+
+							if (this.hitbox.contains(projectile.getHitbox()) || this.hitbox.intersects(projectile.getHitbox()))
+							{
+								projectiles.add(projectile);
+							}
+						}
+
+						betweenCooldown = IN_BETWEEN_SHOOTING_COOLDOWN;
+					}
+				}
+			}
+			else
+			{
+				this.velocity.x *= 0.9f;
+			}
+		}
+		else
+		{
+			this.velocity.x = -this.mirroredEntity.getVelocity().x;
+			this.movingRight = !((EntityBoss) this.mirroredEntity).movingRight;
+		}
+
+		this.setFocused(this.movingRight);
+	}
+	
+
+	@Override
+	protected Color customModifiyDrawColor(Color color)
+	{
+		return ColorHelper.inverseMultiplyRGBAndCopy(super.customModifiyDrawColor(color), Color.red, 0.8f * (1.0f - ((float) shootCooldown) / ((float) SHOOT_COOLDOWN)));
+	}
+
+	@Override
+	public void draw(Graphics g)
+	{
+		super.draw(g);
+
+		if (alive)
+		{
+			g.setAntiAlias(true);
+			g.setColor(ColorHelper.applyAlphaAndCopy(Color.red, level.getDimensionColor(this.dimension).a * 0.5f));
+			g.fillRect(this.getCenterX() - 50, this.getCenterY() - 65, 100 - (((float) shootCooldown) / (float) SHOOT_COOLDOWN) * 100.0f, 10);
+			g.setAntiAlias(false);
+
+			ShaderHandler.disableLighting();
+
+			g.setFont(Fonts.getSmallFont());
+			g.setColor(customModifiyDrawColor(this.getDrawColor(this.dimension, ColorHelper.buffer)));
+
+			String drawString = "";
+
+			for (int i = 0; i < this.properties.getMaxHealth() - this.health; i++)
+			{
+				drawString += "X";
+			}
+
+			for (int i = 0; i < this.health; i++)
+			{
+				drawString += "O";
+			}
+
+			g.drawString(drawString, this.getCenterX() - g.getFont().getWidth(drawString) / 2.0f, this.getCenterY() - 58);
+			
+			Renderer.bindTexture(null);
+		}
+	}
+	
+	@Override
+	protected boolean canBeHarmedBy(Entity entity)
+	{
+		if (!(entity instanceof EntityProjectile))
+		{
+			return false;
+		}
+
+		return ((EntityProjectile) entity).getSource() != this && !projectiles.contains(entity);
+	}
+}

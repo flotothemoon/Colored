@@ -1,0 +1,151 @@
+package com.unlogical.colored.entity.item;
+
+import java.util.HashMap;
+
+import org.newdawn.slick.Image;
+import org.newdawn.slick.SlickException;
+
+public class EntityItem {
+
+	private static final HashMap<String,EntityItem> ITEMS = new HashMap<String, EntityItem>();
+	public static final String[] ITEM_NAMES = {"gold","heart","fire-scroll","ice-scroll","knife","stick","sword","throwable-knife","apple","lost-soul","forgotten-soul"};
+	
+	private Image img;
+	private String name = "";
+	private String category = "";
+	private boolean permanent;
+	private int maxStack;
+	private static boolean init;
+	private int innerCategoryProbability;
+	private Image selectedImage;
+	
+	public static final String[] CATEGORIES = {"Power-Ups I","Power-Ups II","Weapons I","Weapons II","Weapons III","Gold","Heart"};
+	public static final EntityItem GOLD = new EntityItem("res/textures/misc/gold.png","gold","Gold",false,0,100,null);
+	public static final EntityItem HEART = new EntityItem("res/textures/misc/full-heart.png","heart","Heart",false,5,100,null);
+	public static final EntityItem FIRE_SCROLL = new EntityItem("res/textures/weapons/fireball-scroll.png","fire-scroll","Weapons II",false,1,0,"res/textures/weapons/selected-fireball-scroll.png");
+	public static final EntityItem ICE_SCROLL = new EntityItem("res/textures/weapons/iceball-scroll.png","ice-scroll","Weapons II",false,1,0,null);
+	public static final EntityItem STICK = new EntityItem("res/textures/weapons/stick.png","stick","Weapons I",false,1,100,null);
+	public static final EntityItem KNIFE = new EntityItem("res/textures/weapons/knife.png","knife","Weapons I",false,1,45,null);
+	public static final EntityItem THROWABLE_KNIFE = new EntityItem("res/textures/weapons/throwable-knife.png","throwable-knife","Weapons II",false,1,30,null);
+	public static final EntityItem SWORD = new EntityItem("res/textures/weapons/sword.png","sword","Weapons II",false,1,15,null);
+	public static final EntityItem WAND = new EntityItem("res/textures/weapons/wand.png","wand","Weapons II",false,1,20,null);
+	
+	public static final EntityItem APPLE = new EntityItem("res/textures/misc/apple.png","apple","Power-Ups I",false,10,80,null);
+	public static final EntityItem LOST_SOUL = new EntityItem("res/textures/misc/lost-soul.png","lost-soul","Power-Ups I",false,10,10,null);
+	public static final EntityItem FORGOTTEN_SOUL = new EntityItem("res/textures/misc/forgotten-soul.png","forgotten-soul","Power-Ups I",false,10,10,null);
+	
+	public static EntityItem getItem(String name)
+	{
+		if(!init)
+		{
+			init();
+		}
+		
+		return ITEMS.get(name);	
+	}
+	
+	public EntityItem(String img, String name, String category, boolean permanent, int maxStack, int innerCategoryProbability, String selectedImg)
+	{
+		try {
+			this.img = new Image(img);
+			this.img.setFilter(Image.FILTER_NEAREST);
+			this.img = this.img.getScaledCopy(20, 20);
+			
+			if(selectedImg != null)
+			{
+				this.selectedImage = new Image(selectedImg);
+			}
+		} catch (SlickException e) {
+			e.printStackTrace();
+		}
+		
+		this.name = name;
+		this.category = category;
+		this.permanent = permanent;
+		this.maxStack = maxStack;
+		this.innerCategoryProbability = innerCategoryProbability;
+	}
+	
+	public EntityItem(Image img, String name, int maxStack)
+	{
+		this.name = name;
+		this.img = img.getScaledCopy(20, 20);
+		this.selectedImage = img.copy();
+		this.maxStack = maxStack;
+	}
+
+	public static HashMap<String, EntityItem> getItems() {
+		return ITEMS;
+	}
+
+	public Image getImg() {
+		return img;
+	}
+
+	public void setImg(Image img) {
+		this.img = img;
+	}
+
+	public String getName() {
+		return name;
+	}
+
+	public void setName(String name) {
+		this.name = name;
+	}
+
+	public String getCategory() {
+		return category;
+	}
+
+	public void setCategory(String category) {
+		this.category = category;
+	}
+
+	public boolean isPermanent() {
+		return permanent;
+	}
+
+	public void setPermanent(boolean permanent) {
+		this.permanent = permanent;
+	}
+
+	public int getMaxStack() {
+		return maxStack;
+	}
+
+	public void setMaxStack(int maxStack) {
+		this.maxStack = maxStack;
+	}
+
+	public int getInnerCategoryProbability() {
+		return innerCategoryProbability;
+	}
+
+	public void setInnerCategoryProbability(int innerCategoryProbability) {
+		this.innerCategoryProbability = innerCategoryProbability;
+	}
+	
+	private static void init()
+	{
+		EntityItem.ITEMS.put("gold", GOLD);
+		EntityItem.ITEMS.put("heart", HEART);
+		EntityItem.ITEMS.put("fire-scroll", FIRE_SCROLL);
+		EntityItem.ITEMS.put("ice-scroll", ICE_SCROLL);
+		EntityItem.ITEMS.put("stick", STICK);
+		EntityItem.ITEMS.put("sword", SWORD);
+		EntityItem.ITEMS.put("throwable-knife", THROWABLE_KNIFE);
+		EntityItem.ITEMS.put("apple", APPLE);
+		EntityItem.ITEMS.put("lost-soul", LOST_SOUL);
+		EntityItem.ITEMS.put("forgotten-soul", FORGOTTEN_SOUL);
+		EntityItem.ITEMS.put("knife", KNIFE);
+		
+		
+		init = true;
+	}
+
+	public Image getSelectedImage() {
+		return selectedImage;
+	}
+
+}

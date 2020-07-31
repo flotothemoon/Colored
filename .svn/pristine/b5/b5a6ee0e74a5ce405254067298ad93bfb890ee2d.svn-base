@@ -1,0 +1,333 @@
+package com.unlogical.linked.gui;
+
+import org.newdawn.slick.Color;
+import org.newdawn.slick.GameContainer;
+import org.newdawn.slick.Graphics;
+import org.newdawn.slick.Image;
+import org.newdawn.slick.Input;
+import org.newdawn.slick.geom.Rectangle;
+
+import com.unlogical.linked.GameLauncher;
+import com.unlogical.linked.mapeditor.MapEditor;
+import com.unlogical.linked.terrain.TerrainObject;
+import com.unlogical.linked.util.ColorHelper;
+
+public class GUIItem
+{
+	private Color availableColor = new Color(0.5f, 0.5f, 0.5f, 0.5f);
+	private Color hoverColor = new Color(1.0f, 1.0f, 1.0f, 0.5f);
+
+	protected String name;
+	protected String metadata;
+
+	protected Image img;
+	protected Rectangle itemBox;
+	protected Rectangle textBox;
+
+	private int numberOfItems;
+	protected int xPos;
+	protected int yPos;
+	protected int borderWidth = 10;
+
+	protected boolean active = false;
+	protected boolean hovered = false;
+	protected boolean showBorder = true;
+	protected boolean showNameOnHover = true;
+	protected boolean sheared = false;
+	private boolean selected = false;
+
+	public GUIItem(String name, Image image, int numberOfItems, int xPos, int yPos)
+	{
+		this.name = name;
+		this.img = image;
+		this.numberOfItems = numberOfItems;
+		this.xPos = xPos;
+		this.yPos = yPos;
+
+		updateBox();
+	}
+
+	public GUIItem(String name, String metadata, Image image, int numberOfItems, int xPos, int yPos)
+	{
+		this(name, image, numberOfItems, xPos, yPos);
+
+		this.metadata = metadata;
+	}
+
+	public void update(GameContainer container, int delta)
+	{
+		if (active)
+		{
+			hovered = false;
+
+			if (itemBox.contains(container.getInput().getMouseX(), container.getInput().getMouseY()))
+			{
+				if (container.getInput().isMousePressed(Input.MOUSE_LEFT_BUTTON))
+				{
+					selected = true;
+					hovered = true;
+					onClick();
+				}
+				else
+				{
+					hovered = true;
+					actionOnHover();
+				}
+
+				if (showNameOnHover)
+				{
+					textBox = new Rectangle(container.getInput().getMouseX() + 10, container.getInput().getMouseY() - GameLauncher.getSmallFont().getHeight(), GameLauncher.getSmallFont().getWidth(name) + borderWidth, GameLauncher.getSmallFont().getHeight() + borderWidth);
+				}
+			}
+
+			customUpdate(container, delta);
+		}
+	}
+
+	public void render(float alphaFactor, Graphics g)
+	{
+		if (active)
+		{
+			if (hovered)
+			{
+				ColorHelper.applyAlphaAndCopy(hoverColor, alphaFactor, g);
+
+				g.fill(itemBox);
+			}
+
+			if (selected)
+			{
+				ColorHelper.applyAlphaAndCopy(Color.white, alphaFactor, g);
+				g.fill(itemBox);
+			}
+
+			if (img != null)
+			{
+				ColorHelper.set(ColorHelper.buffer, 1.0f, 1.0f, 1.0f, alphaFactor);
+				g.drawImage(img, xPos + borderWidth, yPos + borderWidth, ColorHelper.buffer);
+			}
+			else
+			{
+				ColorHelper.applyAlphaAndCopy(TerrainObject.FILL_COLOR, alphaFactor, g);
+				g.fillRect(xPos + borderWidth, yPos + borderWidth, 50, 50);
+
+				ColorHelper.applyAlphaAndCopy(Color.black, alphaFactor, g);
+				g.drawRect(xPos + borderWidth, yPos + borderWidth, 50, 50);
+			}
+
+			if (showNameOnHover && hovered)
+			{
+				ColorHelper.applyAlphaAndCopy(MapEditor.panelColor, alphaFactor, g);
+				g.fill(textBox);
+
+				ColorHelper.applyAlphaAndCopy(Color.white, alphaFactor, g);
+				g.drawString(name, (int) (textBox.getX() + borderWidth / 2), (int) (textBox.getY() + borderWidth / 2));
+
+				g.setColor(Color.white);
+			}
+
+			customRender(g);
+		}
+	}
+
+	public void renderSheared(Graphics g, int topClipping, int bottomClipping)
+	{
+		if (active)
+		{
+			g.setColor(availableColor);
+
+			if (hovered)
+			{
+				g.setColor(hoverColor);
+			}
+
+			g.fill(itemBox);
+
+			g.drawImage(img.getSubImage(0, topClipping, img.getWidth(), img.getHeight() - topClipping - bottomClipping), xPos + borderWidth, yPos + borderWidth);
+
+			if (showNameOnHover && hovered)
+			{
+				g.setColor(MapEditor.panelColor);
+				g.fill(textBox);
+
+				g.setColor(Color.white);
+				g.drawString(name, (int) (textBox.getX() + borderWidth / 2), (int) (textBox.getY() + borderWidth / 2));
+
+				g.setColor(Color.white);
+			}
+
+			customRender(g);
+		}
+	}
+
+	public void updateBox()
+	{
+		this.itemBox = new Rectangle(xPos, yPos, this.img == null ? 50 + borderWidth * 2 : this.img.getWidth() + borderWidth * 2, this.img == null ? 50 + borderWidth * 2 : this.img.getHeight() + borderWidth * 2);
+	}
+
+	public GUIItem copy()
+	{
+		return new GUIItem(name, metadata, img, numberOfItems, xPos, yPos);
+	}
+
+	public void customUpdate(GameContainer container, int delta)
+	{
+
+	}
+
+	public void customRender(Graphics g)
+	{
+
+	}
+
+	public void onClick()
+	{
+
+	}
+
+	public void actionOnHover()
+	{
+
+	}
+
+	public String getName()
+	{
+		return name;
+	}
+
+	public void setName(String name)
+	{
+		this.name = name;
+	}
+
+	public Image getImg()
+	{
+		return img;
+	}
+
+	public void setImg(Image img)
+	{
+		this.img = img;
+	}
+
+	public int getNumberOfItems()
+	{
+		return numberOfItems;
+	}
+
+	public void setNumberOfItems(int numberOfItems)
+	{
+		this.numberOfItems = numberOfItems;
+	}
+
+	public Rectangle getItemBox()
+	{
+		return itemBox;
+	}
+
+	public void setItemBox(Rectangle itemBox)
+	{
+		this.itemBox = itemBox;
+	}
+
+	public int getxPos()
+	{
+		return xPos;
+	}
+
+	public void setXPos(int xPos)
+	{
+		this.xPos = xPos;
+	}
+
+	public int getyPos()
+	{
+		return yPos;
+	}
+
+	public void setYPos(int yPos)
+	{
+		this.yPos = yPos;
+	}
+
+	public int getBorderWidth()
+	{
+		return borderWidth;
+	}
+
+	public void setBorderWidth(int borderWidth)
+	{
+		this.borderWidth = borderWidth;
+	}
+
+	public boolean isActive()
+	{
+		return active;
+	}
+
+	public void setActive(boolean active)
+	{
+		this.active = active;
+	}
+
+	public boolean isHovered()
+	{
+		return hovered;
+	}
+
+	public void setHovered(boolean hovered)
+	{
+		this.hovered = hovered;
+	}
+
+	public boolean isSelected()
+	{
+		return selected;
+	}
+
+	public void setSelected(boolean selected)
+	{
+		this.selected = selected;
+	}
+
+	public boolean isShowBorder()
+	{
+		return showBorder;
+	}
+
+	public void setShowBorder(boolean showBorder)
+	{
+		this.showBorder = showBorder;
+	}
+
+	public boolean isShowNameOnHover()
+	{
+		return showNameOnHover;
+	}
+
+	public void setShowNameOnHover(boolean showNameOnHover)
+	{
+		this.showNameOnHover = showNameOnHover;
+	}
+
+	public String getMetadata()
+	{
+		return metadata;
+	}
+
+	public void setMetadata(String metadata)
+	{
+		this.metadata = metadata;
+	}
+
+	public boolean isSheared()
+	{
+		return sheared;
+	}
+
+	public void setSheared(boolean sheared)
+	{
+		this.sheared = sheared;
+	}
+
+}

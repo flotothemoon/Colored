@@ -1,0 +1,145 @@
+package com.unlogical.colored.util;
+
+import com.badlogic.gdx.Gdx;
+import com.unlogical.colored.GameLauncher;
+import com.unlogical.colored.audio.AudioManager;
+import com.unlogical.colored.configuration.Settings;
+import com.unlogical.colored.debug.Debug;
+import com.unlogical.colored.entity.Entity;
+import com.unlogical.colored.gui.menu.MenuHandler;
+import com.unlogical.colored.gui.screen.CreditsScreen;
+import com.unlogical.colored.input.KeyBindings;
+import com.unlogical.colored.level.Level;
+import com.unlogical.colored.levelmanaging.LevelManager;
+import com.unlogical.colored.mapeditor.MapEditor;
+import com.unlogical.colored.resources.image.Images;
+import com.unlogical.colored.saving.SaveHandler;
+import com.unlogical.colored.story.StoryHandler;
+import com.unlogical.colored.terrain.TerrainObject;
+import com.unlogical.colored.terrain.handler.SharedAnimationHandler;
+
+public class LoadingHandler
+{
+	private static int loadTime;
+	private static int currentStep;
+	private static boolean finishedLoading;
+	private static String lastItem;
+
+	public static void initLoading()
+	{
+		currentStep = 0;
+		finishedLoading = false;
+	}
+
+	public static void loadNext()
+	{
+		try
+		{
+			if (currentStep == 0)
+			{
+				log("Initializing settings...");
+				Settings.init();
+			}
+			else if (currentStep == 2)
+			{
+				log("Initializing key bindings...");
+				KeyBindings.init();
+			}
+			else if (currentStep == 4)
+			{
+				log("Loading sounds...");
+				AudioManager.load();
+
+				log("Fetching chapters / worlds...");
+				Level.fetchChapters();
+			}
+			else if (currentStep == 5)
+			{
+				log("Loading resources, entity textures... (1 / 3)");
+				Entity.loadAll();
+				log("Loading resources, terrain textures... (2 / 3)");
+				TerrainObject.loadAll();
+				log("Loading resources, misc... (3 / 3)");
+				Images.HintIdentifier.loadAll();
+			}
+			else if (currentStep == 6)
+			{
+				log("Initializing shaders...");
+				ShaderHandler.init();
+
+				log("Loading save states...");
+				SaveHandler.init();
+			}
+			else if (currentStep == 7)
+			{
+				log("Initializing animation handler...");
+				SharedAnimationHandler.init();
+			}
+			else if (currentStep == 8)
+			{
+				log("Fetching maps...");
+				Level.fetchMaps();
+			}
+			else if (currentStep == 9)
+			{
+				log("Initializing map editor...");
+				MapEditor.init();
+			}
+			else if (currentStep == 10)
+			{
+				log("Initialising levelrenderer...");
+				LevelManager.init();
+
+				log("Initializing menus...");
+				MenuHandler.init();
+
+				log("Initializing story handler...");
+				StoryHandler.init();
+
+				log("Initializing credits screen...");
+				CreditsScreen.init();
+			}
+			else if (currentStep == 11)
+			{
+				log("Resizing contents to current window size...");
+				GameLauncher.get().resize(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+
+				log("Finished loading, took " + loadTime + "ms.");
+				finishedLoading = true;
+			}
+		}
+		catch (Exception e)
+		{
+			throw new RuntimeException("Error while loading: " + e, e);
+		}
+
+		currentStep++;
+	}
+
+	public static void update(int delta)
+	{
+		loadTime += delta;
+	}
+
+	public static void log(String str)
+	{
+		Debug.log(str);
+
+		lastItem = str;
+	}
+
+	public static boolean hasFinishedLoading()
+	{
+		return finishedLoading;
+	}
+
+	public static int getLoadingTime()
+	{
+		return loadTime;
+	}
+
+	public static String getLastItem()
+	{
+		return lastItem;
+	}
+}

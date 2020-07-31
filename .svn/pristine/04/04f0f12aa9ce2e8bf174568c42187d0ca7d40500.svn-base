@@ -1,0 +1,67 @@
+package com.unlogical.colored.gui.menu;
+
+import java.io.IOException;
+
+import com.unlogical.colored.GameLauncher;
+import com.unlogical.colored.debug.Debug;
+import com.unlogical.colored.filesystem.DataHandler;
+import com.unlogical.colored.gui.selection.SelectionMenu;
+import com.unlogical.colored.level.Level;
+import com.unlogical.colored.levelmanaging.LevelManager;
+import com.unlogical.colored.util.GameStatus;
+
+public class MapSelection extends SelectionMenu
+{
+	public MapSelection(int yOffset, int width, int height)
+	{
+		super(Level.getLevels(), yOffset, width, height);
+	}
+
+	@Override
+	protected void onSelect(SelectionMenuItem saveState)
+	{
+		GameLauncher.setStatus(GameStatus.IN_LEVEL);
+		LevelManager.initMap(((SelectionState) saveState).getPath(), false);
+		LevelManager.resume();
+	}
+
+	@Override
+	protected void onBackButton()
+	{
+		GameLauncher.setStatus(GameStatus.MAIN_MENU);
+	}
+
+	@Override
+	protected void onDelete(SelectionMenuItem item)
+	{		
+		try
+		{			 
+			if (GameLauncher.isDeveloperMode())
+			{
+				DataHandler.delete(((SelectionState) item).getPath());
+
+				refresh();
+			}
+			else
+			{
+				Debug.warn("Insufficient permissions to delete " + ((SelectionState) item).getPath() + " !");
+			}
+		}
+		catch (IOException e)
+		{
+			Debug.warn("Could not \"delete\" selected map: " + e, e);
+		}
+	}
+
+	@Override
+	protected SelectionState[] loadItems()
+	{
+		return Level.getLevels();
+	}
+
+	@Override
+	protected void onAddButton()
+	{
+		GameLauncher.setStatus(GameStatus.MAP_CREATION_MENU);
+	}
+}

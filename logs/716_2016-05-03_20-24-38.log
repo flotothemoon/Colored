@@ -1,0 +1,77 @@
+ -- General -- 
+Generated on: 2016-05-03_20-24-38
+Build: 716 from 04:55 PM - 03/05/16
+GameState: MAP_EDITOR (previous: MAP_EDITOR_MENU)
+Target FPS: 60
+Actual FPS: 61
+
+ -- Display -- 
+Target Width / Height: 1920 / 1080
+Actual Width / Height: 1920 / 1053 (windowed)
+
+ -- Environment -- 
+GPU: GeForce GTX 980 Ti/PCIe/SSE2 (NVIDIA Corporation)
+OpenGL Version: 4.5.0 NVIDIA 361.43
+Allocated Memory: 15MB
+Used Memory: 0MB
+"os.name": Windows 10
+"os.version": 10.0
+"os.arch": x86
+"java.version": 1.8.0_66
+"java.vendor": Oracle Corporation
+"sun.arch.data.model": 32
+
+ -- Level --
+ID: 20-05 (internal: 05)
+LevelType: NORMAL
+Dimension: COLORED
+Location: ../worlds/maps/20-05
+
+ -- Stack Trace -- 
+java.lang.IllegalStateException: SpriteBatch.begin must be called before draw.
+com.unlogical.colored.util.CustomVerticesSpriteBatch.draw(CustomVerticesSpriteBatch.java:744)
+com.unlogical.colored.util.LevelObject.drawOutline(LevelObject.java:496)
+com.unlogical.colored.terrain.tile.TileDoor.preDraw(TileDoor.java:117)
+com.unlogical.colored.terrain.TerrainObject.drawTextured(TerrainObject.java:259)
+com.unlogical.colored.terrain.TerrainObject.draw(TerrainObject.java:212)
+com.unlogical.colored.mapeditor.MapEditor.drawTile(MapEditor.java:1481)
+com.unlogical.colored.mapeditor.MapEditor.render(MapEditor.java:1225)
+com.unlogical.colored.GameLauncher.render(GameLauncher.java:487)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication.mainLoop(LwjglApplication.java:218)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication$1.run(LwjglApplication.java:123)
+
+ -- Last 20 Log Entries -- 
+@Log: Loading map ../worlds/maps/20-02 ... (11)
+@Log: Loading map files took 217ms. (11)
+@Log: Active save was saved to disk. (11)
+@Log: Level 20-02 cleared. (11)
+@Warning: Tried to load image(s) from path res/gui/icons/20_02, the resolved path res/gui/icons/20_02.png however does not exist. (11)
+@Warning: Couldn't load level icon for 20-02. (11)
+@Log: Fetching lights for level "20-02" ... (11)
+@Log: Lights fetched for level "20-02", 7 lights found. (11)
+@Log: Pre-simulating particles for 45000.0ms (300 x 150.0ms)... (11)
+@Log: Particle pre-simulation complete. Particles are now ahead of time by 45000.0ms. (11)
+@Log: Active save was saved to disk. (11)
+@Log: Loaded 20-02 (took 325ms). (11)
+@Log: Fetching lights for level "20-02" ... (11)
+@Log: Lights fetched for level "20-02", 7 lights found. (11)
+@Log: Loaded map Easy Steps (20-02, ../worlds/maps/20-02), took 40ms. (11)
+@Log: Play sound MENU_CLICK at volume 0.0, pitch 1.0 and pan 0.0 (once). (11)
+@Log: Play sound MENU_CLICK at volume 0.0, pitch 1.0 and pan 0.0 (once). (11)
+@Log: Fetching lights for level "20-05" ... (11)
+@Log: Lights fetched for level "20-05", 1 light found. (11)
+@Log: Loaded map Shattered (20-05, ../worlds/maps/20-05), took 1ms. (11)
+
+ -- Last 12 Input Events -- 
+Key down: L-Ctrl (129) (3752ms ago)
+Key down: M (41) (2587ms ago)
+Key up: M (41) (2417ms ago)
+Key up: L-Ctrl (129) (2334ms ago)
+Key down: Escape (131) (1901ms ago)
+Key up: Escape (131) (1800ms ago)
+Mouse scrolled: 1 (1450ms ago)
+Mouse scrolled: 1 (1334ms ago)
+Mouse scrolled: 1 (1151ms ago)
+Touch down: 0 (pointer: 0) at x:738 y: 381 (134ms ago)
+Touch up: 0 (pointer: 0) at x:738 y: 381 (100ms ago)
+Touch down: 0 (pointer: 0) at x:738 y: 381 (18ms ago)

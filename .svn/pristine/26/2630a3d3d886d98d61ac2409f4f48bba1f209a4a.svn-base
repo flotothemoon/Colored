@@ -1,0 +1,192 @@
+package com.unlogical.linked.resources.font;
+
+
+//public class Fonts
+//{
+//	private static BufferedImage[][] characters;
+//	private static Texture[][] textures;
+//	private static Image currentChar;
+//	private static Color currentColor = Color.lightGray;
+//	private static Color startColor;
+//	private static Color shadowColor = new Color(0.0f, 0.0f, 0.0f, 0.35f);
+//	private static boolean useColorCodes = true;
+//	private static boolean shadows = true;
+//	private static int specialChars = 0;
+//	private static float startXOffset = 0;
+//	private static String[] savedChars = 
+//	{ "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789", 
+//	  ".,:;!?\"'+-*/\\<>_~()[]{}%^�&= " };
+//
+//	private static HashMap<Character, Color> colorCodes = new HashMap<Character, Color>();
+//
+//	public static void drawString(String str, float xOffset, float yOffset, float scale, Graphics g)
+//	{
+//		drawString(str, xOffset, yOffset, scale, 10000.0f, g);
+//	}
+//
+//	public static void drawString(String str, float xOffset, float yOffset, float scale, float width, Graphics g)
+//	{
+//		str = str.toUpperCase();
+//
+//		specialChars = 0;
+//		startColor = currentColor;
+//		startXOffset = xOffset;
+//
+//		for (int i = 0; i < str.length(); i++)
+//		{
+//			char c = str.charAt(i);
+//
+//			if (c == '\n')
+//			{
+//				yOffset += getHeight(scale);
+//				xOffset = startXOffset;
+//			}
+//			else if (useColorCodes && c == '&' && (i + 1) < str.length() && colorCodes.containsKey(str.charAt(i + 1)))
+//			{
+//				setColor(colorCodes.get(str.charAt(i + 1)));
+//				i++;
+//				specialChars++;
+//			}
+//			else
+//			{
+//				if (xOffset - startXOffset >= width - 6 * scale)
+//				{
+//					xOffset = startXOffset;
+//					yOffset += getHeight(scale);
+//				}
+//
+//				for (int y = 0; y < savedChars.length; y++)
+//				{
+//					int x = savedChars[y].indexOf(c);
+//
+//					if (x >= 0)
+//					{
+//						currentChar.setTexture(textures[x][y]);
+//						currentChar.setFilter(Image.FILTER_NEAREST);
+//						if (shadows)
+//						{
+//							g.drawImage(currentChar.getScaledCopy(scale), (float) (xOffset + scale / 2 + 2), (float) (yOffset + scale / 2 + 1), shadowColor);
+//						}
+//						g.drawImage(currentChar.getScaledCopy(scale), (float) (xOffset), (float) (yOffset), currentColor);
+//					}
+//				}
+//
+//				xOffset += 6 * scale;
+//			}
+//		}
+//
+//		currentColor = startColor;
+//	}
+//
+//	public static void load()
+//	{
+//		Debug.log("Loading character textures...");
+//		characters = Images.splitImage(Images.loadImage(FilePaths.FONT + "/signfont.png"), 6, 6);
+//
+//		try
+//		{
+//			currentChar = new Image(6, 6, Image.FILTER_NEAREST);
+//		}
+//		catch (SlickException e)
+//		{
+//		}
+//		
+//		textures = new Texture[characters.length][characters[0].length];
+//		for (int x = 0; x < characters.length; x++)
+//		{
+//			for (int y = 0; y < characters[0].length; y++)
+//			{
+//				try
+//				{
+//					textures[x][y] = BufferedImageUtil.getTexture("", characters[x][y]);
+//					Debug.log("Fetching texture for character (" + x + "|" + y + ")...");
+//				}
+//				catch (IOException e)
+//				{
+//					DebugScreen.handle(new IOException("Exception while fetching character texture for " + x + " " + y + " (" + e + ")"));
+//				}
+//			}
+//		}
+//
+//		colorCodes.clear();
+//		colorCodes.put('0', Color.white);
+//		colorCodes.put('1', Color.black);
+//		colorCodes.put('2', Color.gray);
+//		colorCodes.put('3', Color.red);
+//		colorCodes.put('4', Color.orange);
+//		colorCodes.put('5', Color.yellow);
+//		colorCodes.put('6', Color.green);
+//		colorCodes.put('7', Color.blue);
+//		colorCodes.put('8', Color.magenta);
+//		colorCodes.put('9', Color.cyan);
+//		colorCodes.put('R', Color.lightGray);
+//		colorCodes.put('D', Color.darkGray);
+//		colorCodes.put('E', new Color(247, 181, 0));
+//		colorCodes.put('G', GameLauncher.titleColor);
+//	}
+//
+//	public static void setColor(Color color)
+//	{
+//		currentColor = color;
+//	}
+//
+//	public static int getHeight(String str, int width, float scale)
+//	{
+//		startXOffset = 0;
+//		int xOffset = 0;
+//		int yOffset = (int) scale;
+//
+//		for (int i = 0; i < str.length(); i++)
+//		{
+//			char c = str.charAt(i);
+//
+//			if (c == '\n')
+//			{
+//				yOffset += getHeight(scale);
+//				xOffset = (int) startXOffset;
+//			}
+//			else if (useColorCodes && c == '&' && (i + 1) < str.length() && colorCodes.containsKey(str.charAt(i + 1)))
+//			{
+//				i++;
+//				specialChars++;
+//			}
+//			else
+//			{
+//				if (xOffset - startXOffset >= width - 6 * scale)
+//				{
+//					xOffset = (int) startXOffset;
+//					yOffset += getHeight(scale);
+//				}
+//
+//				xOffset += 6 * scale;
+//			}
+//		}
+//
+//		return yOffset;
+//	}
+//
+//	public static int getWidth(int numberOfChars, float scale)
+//	{
+//		return (int) (6 * scale * numberOfChars);
+//	}
+//
+//	public static int getHeight(float scale)
+//	{
+//		return (int) (6 * scale);
+//	}
+//
+//	public static boolean isUsingColorCodes()
+//	{
+//		return useColorCodes;
+//	}
+//
+//	public static void enableColorCodes()
+//	{
+//		useColorCodes = true;
+//	}
+//
+//	public static void disableColorCodes()
+//	{
+//		useColorCodes = false;
+//	}
+//}

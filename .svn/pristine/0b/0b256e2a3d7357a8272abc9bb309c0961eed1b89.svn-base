@@ -1,0 +1,8 @@
+package com.unlogical.linked.terrain.tile.properties;
+
+public interface ITileMirrorable
+{
+	boolean renderStatic();
+	
+	public boolean isReallyChangeable();
+}

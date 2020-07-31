@@ -1,0 +1,926 @@
+package com.unlogical.linked.util;
+
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Set;
+
+import org.newdawn.slick.Color;
+import org.newdawn.slick.Graphics;
+import org.newdawn.slick.Image;
+import org.newdawn.slick.geom.Vector2f;
+
+import com.unlogical.linked.collision.Hitbox;
+import com.unlogical.linked.entity.Entity;
+import com.unlogical.linked.entity.EntityLiving;
+import com.unlogical.linked.entity.IEntityPickupable;
+import com.unlogical.linked.entity.player.EntityPlayer;
+import com.unlogical.linked.level.Level;
+import com.unlogical.linked.level.LevelType;
+import com.unlogical.linked.particle.EmitterType;
+import com.unlogical.linked.particle.EmitterWrapperConfiguration;
+import com.unlogical.linked.particle.ParticleEmitter;
+import com.unlogical.linked.particle.ParticleEmitterImpl;
+
+public abstract class LevelObject extends GameObject
+{
+	public static final int PIXELIFIED_PARTICLE_SIZE = 2;
+	protected static Vector2f bufferedVector = new Vector2f(0.0f, 0.0f);
+		
+	protected float[] positionRecordX;
+	protected float[] positionRecordY;
+	protected float[] rotationRecord;
+	
+	protected boolean collidedAbove;
+	protected boolean collidedBelow;
+	protected boolean collidedLeft;
+	protected boolean collidedRight;
+
+	protected boolean reScheduleEvent;
+	protected boolean timeEffected = true;
+	protected boolean timeResistant;
+	
+	protected boolean outOfMap;
+	protected boolean moving;
+	protected boolean initialising;
+	protected boolean renderImage = true;
+	protected boolean pixelified;
+	
+	protected float rotation;
+	protected float beforeRotation;
+	protected float beforePositionX;
+	protected float beforePositionY;
+	
+	protected int currentImage;
+	protected int innerType;
+	
+	protected int beforeInnerType;
+	protected int beforeCurrentImage;
+	private int currentFrameStart;
+	private int currentFrameEnd;
+	
+	protected Vector2f movingDistance = new Vector2f(0.0f, 0.0f);
+	protected Vector2f velocity = new Vector2f(0.0f, 0.0f);
+	protected Vector2f additionalVelocity = new Vector2f(0.0f, 0.0f);
+	protected Vector2f oldVelocity = new Vector2f(0.0f, 0.0f);
+	
+	protected String metadata;
+
+	protected Hitbox hitbox;
+	
+	protected Level level;
+	
+	protected Map<Event, Set<Integer>> scheduledEvents;
+	protected Map<EmitterType, HashSet<ParticleEmitter>> particleEffects;
+	protected Set<ParticleEmitter> stoppedEffects;
+
+	protected ParticleEmitter reSimulationEmitter;
+	
+	public LevelObject(RealImage image, Vector2f position, Dimension dimension, Level level)
+	{
+		super(image, position);
+	
+		this.dimension = dimension;
+		this.level = level;
+			
+		if (level != null)
+		{
+			if (level.getType() == LevelType.FROZEN || level.getType() == LevelType.TIME_TRAVEL && this.dimension == Dimension.LIGHT)
+			{
+				this.positionRecordX = new float[level.getTimeLoopLimit()];
+				this.positionRecordY = new float[level.getTimeLoopLimit()];
+				this.rotationRecord = new float[level.getTimeLoopLimit()];
+			}
+		}
+
+		this.scheduledEvents = new HashMap<Event, Set<Integer>>();
+	}
+	
+	public abstract boolean hasMirror();
+	
+	public abstract void removeMirror();
+	
+	public abstract LevelObject getMirror();
+	
+	protected abstract void onScheduledEvent(Event event);
+	
+	public void setTimeEffected(boolean timeEffected)
+	{
+		if (this.timeEffected ^ timeEffected)
+		{
+			this.timeEffected = timeEffected;
+			this.timeResistant = !timeEffected;
+
+			if (this.timeEffected)
+			{
+				this.removeEmitter(EmitterType.TIME_RESISTANT_ENTITY, this.dimension);
+			}
+			else
+			{
+				this.addEmitter(EmitterType.TIME_RESISTANT_ENTITY, this.dimension);
+			}
+		}
+	}
+
+	@Override
+	public void onSharingChanged()
+	{
+		if (this.shared)
+		{
+			this.removeMirror();
+			this.addEmitter(EmitterType.SHARED, this.dimension);
+		}
+		else
+		{
+			this.removeEmitter(EmitterType.SHARED, this.dimension);
+		}
+	}
+
+	protected void updateScheduledEvents()
+	{
+		if (this.scheduledEvents != null && !this.scheduledEvents.isEmpty())
+		{
+			Iterator<Event> iterator = this.scheduledEvents.keySet().iterator();
+
+			while (iterator.hasNext())
+			{
+				Event event = iterator.next();
+				Set<Integer> times = scheduledEvents.get(event);
+
+				if (!times.isEmpty())
+				{
+					Iterator<Integer> intIterator = times.iterator();
+
+					while (intIterator.hasNext())
+					{
+						int time = intIterator.next();
+
+						if (TimeStepHandler.isInCurrentFrame(time < 0 ? -time + 1 : time))
+						{
+							reScheduleEvent = false;
+
+							if (time >= 0)
+							{
+								if (time < Level.TIME_TRAVEL_TIME_DIFFERENCE_MILLIS)
+								{
+									onScheduledEvent(event);
+
+									if (!reScheduleEvent)
+									{
+										intIterator.remove();
+									}
+								}
+							}
+							else if (this.hasMirror() && !reSimulating)
+							{
+								this.getMirror().onScheduledEvent(event);
+
+								if (!reScheduleEvent)
+								{
+									intIterator.remove();
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	
+	public void scheduleEvent(Event event)
+	{
+		this.scheduleEvent(event, TimeStepHandler.currentFrameBeforeStart);
+	}
+
+	public void scheduleMirroredEvent(Event event)
+	{
+		if (this.hasMirror())
+		{
+			this.getMirror().scheduleEvent(event, TimeStepHandler.currentFrameBeforeStart);
+		}
+		else
+		{
+			this.scheduleEvent(event, -TimeStepHandler.currentFrameBeforeStart - 1);
+		}
+	}
+
+	protected void scheduleEvent(Event event, int time)
+	{
+		if (time < -Level.TIME_TRAVEL_TIME_DIFFERENCE_MILLIS || time >= Level.TIME_TRAVEL_TIME_DIFFERENCE_MILLIS * 2)
+		{
+			throw new IllegalArgumentException(time + " for event " + event + " is out of scope (" + -Level.TIME_TRAVEL_TIME_DIFFERENCE_MILLIS + " - " + Level.TIME_TRAVEL_TIME_DIFFERENCE_MILLIS + ")");
+		}
+
+		if (this.scheduledEvents.get(event) == null)
+		{
+			this.scheduledEvents.put(event, new HashSet<Integer>());
+		}
+
+		this.scheduledEvents.get(event).add(time);
+	}
+
+	public void clearEvent(Object event)
+	{
+		this.scheduledEvents.remove(event);
+	}
+
+	public void clearAllEvents()
+	{
+		for (Object event : this.scheduledEvents.keySet())
+		{
+			if (this.scheduledEvents.get(event) != null)
+			{
+				this.scheduledEvents.get(event).clear();
+			}
+		}
+	}
+	
+	public void transformToPixels(LevelObject pixelifier)
+	{		
+		ParticleEmitter emitter = this.addEmitter(EmitterType.PIXELIFY, this.dimension);
+		emitter.pixelifyWrapper(level.getParticleSystem(), this);
+		
+		this.renderImage = false;
+		this.pixelified = true;
+		this.enabled = false;
+						
+		if (pixelifier != null)
+		{
+			emitter.addParticleEater(pixelifier);
+		}
+	}
+	
+	public void updateEmitters(int delta)
+	{
+		if (this.particleEffects != null)
+		{
+			for (EmitterType emitterType : this.particleEffects.keySet())
+			{
+				if (!reSimulating || emitterType == EmitterType.TIME_TRAVEL_CHANGED || emitterType == EmitterType.PIXELIFY)
+				{
+					for (ParticleEmitter emitter : this.particleEffects.get(emitterType))
+					{
+						emitter.getSystem().updateEmitter(emitter, delta);
+					}
+				}
+			}
+		}
+	}
+	
+	protected void drawEmitters(boolean foreground, Graphics g)
+	{
+		if (this.particleEffects != null)
+		{
+			for (EmitterType emitterType : this.particleEffects.keySet())
+			{
+				if (emitterType.foreground == foreground)
+				{
+					for (ParticleEmitter emitter : this.particleEffects.get(emitterType))
+					{
+						emitter.getSystem().renderEmitter(emitter, g);
+					}
+				}
+			}
+		}
+	}
+	
+	protected void drawTimeTravelDebug(Graphics g)
+	{
+		if (level.shouldShowHitboxes())
+		{
+			if (level.getType() == LevelType.TIME_TRAVEL && (this.dimension == Dimension.SHADOW && !this.shouldHandleAsShared()))
+			{
+				ShaderHandler.disableLighting();
+				
+				float[] recordX = this.getMirror().positionRecordX;
+				float[] recordY = this.getMirror().positionRecordY;
+
+				int count = 0;
+
+				for (int i = TimeStepHandler.currentFrameStart; i != TimeStepHandler.currentFrameBeforeStart; i++)
+				{
+					if (i >= Level.TIME_TRAVEL_TIME_DIFFERENCE_MILLIS)
+					{
+						i = 0;
+
+						if (i == TimeStepHandler.currentFrameBeforeStart)
+						{
+							break;
+						}
+					}
+
+					if (count % 4 == 0)
+					{
+						ColorHelper.applyAlphaAndCopy(this instanceof Entity ? Color.blue : Color.gray, (((float) count) / ((float) Level.TIME_TRAVEL_TIME_DIFFERENCE_MILLIS)) * 0.05f, g);
+						g.drawRect(recordX[i] + level.getCameraOffset().x, recordY[i] + level.getCameraOffset().y, hitbox.getWidth(), hitbox.getHeight());
+					}
+
+					count++;
+				}
+				
+				ColorHelper.applyAlphaAndCopy(Color.cyan, 0.5f, g);
+				g.drawRect(recordX[TimeStepHandler.nextFrameStart] + level.getCameraOffset().x, recordY[TimeStepHandler.nextFrameStart] + level.getCameraOffset().y, hitbox.getWidth(), hitbox.getHeight());
+			}
+		}
+	}
+
+	protected void drawScheduledEvents(Graphics g)
+	{
+		if (this.scheduledEvents != null)
+		{
+			String str = "";
+			int events = 0;
+
+			g.resetFont();
+
+			for (Object event : this.scheduledEvents.keySet())
+			{
+				str = event + ": ";
+				for (Integer time : this.scheduledEvents.get(event))
+				{
+					str += time + " ";
+				}
+
+				g.drawString(str, position.x, position.y + events * 20);
+
+				events++;
+			}
+		}
+	}
+	
+	protected void drawFrozenImage(Image image, Color color, Graphics g)
+	{
+		Color originalColor = color;
+		
+		for (int i = 0; i < Level.FROZEN_POSITION_COUNT; i++)
+		{
+			int frameIndex = currentFrameStart - (i + 1) * Level.FROZEN_POSITION_TIME_STEP;
+	
+			if (frameIndex < 0)
+			{
+				frameIndex += level.getTimeLoopLimit();
+			}
+			
+			float alpha = Level.FROZEN_POSITION_ALPHA_FACTOR * (1.0f - ((float) i / ((float ) Level.FROZEN_POSITION_COUNT)));
+										
+			color = ColorHelper.multiplyAlphaAndCopy(ColorHelper.multiplyAlphaAndCopy(originalColor, level.getDimensionFactor(this.dimension)), alpha);
+			
+			if (this.positionRecordX[i] != this.position.x || this.positionRecordY[i] != this.position.y)
+			{
+				drawImage(this.image, this.rotationRecord[frameIndex], this.positionRecordX[frameIndex] + level.getCameraOffset().x, this.positionRecordY[frameIndex] + level.getCameraOffset().y, color, g);
+			}
+		}
+	}
+	
+	protected void drawImage(Image image, float rotation, float x, float y, Color color, Graphics g)
+	{
+		
+	}
+	
+	public boolean shouldReSimulate()
+	{
+		return true;
+	}
+	
+	public boolean checkPreReSimulation()
+	{
+		return true;
+	}
+	
+	public void onReSimulation()
+	{
+		if (this.shared)
+		{
+			storeReSimulationData();	
+		}
+		else
+		{
+			this.setPosition(this.getMirror().position.x, this.getMirror().position.y);
+			this.velocity.x = this.getMirror().velocity.x;
+			this.velocity.y = this.getMirror().velocity.y;
+			this.oldVelocity.set(velocity.x, velocity.y);
+			
+			this.getMirror().clearAllEvents();
+			
+			if (this.shouldCreateReSimulationParticles())
+			{
+				this.reSimulationEmitter = this.addEmitter(EmitterType.TIME_TRAVEL_CHANGED, this.dimension);
+			}
+		}
+	}
+	
+	public void onSpawnedReSimulation()
+	{
+		reSimulating = true;
+		
+		if (this.shouldCreateReSimulationParticles())
+		{
+			this.reSimulationEmitter = this.addEmitter(EmitterType.TIME_TRAVEL_CHANGED, this.dimension);
+		}
+	}
+	
+	protected boolean shouldCreateReSimulationParticles()
+	{
+		return false;
+	}
+	
+	protected boolean canChangeOnReSimulation()
+	{
+		return false;
+	}
+
+	//oldposition is null if object was created during resimulation
+	public void onPostReSimulation(GameObject changedObject, Vector2f oldPosition)
+	{
+		if (shouldCreateReSimulationParticles())
+		{			
+			if (this != changedObject && (oldPosition != null && this.isPositionCloseEnough(oldPosition) && this.getHoldedObject() == this.getMirror().getHoldedObject()))
+			{
+				this.removeEmitter(reSimulationEmitter);
+			}
+			else
+			{	
+				this.stopAndRemoveEmitter(reSimulationEmitter);
+			}
+		}
+		
+		if (this.shared)
+		{
+			restoreReSimulationData();
+		}
+	}
+
+	public void storeReSimulationData()
+	{
+		beforePositionX = this.position.x - level.getCameraOffset().x;
+		beforePositionY = this.position.y - level.getCameraOffset().y;
+		beforeInnerType = this.innerType;
+		beforeCurrentImage = this.currentImage;
+		beforeRotation = this.rotation;
+	}
+	
+	public void restoreReSimulationData()
+	{
+		this.position.x = beforePositionX + level.getCameraOffset().x;
+		this.position.y = beforePositionY + level.getCameraOffset().y;
+		this.currentImage = beforeCurrentImage;
+		this.setRotation(beforeRotation);
+		this.setInnerType(beforeInnerType);
+	}
+	
+	protected void setRotation(float rotation)
+	{
+		this.rotation = rotation;
+	}
+	
+	protected void setInnerType(int innerType)
+	{
+		this.innerType = innerType;
+	}
+	
+	protected void updateFrameLimits(float delta)
+	{
+		if (level.getLevelType() == LevelType.FROZEN && delta > 0.0f && TimeStepHandler.timeLoopLimit > 0)
+		{
+			currentFrameStart = currentFrameEnd;
+			currentFrameEnd = (int) (currentFrameStart + delta);
+
+			if (currentFrameStart >= TimeStepHandler.timeLoopLimit)
+			{
+				currentFrameStart = currentFrameStart % TimeStepHandler.timeLoopLimit;
+			}
+
+			if (currentFrameEnd >= TimeStepHandler.timeLoopLimit)
+			{
+				currentFrameEnd = currentFrameEnd % TimeStepHandler.timeLoopLimit;
+			}
+		}		
+	}
+	
+	protected void updateFrameRecords(float delta, float absBeforePositionX, float absBeforePositionY)
+	{
+		float milliChangeX = movingDistance.x / delta;
+		float milliChangeY = movingDistance.y / delta;
+
+		float interpolationFactorX = milliChangeX;
+		float interpolationFactorY = milliChangeY;
+
+		int start = level.getType() == LevelType.FROZEN ? this.currentFrameStart : TimeStepHandler.currentFrameStart;
+		int end = level.getType() == LevelType.FROZEN ? this.currentFrameEnd : TimeStepHandler.currentFrameEnd;
+		int limit = level.getTimeLoopLimit();
+				
+		for (int i = start; i != end; i++)
+		{
+			if (i >= limit)
+			{
+				i = 0;
+
+				if (i == end)
+				{
+					break;
+				}
+			}
+
+			positionRecordX[i] = absBeforePositionX + interpolationFactorX;
+			positionRecordY[i] = absBeforePositionY + interpolationFactorY;
+			rotationRecord[i] = this.rotation;
+			
+			interpolationFactorX += milliChangeX;
+			interpolationFactorY += milliChangeY;
+		}
+	}
+	
+	public void applyFrameValues(float delta, float additionalHorizontalDelta, float additionalVerticalDelta)
+	{
+		if (level.getType() == LevelType.TIME_TRAVEL && this.dimension == Dimension.SHADOW && !this.isShared() && !this.shouldHandleAsShared() && !(this.isHolded() && this.getHoldingEntity() instanceof EntityPlayer))
+		{
+			float[] recordX = this.getMirror().positionRecordX;
+			float[] recordY = this.getMirror().positionRecordY;
+			float[] rotationRecord = this.getMirror().rotationRecord;
+			
+			if (recordX[TimeStepHandler.nextFrameStart] != 0.0f || recordY[TimeStepHandler.nextFrameStart] != 0.0f)
+			{
+				float beforeX = position.x;
+				float beforeY = position.y;
+				
+				position.x = recordX[TimeStepHandler.nextFrameStart] + level.getCameraOffset().x;
+				position.y = recordY[TimeStepHandler.nextFrameStart] + level.getCameraOffset().y;
+				rotation = rotationRecord[TimeStepHandler.nextFrameStart];
+								
+				movingDistance.x = position.x - beforeX;
+				movingDistance.y = position.y - beforeY;
+
+				if (this.isHolded())
+				{
+					velocity.x = 0.0f;
+					velocity.y = 0.0f;
+				}
+				else
+				{
+					velocity.x = movingDistance.x / delta;
+					velocity.y = movingDistance.y / delta;
+
+					if (additionalHorizontalDelta != 0.0f)
+					{
+						velocity.x -= additionalVelocity.x;
+					}
+
+					if (additionalVerticalDelta != 0.0f)
+					{
+						velocity.y -= additionalVelocity.y;
+					}
+					
+					if (velocity.x > 0.0f && collidedRight || velocity.x < 0.0f && collidedLeft)
+					{
+						velocity.x = 0.0f;
+					}
+					
+					if (velocity.y > 0.0f && collidedBelow || velocity.y < 0.0f && collidedAbove)
+					{
+						velocity.y = 0.0f;
+					}
+				}
+			}
+		}
+	}
+
+	protected void resetVelocities()
+	{
+		velocity.x = 0.0f;
+		velocity.y = 0.0f;
+		additionalVelocity.x = 0.0f;
+		additionalVelocity.y = 0.0f;
+		oldVelocity.x = 0.0f;
+		oldVelocity.y = 0.0f;
+	}
+
+	public boolean hasActiveEmitters()
+	{
+		if (this.particleEffects == null)
+		{
+			return false;
+		}
+
+		for (HashSet<ParticleEmitter> emitterSet : particleEffects.values())
+		{
+			for (ParticleEmitter emitter : emitterSet)
+			{
+				if (emitter.isEnabled() && emitter.hasActiveParticles())
+				{
+					return true;
+				}
+			}
+		}
+
+		return false;
+	}
+
+	protected void stopAllEmitters()
+	{
+		if (this.particleEffects != null)
+		{
+			for (HashSet<ParticleEmitter> emitterSet : particleEffects.values())
+			{
+				for (ParticleEmitter emitter : emitterSet)
+				{
+					emitter.stop();
+
+					if (stoppedEffects == null)
+					{
+						stoppedEffects = new HashSet<ParticleEmitter>(4);
+					}
+
+					stoppedEffects.add(emitter);
+				}
+			}
+		}
+	}
+
+	public ParticleEmitter addEmitter(EmitterType type, Dimension dimension)
+	{
+		return addEmitter(type, dimension, type.getMaxParticles(type, (int) (this.hitbox.getWidth()), (int) (this.hitbox.getHeight())));
+	}
+
+	protected void resumeOrAddEmitter(EmitterType type, Dimension dimension)
+	{
+		if (!resumeEmitter(type, dimension))
+		{
+			addEmitter(type, dimension);
+		}
+	}
+	
+	protected ParticleEmitter addEmitter(EmitterType type, Dimension dimension, int width, int height)
+	{
+		return addEmitter(type, dimension, width, height, type.getMaxParticles(type, width, height));
+	}
+	
+	protected ParticleEmitter addEmitter(EmitterType type, Dimension dimension, int maxParticles)
+	{
+		return addEmitter(type, dimension, (int) this.hitbox.getRawWidth(), (int) this.hitbox.getRawHeight(), maxParticles);
+	}
+
+	protected ParticleEmitter addEmitter(EmitterType type, Dimension dimension, int width, int height, int maxParticles)
+	{
+		ParticleEmitter emitter;
+
+		if (this.particleEffects == null)
+		{
+			this.particleEffects = new HashMap<EmitterType, HashSet<ParticleEmitter>>(4);
+		}
+
+		if (this.particleEffects.get(type) == null)
+		{
+			this.particleEffects.put(type, new HashSet<ParticleEmitter>(2));
+		}
+		
+		this.particleEffects.get(type).add((ParticleEmitterImpl) (emitter = level.addParticleEmitter(dimension, new EmitterWrapperConfiguration(this, type, hitbox, width, height, rotation, maxParticles, this.image, this.image != null, level)
+		{
+			@Override
+			public RealImage getImage()  
+			{
+				return LevelObject.this.image;
+			}
+
+			@Override
+			public boolean isTimeEffected()
+			{
+				return LevelObject.this.isTimeEffected() && !LevelObject.this.shared;
+			}
+			
+			@Override
+			public boolean shouldCreateParticles()
+			{
+				return LevelObject.this.shouldCreateParticles();
+			}
+			
+			@Override
+			public boolean shouldApplySpawnScaleFactor(EmitterType emitterType)
+			{				
+				return emitterType != EmitterType.TIME_TRAVEL_CHANGED;
+			}
+		}, type)));
+
+		return emitter;
+	}
+
+	protected boolean resumeEmitter(EmitterType type, Dimension dimension)
+	{
+		if (this.particleEffects != null && this.particleEffects.get(type) != null)
+		{
+			Iterator<ParticleEmitter> iterator = this.particleEffects.get(type).iterator();
+
+			while (iterator.hasNext())
+			{
+				ParticleEmitter emitter = iterator.next();
+
+				if (emitter.getDimension() == dimension)
+				{
+					emitter.resume();
+
+					stoppedEffects.remove(emitter);
+
+					return true;
+				}
+			}
+		}
+
+		return false;
+	}
+
+	protected void stopAndRemoveEmitter(EmitterType type, Dimension dimension)
+	{
+		if (this.particleEffects != null && this.particleEffects.get(type) != null)
+		{
+			Iterator<ParticleEmitter> iterator = this.particleEffects.get(type).iterator();
+
+			while (iterator.hasNext())
+			{
+				ParticleEmitter emitter = iterator.next();
+
+				if (emitter.getDimension() == dimension)
+				{
+					stopEmitter(emitter);
+
+					return;
+				}
+			}
+		}
+	}
+
+	protected void stopEmitter(ParticleEmitter emitter)
+	{
+		emitter.stop();
+
+		if (stoppedEffects == null)
+		{
+			stoppedEffects = new HashSet<ParticleEmitter>(4);
+		}
+
+		stoppedEffects.add(emitter);
+	}
+
+	protected void stopAndRemoveEmitter(ParticleEmitter emitter)
+	{
+		stopEmitter(emitter);
+	}
+
+	protected void removeEmitter(ParticleEmitter emitter)
+	{
+		if (this.particleEffects != null)
+		{
+			Iterator<ParticleEmitter> iterator = this.particleEffects.get(emitter.getType()).iterator();
+			
+			while (iterator.hasNext())
+			{
+				ParticleEmitter e = iterator.next();
+
+				if (e == emitter)
+				{
+					iterator.remove();
+					level.removeParticleEmitter(emitter);
+					
+					return;
+				}
+			}
+		}
+	}
+
+	protected void removeEmitter(EmitterType type, Dimension dimension)
+	{
+		if (this.particleEffects != null)
+		{
+			Iterator<ParticleEmitter> iterator = this.particleEffects.get(type).iterator();
+
+			while (iterator.hasNext())
+			{
+				ParticleEmitter emitter = iterator.next();
+
+				if (emitter.getDimension() == dimension)
+				{
+					iterator.remove();
+					level.removeParticleEmitter(emitter);
+
+					break;
+				}
+			}
+		}
+	}
+
+	protected void removeFinishedEmitters()
+	{
+		if (this.stoppedEffects != null)
+		{
+			Iterator<ParticleEmitter> iterator = stoppedEffects.iterator();
+
+			while (iterator.hasNext())
+			{
+				ParticleEmitter emitter = iterator.next();
+
+				if (!emitter.hasActiveParticles())
+				{					
+					iterator.remove();
+					removeEmitter(emitter);
+				}
+			}
+		}
+		
+		if (this.particleEffects != null)
+		{
+			for (EmitterType type : this.particleEffects.keySet())
+			{
+				Iterator<ParticleEmitter> iterator = this.particleEffects.get(type).iterator();
+				
+				while (iterator.hasNext())
+				{
+					ParticleEmitter emitter = iterator.next();
+					
+					if (emitter.getType().limitLifetimeToParticles && !emitter.hasActiveParticles())
+					{
+						removeEmitter(emitter);
+					}
+				}
+			}
+		}
+	}
+	
+	protected boolean shouldCreateParticles()
+	{
+		return true;
+	}
+	
+	protected Image getParticleImageFor(EmitterType type)
+	{
+		return this.image;
+	}
+	
+	public boolean isPositionCloseEnough(Vector2f oldPosition)
+	{		
+		return Math.abs(position.x - oldPosition.x) < 2.0f && Math.abs(position.y - oldPosition.y) < 2.0f;
+	}
+	
+	public boolean isTimeEffected()
+	{
+		return this.timeEffected && !this.timeResistant && !level.ignoresTimeEffects();
+	}
+	
+	protected IEntityPickupable getHoldedObject()
+	{
+		return null;
+	}
+	
+	protected EntityLiving getHoldingEntity()
+	{
+		return null;
+	}
+	
+	public boolean canBeRemoved()
+	{
+		return true;
+	}
+	
+	public boolean hasEvilTwin() // lol
+	{
+		return this.hasMirror();
+	}
+	
+	protected boolean isHolded()
+	{
+		return false;
+	}
+	
+	public Level getLevel()
+	{
+		return level;
+	}
+
+	public void setLevel(Level level)
+	{
+		this.level = level;
+	}
+
+	public Hitbox getHitbox()
+	{
+		return this.hitbox;
+	}
+
+	public float getRotation()
+	{
+		return this.rotation;
+	}	
+	
+	public float getCenterOfRotationX()
+	{
+		return this.hitbox.getCenterX();
+	}
+	
+	public float getCenterOfRotationY()
+	{
+		return this.hitbox.getCenterY();
+	}
+	
+	public Vector2f getVelocity()
+	{
+		return velocity;
+	}
+}

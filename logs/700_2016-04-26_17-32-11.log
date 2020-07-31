@@ -1,0 +1,82 @@
+ -- General -- 
+Generated on: 2016-04-26_17-32-11
+Build: 700 from 05:15 PM - 26/04/16
+GameState: IN_LEVEL (previous: PAUSE_MENU)
+Target FPS: 60
+Actual FPS: 57
+
+ -- Display -- 
+Target Width / Height: 1920 / 1080
+Actual Width / Height: 1920 / 1017 (windowed)
+
+ -- Environment -- 
+GPU: GeForce GTX 980 Ti/PCIe/SSE2 (NVIDIA Corporation)
+OpenGL Version: 4.5.0 NVIDIA 361.43
+Allocated Memory: 15MB
+Used Memory: 10MB
+"os.name": Windows 10
+"os.version": 10.0
+"os.arch": x86
+"java.version": 1.8.0_66
+"java.vendor": Oracle Corporation
+"sun.arch.data.model": 32
+
+ -- Level --
+ID: 21-01 (internal: 01)
+LevelType: REVERSAL
+Dimension: COLORED
+Location: ../worlds/maps/21-01
+
+ -- Stack Trace -- 
+java.lang.IllegalArgumentException: Polygons must contain at least 3 points.
+com.badlogic.gdx.graphics.glutils.ShapeRenderer.polygon(ShapeRenderer.java:1011)
+com.badlogic.gdx.graphics.glutils.ShapeRenderer.polygon(ShapeRenderer.java:1043)
+com.unlogical.colored.util.ShaderHandler.updateAndRender(ShaderHandler.java:258)
+com.unlogical.colored.levelmanaging.LevelManager.render(LevelManager.java:1152)
+com.unlogical.colored.GameLauncher.render(GameLauncher.java:491)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication.mainLoop(LwjglApplication.java:218)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication$1.run(LwjglApplication.java:123)
+
+ -- Last 20 Log Entries -- 
+@Log: Resizing contents to current window size... (11)
+@Log: Finished loading, took 657ms. (11)
+@Log: Loading map ../worlds/maps/21-01 ... (11)
+@Log: Loading map files took 124ms. (11)
+@Warning: Tried to load image(s) from path res/gui/icons/21_01, the resolved path res/gui/icons/21_01.png however does not exist. (11)
+@Warning: Couldn't load level icon for 21-01. (11)
+@Log: Fetching lights for level "21-01" ... (11)
+@Log: Lights fetched for level "21-01", 4 lights found. (11)
+@Log: Pre-simulating particles for 45000.0ms (300 x 150.0ms)... (11)
+@Log: Particle pre-simulation complete. Particles are now ahead of time by 45000.0ms. (11)
+@Log: Active save was saved to disk. (11)
+@Log: Loaded 21-01 (took 288ms). (11)
+@Log: Play sound MENU_CLICK at volume 0.07, pitch 1.0 and pan 0.0 (once). (11)
+@Log: Play sound CANNON_SHOOT_CLOUD at volume 0.07, pitch 1.0 and pan 0.0 (once). (11)
+@Log: Play sound CANNON_SHOOT_BALL at volume 0.07, pitch 1.0 and pan 0.0 (once). (11)
+@Log: Play sound MENU_CLICK at volume 0.07, pitch 1.0 and pan 0.0 (once). (11)
+@Log: Play sound UNLOCK_KEYGATE at volume 0.07, pitch 1.0 and pan 0.0 (once). (11)
+@Log: Play sound MENU_CLICK at volume 0.07, pitch 1.0 and pan 0.0 (once). (11)
+@Log: Play sound MENU_CLICK at volume 0.0, pitch 1.0 and pan 0.0 (once). (11)
+@Log: Play sound MENU_CLICK at volume 0.0, pitch 1.0 and pan 0.0 (once). (11)
+
+ -- Last 20 Input Events -- 
+Touch dragged: pointer: 0 at x:961 y: 137 (265803ms ago)
+Touch up: 0 (pointer: 0) at x:961 y: 137 (265737ms ago)
+Touch down: 0 (pointer: 0) at x:1559 y: 706 (249523ms ago)
+Touch up: 0 (pointer: 0) at x:1559 y: 706 (249423ms ago)
+Touch down: 0 (pointer: 0) at x:1338 y: 400 (228210ms ago)
+Touch up: 0 (pointer: 0) at x:1338 y: 400 (228160ms ago)
+Key down: G (35) (226293ms ago)
+Key up: G (35) (226210ms ago)
+Key down: F3 (246) (224410ms ago)
+Key up: F3 (246) (224327ms ago)
+Key down: F3 (246) (223493ms ago)
+Key up: F3 (246) (223427ms ago)
+Key down: F3 (246) (223010ms ago)
+Key up: F3 (246) (222928ms ago)
+Key down: D (32) (221344ms ago)
+Key up: D (32) (221178ms ago)
+Touch down: 0 (pointer: 0) at x:1522 y: 504 (26799ms ago)
+Touch up: 0 (pointer: 0) at x:1522 y: 504 (26720ms ago)
+Touch down: 0 (pointer: 0) at x:1232 y: 302 (25204ms ago)
+Touch up: 0 (pointer: 0) at x:1232 y: 302 (25087ms ago)

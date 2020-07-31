@@ -1,0 +1,124 @@
+package com.unlogical.colored.resources.image;
+
+import java.io.IOException;
+import java.util.HashMap;
+
+import com.badlogic.gdx.graphics.g2d.TextureRegion;
+import com.unlogical.colored.filesystem.FilePaths;
+import com.unlogical.colored.resources.ResourceLoader;
+import com.unlogical.colored.util.Dimension;
+
+public class Images
+{
+	private static final HashMap<Object, ImageHandler> TextureRegionHandlers = new HashMap<Object, ImageHandler>();
+
+	public static ImageHandler registerAndLoad(Object identifier, String path, int width, int height, boolean useDimensions) throws IOException
+	{
+		if (identifier == null)
+		{
+			throw new IllegalArgumentException("identifier cannot be null");
+		}
+
+		if (!TextureRegionHandlers.containsKey(identifier))
+		{
+			ImageHandler handler = new ImageHandler(path, useDimensions);
+			handler.loadImages(width, height);
+			TextureRegionHandlers.put(identifier, handler);
+
+			return handler;
+		}
+
+		return TextureRegionHandlers.get(identifier);
+	}
+	
+	public static ImageHandler registerAndLoad(Object identifier, String path, boolean useDimensions) throws IOException
+	{
+		return registerAndLoad(identifier, path, -1, -1, useDimensions);
+	}
+
+	public static TextureRegion getImage(Object identifier)
+	{
+		return getImage(identifier, Dimension.LIGHT);
+	}
+
+	public static TextureRegion getImage(Object identifier, Dimension dimension)
+	{
+		return TextureRegionHandlers.get(identifier).getTextureRegion(dimension);
+	}
+
+	public static TextureRegion getImage(Object identifier, Dimension dimension, int innerType)
+	{
+		return TextureRegionHandlers.get(identifier).getTextureRegion(dimension, innerType);
+	}
+
+	public static ImageHandler getHandler(Object identifier)
+	{
+		return TextureRegionHandlers.get(identifier);
+	}
+
+	public static class ImageHandler
+	{
+		private String path;
+		private TextureRegion[] images;
+		private int imagesCount;
+		private boolean useDimensions;
+
+		public ImageHandler(String path, boolean useDimensions)
+		{
+			this.path = path;
+			this.useDimensions = useDimensions;
+		}
+
+		private void loadImages(int width, int height) throws IOException
+		{
+			this.images = ResourceLoader.getImages(path, useDimensions);
+			this.imagesCount = images.length;
+			
+			//TODO fix later, doesn't rescale images, not sure if that's even used anyway
+//			if (width > 0 && height > 0)
+//			{
+//				for (int i = 0; i < this.imagesCount; i++)
+//				{
+//					this.images[i] = this.images[i].getScaledCopy(width, height);
+//				}
+//			}
+		}
+
+		public TextureRegion getTextureRegion(Dimension dimension)
+		{
+			return images[0];
+		}
+
+		public TextureRegion getTextureRegion(Dimension dimension, int innerType)
+		{
+			int index = dimension.code() + Dimension.count() * innerType;
+
+			if (index >= imagesCount)
+			{
+				throw new IllegalArgumentException(index + " is out of range (TextureRegionCount: " + imagesCount + ")");
+			}
+
+			return images[index];
+		}
+	}
+
+	public enum HintIdentifier
+	{
+		LEVER_HINT_INACTIVE("leverHintInactive"), LEVER_HINT_ACTIVE("leverHintActive"), CAGE_HINT("cageHint"), DOOR_HINT("doorHint"), CANT_TOGGLE("cantToggle");
+
+		private String value;
+
+		private HintIdentifier(String value)
+		{
+			this.value = value;
+		}
+
+		public static void loadAll() throws IOException
+		{
+			for (HintIdentifier identifier : values())
+			{
+				registerAndLoad(identifier, FilePaths.GUI + "/" + identifier.value.toLowerCase() + ".png", true);
+			}
+		}
+	}
+}

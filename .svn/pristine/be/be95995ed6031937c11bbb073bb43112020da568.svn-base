@@ -1,0 +1,31 @@
+package com.unlogical.colored.desktop;
+
+import com.badlogic.gdx.Files.FileType;
+import com.badlogic.gdx.backends.lwjgl.LwjglApplication;
+import com.badlogic.gdx.backends.lwjgl.LwjglApplicationConfiguration;
+import com.unlogical.colored.GameLauncher;
+import com.unlogical.colored.filesystem.FileManager;
+
+public class DesktopLauncher
+{
+	public static void main(String[] arg)
+	{
+		LwjglApplicationConfiguration config = new LwjglApplicationConfiguration();
+
+		config.width = GameLauncher.TARGET_WIDTH;
+		config.height = GameLauncher.TARGET_HEIGHT;
+		config.title = "Colored";
+		config.vSyncEnabled = false;
+		config.foregroundFPS = 60; //pcmasterrace
+		config.backgroundFPS = 60;
+		config.samples = 4; // TODO set sensitive sample rate, perhaps read form config file
+		config.fullscreen = false;
+		
+		//TODO exclude items and other startup critical files from file packaging
+		config.addIcon(FileManager.globaliseFile("icon-128x128.png"), FileType.Internal);
+		config.addIcon(FileManager.globaliseFile("icon-32x32.png"), FileType.Internal);
+		config.addIcon(FileManager.globaliseFile("icon-32x32.png"), FileType.Internal);
+
+		new LwjglApplication(new GameLauncher(), config);
+	}
+}

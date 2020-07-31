@@ -1,0 +1,89 @@
+package com.unlogical.colored.terrain.tile;
+
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
+
+import com.badlogic.gdx.math.Vector2;
+import com.unlogical.colored.GameLauncher;
+import com.unlogical.colored.filesystem.ConfigFileHandler;
+import com.unlogical.colored.level.Level;
+import com.unlogical.colored.terrain.TileType;
+import com.unlogical.colored.terrain.property.TileProperty;
+import com.unlogical.colored.util.Dimension;
+
+public class TileBase extends Tile
+{
+	private static Set<String> hiddenGeometryLevels;
+	private static boolean hideAllGeometry;
+
+	public TileBase(TileType type, String metadata, int innerType, float rotation, Vector2 position, Level level,
+			Dimension dimension, TileProperty properties, boolean allowMirrors)
+	{
+		super(type, metadata, innerType, rotation, position, level, dimension, properties, allowMirrors);
+	}
+
+	public static void readFromConfiguration(ConfigFileHandler cfg)
+	{		
+		String levels = cfg.getString("hidegeometry");
+
+		hiddenGeometryLevels = new HashSet<String>();
+
+		if (levels.equalsIgnoreCase("all"))
+		{
+			hideAllGeometry = true;
+		}
+		else
+		{
+			hiddenGeometryLevels.addAll(Arrays.asList(levels.split(";")));
+		}
+	}
+
+	public static void toggleBases()
+	{
+		String currentLevel = GameLauncher.getLevelContext().getID();
+
+		if (hiddenGeometryLevels.contains(currentLevel))
+		{
+			hiddenGeometryLevels.remove(currentLevel);
+		}
+		else
+		{
+			hiddenGeometryLevels.add(currentLevel);
+		}
+	}
+
+	@Override
+	public boolean shouldUpdate()
+	{
+		return false;
+	}
+
+	@Override
+	public boolean shouldCopy()
+	{
+		return false;
+	}
+
+	@Override
+	public boolean shouldRenderInGame()
+	{		
+		return !hiddenGeometryLevels.contains(this.level.getID()) && !hideAllGeometry;
+	}
+
+	@Override
+	protected boolean shouldDrawAsSolidBlock()
+	{
+		return true;
+	}
+	
+	public static Set<String> getHiddenGeometryLevels()
+	{
+		return hiddenGeometryLevels;
+	}
+	
+	public static boolean shouldHideAllGeometry()
+	{
+		return hideAllGeometry;
+	}
+}

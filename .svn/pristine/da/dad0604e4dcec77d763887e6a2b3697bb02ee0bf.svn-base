@@ -1,0 +1,78 @@
+package com.unlogical.linked.particle;
+
+import java.util.ArrayList;
+import java.util.Map;
+
+import com.unlogical.linked.level.Level;
+import com.unlogical.linked.util.IDeepCopyable;
+
+public class ParticlePool implements IDeepCopyable<ParticlePool>
+{
+	public Particle[] particles;
+	public ArrayList<Particle> availableParticles;
+	
+	private ParticleSystem system;
+
+	public ParticlePool(ParticleSystem system, int maxParticles)
+	{
+		init(system, maxParticles);
+	}
+	
+	private ParticlePool()
+	{
+		
+	}
+	
+	private void init(ParticleSystem system, int maxParticles)
+	{
+		this.system = system;
+		
+		particles = new Particle[maxParticles];
+		availableParticles = new ArrayList<Particle>(maxParticles);
+		
+		for (int i = 0; i < particles.length; i++)
+		{
+			particles[i] = new Particle(system);
+		}
+
+		reset();	
+	}
+	
+	@Override
+	public ParticlePool deepCopy(Map<Object, Object> copiedReferences)
+	{
+		ParticlePool copy = new ParticlePool();
+		
+		Level.putCopy(this, copy, copiedReferences);
+				
+		copy.init((ParticleSystem) Level.getCopy(system, copiedReferences), particles.length);
+		copy.availableParticles.clear();		
+		
+		for (int i = 0; i < particles.length; i++)
+		{
+			copy.particles[i] = this.particles[i].deepCopy(copiedReferences);
+						
+			if (copy.particles[i].getLifetime() <= 0)
+			{
+				copy.availableParticles.add(copy.particles[i]);
+			}
+		}
+		
+		return copy;
+	}
+	
+	public Particle getUnusedParticle()
+	{
+		return availableParticles.get(0);
+	}
+	
+	public void reset()
+	{
+		availableParticles.clear();
+
+		for (int i = 0; i < particles.length; i++)
+		{
+			availableParticles.add(particles[i]);
+		}
+	}
+}

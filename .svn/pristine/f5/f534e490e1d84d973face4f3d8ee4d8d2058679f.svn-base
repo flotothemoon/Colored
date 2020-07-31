@@ -1,0 +1,393 @@
+package com.unlogical.colored.crash;
+
+import java.awt.Toolkit;
+import java.awt.datatransfer.Clipboard;
+import java.awt.datatransfer.StringSelection;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.List;
+
+import org.newdawn.slick.Color;
+import org.newdawn.slick.GameContainer;
+import org.newdawn.slick.Graphics;
+import org.newdawn.slick.Input;
+import org.newdawn.slick.geom.Rectangle;
+
+import com.unlogical.colored.GameLauncher;
+import com.unlogical.colored.configuration.Resolutions;
+import com.unlogical.colored.debug.Debug;
+import com.unlogical.colored.gui.button.Button;
+import com.unlogical.colored.network.ClientProcessor;
+
+public class DebugScreen
+{
+	private static boolean logWritten = false;
+	private static boolean init = false;
+	private static boolean exitLoop = false;
+	private static boolean movingMode = false;
+	
+	private static float barOffset;
+	
+	private static final int TEXT_BOX_BORDER_HEIGHT = 20;
+	private static final int lineOffset = 10;
+	
+	private static int textYOffset;
+	private static int actualOffset;
+	private static int totalLines;
+	private static int topLine;
+	private static int bottomLine;
+	private static int lineHeight;
+	private static int barHeight;
+	private static int displayableLines;
+	
+	private static Rectangle logTextBox;
+	private static Rectangle scrollbarBorder;
+	private static Rectangle scrollbar;
+	private static Rectangle upperBorder;
+	private static Rectangle bottomBorder;
+	
+	private static Button copyButton;
+	private static Button exitButton;
+	
+	private static String log = "";
+	private static String logName = "";
+	private static String errorID = "";
+	private static String sendStatus = "";
+	
+	private static List<String> lines;
+	private static Exception e;
+	private static ClientProcessor client;
+	
+	private static Color backgroundColor = new Color(255, 237, 204);
+	private static Color borderColor = new Color(37, 6, 84);
+	private static Color barColor = Color.lightGray;
+
+	public static void handle(Exception exception)
+	{
+		if ((e == null && exception != null))
+		{
+			e = exception;
+		}
+
+		if (!init)
+		{
+			GameLauncher.setFullscreenMode(false);
+
+			lineHeight = GameLauncher.getFont().getLineHeight();
+
+			textYOffset = 50;
+
+			logTextBox = new Rectangle(80, textYOffset + 90, GameLauncher.getWidth() - 160, GameLauncher.getHeight() - textYOffset - 240);
+			upperBorder = new Rectangle(logTextBox.getX() + 10, logTextBox.getY() + 1, logTextBox.getWidth() - 20 - Resolutions.SELECTION_MENU_SCROLLBAR_WIDTH, TEXT_BOX_BORDER_HEIGHT);
+			bottomBorder = new Rectangle(logTextBox.getX() + 10, logTextBox.getY() + logTextBox.getHeight() - TEXT_BOX_BORDER_HEIGHT, logTextBox.getWidth() - 20 - Resolutions.SELECTION_MENU_SCROLLBAR_WIDTH, TEXT_BOX_BORDER_HEIGHT);
+
+			scrollbarBorder = new Rectangle(logTextBox.getX() + logTextBox.getWidth() - Resolutions.SELECTION_MENU_SCROLLBAR_WIDTH, logTextBox.getY(), Resolutions.SELECTION_MENU_SCROLLBAR_WIDTH, logTextBox.getHeight());
+
+			GameLauncher.getGraphics().clear();
+
+			logName = "unknown-error-" + new SimpleDateFormat("yy-MM-dd_HH.mm.ss.SSS").format(Calendar.getInstance().getTime());
+			init = true;
+			
+			log = "\n" + "The game stopped running because we encountered an unexpected feature. (It's Marcel's fault I swear! My code always compiles!)\n" + errorID + "\n" + "Report (full awesome feature report was saved to dev/logs/" + logName + ".log):";
+
+			if (!logWritten)
+			{
+				writeLog();
+			}
+
+			barHeight = (int) (((((float) displayableLines) / ((float) totalLines))) * scrollbarBorder.getHeight());
+			scrollbar = new Rectangle(scrollbarBorder.getX(), scrollbarBorder.getY(), scrollbarBorder.getWidth(), barHeight);
+
+			copyButton = new Button("Copy to Clipboard", (int) (logTextBox.getX() + 10), (int) (logTextBox.getY() + logTextBox.getHeight() + 40), 300, 40)
+			{
+
+				@Override
+				public void onClick()
+				{
+					Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(log), null);
+				}
+			};
+
+			exitButton = new Button("Close", (int) (logTextBox.getX() + logTextBox.getWidth() - 210), (copyButton.getY()), 200, 40)
+			{
+				@Override
+				public void onClick()
+				{
+					GameLauncher.exit();
+				}
+			};
+		}
+
+	}
+
+	public static void update(GameContainer container, int delta)
+	{
+		if (init && logWritten)
+		{
+			exitLoop = false;
+
+			if ((container.getInput().isKeyDown(Input.KEY_RCONTROL) || container.getInput().isKeyDown(Input.KEY_LCONTROL)) && container.getInput().isKeyPressed(Input.KEY_C))
+			{
+				Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
+				clipboard.setContents(new StringSelection(log), null);
+			}
+
+			if (scrollbar.contains(container.getInput().getMouseX(), container.getInput().getMouseY()))
+			{
+				barColor = Color.lightGray;
+				if (container.getInput().isMouseButtonDown(Input.MOUSE_LEFT_BUTTON))
+					movingMode = true;
+			}
+			else if (!container.getInput().isMouseButtonDown(Input.MOUSE_LEFT_BUTTON))
+			{
+				movingMode = false;
+				barColor = Color.gray;
+			}
+
+			if (movingMode)
+			{
+				barOffset = (container.getInput().getMouseY() - scrollbarBorder.getY());
+				if ((barOffset + barHeight) > (scrollbarBorder.getHeight()))
+					barOffset = scrollbarBorder.getHeight() - barHeight;
+				else if ((barOffset) < (0))
+					barOffset = 0;
+			}
+
+			actualOffset = -(int) (((barOffset) / (logTextBox.getHeight() - 2 * Resolutions.SELECTION_MENU_SCROLLBAR_WIDTH)) * (totalLines * (lineHeight + lineOffset)));
+
+			scrollbar.setY(scrollbarBorder.getY() + barOffset);
+
+			for (int i = 0; i < totalLines && !exitLoop; i++)
+			{
+				if (((i * (lineHeight + lineOffset) + actualOffset) >= -30))
+				{
+					topLine = i;
+					exitLoop = true;
+				}
+			}
+
+			exitLoop = false;
+			for (int i = topLine; i < totalLines && !exitLoop; i++)
+			{
+				if ((((i + 1) * (lineHeight + lineOffset) + TEXT_BOX_BORDER_HEIGHT * 2 + actualOffset + 10) - (logTextBox.getHeight())) > 0 || (i + 1) == totalLines)
+				{
+					bottomLine = i;
+					exitLoop = true;
+				}
+			}
+
+			copyButton.update(container, delta);
+			exitButton.update(container, delta);
+
+			if (client != null)
+			{
+				sendStatus = client.getStatus();
+			}
+		}
+	}
+
+	public static void render(GameContainer container, Graphics g)
+	{
+		g.clear();
+		if (init && logWritten)
+		{
+			g.setFont(GameLauncher.getSmallFont());
+			g.setColor(Color.white);
+
+			g.setColor(backgroundColor);
+			g.fill(logTextBox);
+
+			g.setColor(borderColor);
+			g.fill(scrollbarBorder);
+			g.draw(logTextBox);
+
+			g.setColor(barColor);
+			g.fill(scrollbar);
+
+			g.setColor(Color.black);
+			for (int i = topLine; i <= bottomLine; i++)
+			{
+				g.drawString(lines.get(i), logTextBox.getX() + 15, textYOffset + 100 + TEXT_BOX_BORDER_HEIGHT + actualOffset + i * (lineHeight + lineOffset));
+			}
+
+			g.setColor(backgroundColor);
+			g.fill(upperBorder);
+			g.fill(bottomBorder);
+
+			copyButton.render(container, 0.8f, g);
+			exitButton.render(container, 0.8f, g);
+
+			g.drawString(sendStatus, 10, GameLauncher.getHeight() - 10 - g.getFont().getLineHeight());
+		}
+	}
+
+	private static void writeln(BufferedWriter writer, String str)
+	{
+		try
+		{
+			writer.write(str);
+			writer.newLine();
+			log = log + "\n" + str;
+		}
+		catch (IOException e)
+		{
+		}
+	}
+
+	private static String getExceptionType(Exception e)
+	{
+		String exceptionType = "UNKNOWN_EXCEPTION";
+
+		exceptionType = e.toString();
+
+		return exceptionType;
+	}
+
+	private static String format(String str)
+	{
+		StringBuilder formattedLog = new StringBuilder(str);
+		StringBuilder currentLine = new StringBuilder("");
+
+		lines = new ArrayList<String>();
+		totalLines = 0;
+
+		for (int i = 0; i < str.length(); i++)
+		{
+			Character c = str.charAt(i);
+			if (c.equals('\n'))
+			{
+				currentLine = new StringBuilder("");
+				totalLines++;
+			}
+			else
+			{
+				if (GameLauncher.getSmallFont().getWidth(currentLine.toString()) <= (logTextBox.getWidth() - Resolutions.SELECTION_MENU_SCROLLBAR_WIDTH - 20))
+				{
+					currentLine.append(c);
+				}
+				else
+				{
+					formattedLog.insert(i, "\n");
+					currentLine = new StringBuilder(c + "");
+					totalLines++;
+				}
+			}
+
+			lines.add(totalLines - 1, (currentLine.toString()));
+		}
+
+		return formattedLog.toString();
+	}
+
+	public static void writeLog()
+	{
+		logName = "crash-report-" + new SimpleDateFormat("yy-MM-dd_HH.mm.ss.SSS").format(Calendar.getInstance().getTime());
+		File crashFile = new File("dev/logs/" + logName + ".log");
+		try
+		{
+			crashFile.createNewFile();
+			BufferedWriter writer = new BufferedWriter(new FileWriter(crashFile));
+			String exceptionType = getExceptionType(e);
+			errorID = ("ERROR_" + GameLauncher.getVersion() + "_" + GameLauncher.getStatus() + "_" + exceptionType + "_" + new SimpleDateFormat("yy_MM_dd").format(Calendar.getInstance().getTime())).toUpperCase().replace(' ', '_').replace('.', '_').replace(':', '_');
+
+			writeln(writer, "[Report Start]");
+			writeln(writer, "Error Report:");
+			writer.newLine();
+			log = log + "\n";
+
+			writeln(writer, "-General Information:");
+			writer.newLine();
+			log = log + "\n";
+			writeln(writer, "  Error Type: " + errorID);
+			writeln(writer, "  Date and Time: " + new SimpleDateFormat("yy.MM.dd - HH:mm:ss").format(Calendar.getInstance().getTime()));
+			writeln(writer, "  Game Version: " + GameLauncher.getVersion());
+			writeln(writer, "  Java Version: " + System.getProperty("java.version"));
+			writeln(writer, "  Operating System: " + System.getProperty("os.name"));
+			writeln(writer, "  Operating System Version: " + System.getProperty("os.version"));
+			writer.newLine();
+			log = log + "\n";
+
+			writeln(writer, "-Game Information:");
+			writer.newLine();
+			log = log + "\n";
+			writeln(writer, "  Game Mode: " + GameLauncher.getStatus());
+			writeln(writer, "  Fullscreen: " + GameLauncher.isFullscreenMode());
+			writer.newLine();
+			log = log + "\n";
+
+			writeln(writer, "-Stack Trace");
+			writer.newLine();
+			log = log + "\n";
+
+			System.out.println(e.toString());
+			writeln(writer, e.toString());
+
+			for (int i = 0; i < e.getStackTrace().length; i++)
+			{
+				log = log + "\n" + e.getStackTrace()[i];
+				writer.write(e.getStackTrace()[i] + "");
+				System.out.println(e.getStackTrace()[i]);
+				writer.newLine();
+			}
+
+			writer.newLine();
+			log = log + "\n";
+
+			writeln(writer, "-Log-");
+
+			for (int i = Debug.getLog().size() > 20 ? Debug.getLog().size() - 21 : 0; i < Debug.getLog().size(); i++)
+			{
+				writeln(writer, Debug.getLog().get(i));
+			}
+
+			writer.newLine();
+			log = log + "\n";
+
+			writeln(writer, "[Report End]");
+
+			writer.close();
+
+			log = format(log);
+			if ((lineHeight + lineOffset) * totalLines <= (logTextBox.getHeight() - 20))
+			{
+				displayableLines = totalLines;
+			}
+			else
+			{
+				displayableLines = (int) ((logTextBox.getHeight() - TEXT_BOX_BORDER_HEIGHT * 2) / (lineHeight + lineOffset));
+			}
+
+		}
+		catch (IOException e)
+		{
+		}
+
+		logWritten = true;
+	}
+
+	public static boolean isCrashLogWritten()
+	{
+		return logWritten;
+	}
+
+	public static void setCrashLogWritten(boolean crashLogWritten)
+	{
+		DebugScreen.logWritten = crashLogWritten;
+	}
+
+	public static boolean isCrashLogInit()
+	{
+		return init;
+	}
+
+	public static void setCrashLogInit(boolean crashLogInit)
+	{
+		DebugScreen.init = crashLogInit;
+	}
+
+}

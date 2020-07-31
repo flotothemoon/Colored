@@ -1,0 +1,63 @@
+ -- General -- 
+Generated on: 2016-05-22_16-45-20
+Build: 743 from 11:37 AM - 22/05/16
+GameState: LOADING (previous: null)
+Target FPS: 60
+Actual FPS: 0
+
+ -- Display -- 
+Target Width / Height: 1920 / 1080
+Actual Width / Height: 1920 / 1053 (windowed)
+
+ -- Environment -- 
+GPU: GeForce GTX 980 Ti/PCIe/SSE2 (NVIDIA Corporation)
+OpenGL Version: 4.5.0 NVIDIA 361.43
+Allocated Memory: 123MB
+Used Memory: 72MB
+"os.name": Windows 10
+"os.version": 10.0
+"os.arch": x86
+"java.version": 1.8.0_66
+"java.vendor": Oracle Corporation
+"sun.arch.data.model": 32
+
+ -- Stack Trace -- 
+java.lang.RuntimeException: Error while loading: java.util.NoSuchElementException: No value mapping found for key "name" in [FileHandle: ../worlds/maps/23-01/config.yml].
+com.unlogical.colored.util.LoadingHandler.loadNext(LoadingHandler.java:117)
+com.unlogical.colored.GameLauncher.render(GameLauncher.java:531)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication.mainLoop(LwjglApplication.java:218)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication$1.run(LwjglApplication.java:123)
+Caused by: java.util.NoSuchElementException: No value mapping found for key "name" in [FileHandle: ../worlds/maps/23-01/config.yml].
+com.unlogical.colored.filesystem.ConfigFileHandler.checkKey(ConfigFileHandler.java:346)
+com.unlogical.colored.filesystem.ConfigFileHandler.getString(ConfigFileHandler.java:320)
+com.unlogical.colored.filesystem.organisation.MapOrganisation.getSaveState(MapOrganisation.java:94)
+com.unlogical.colored.filesystem.organisation.MapOrganisation.getMaps(MapOrganisation.java:39)
+com.unlogical.colored.level.Level.fetchChapters(Level.java:416)
+com.unlogical.colored.util.LoadingHandler.loadNext(LoadingHandler.java:58)
+com.unlogical.colored.GameLauncher.render(GameLauncher.java:531)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication.mainLoop(LwjglApplication.java:218)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication$1.run(LwjglApplication.java:123)
+
+ -- Last 20 Log Entries -- 
+@Log    : System.getProperty("java.version"): 1.8.0_66 (tid: 11)
+@Log    : System.getProperty("java.vendor"): Oracle Corporation (tid: 11)
+@Log    : System.getProperty("sun.arch.data.model"): 32 (tid: 11)
+@Log    : ---- GPU Debug Information ---- (tid: 11)
+@Log    : GPU: GeForce GTX 980 Ti/PCIe/SSE2 (NVIDIA Corporation) (tid: 11)
+@Log    : OpenGL Version: 4.5.0 NVIDIA 361.43 (tid: 11)
+@Log    : Build: 743 from 11:37 AM - 22/05/16 (tid: 11)
+@Log    : Loading settings... (tid: 11)
+@Log    : Settings loaded. (tid: 11)
+@Log    : Logos loaded. (tid: 11)
+@Log    : Loading font "Chelsea.ttf" ... (tid: 11)
+@Log    : TrueTypeFont loaded, took 179ms. (tid: 11)
+@Log    : Calculating transition data... (tid: 11)
+@Log    : Calculated 1000 factors with offset -0.009009009 and factor 1.0229156. (tid: 11)
+@Log    : Initializing settings... (tid: 11)
+@Log    : Initializing key bindings... (tid: 11)
+@Log    : Loading sounds... (tid: 11)
+@Log    : Loaded 23 sounds, took 121ms. (tid: 11)
+@Log    : Fetching chapters / worlds... (tid: 11)
+@Log    : Requesting available map files... (tid: 11)
+
+ -- Last 0 Input Events -- 

@@ -1,0 +1,763 @@
+package com.unlogical.linked.terrain.tile.platform;
+
+import java.util.Map;
+import java.util.Random;
+
+import org.newdawn.slick.geom.Vector2f;
+
+import com.unlogical.linked.level.Level;
+import com.unlogical.linked.level.LevelType;
+import com.unlogical.linked.terrain.TileType;
+import com.unlogical.linked.terrain.property.TileProperty;
+import com.unlogical.linked.terrain.tile.Tile;
+import com.unlogical.linked.terrain.tile.properties.ITileMoveable;
+import com.unlogical.linked.terrain.tile.properties.ITileReceiver;
+import com.unlogical.linked.util.Dimension;
+import com.unlogical.linked.util.LevelObject;
+import com.unlogical.linked.util.ScheduledEvent;
+
+public class TilePlatform extends Tile implements ITileMoveable, ITileReceiver
+{
+	public static final int ROTATION_LEFT = 0;
+	public static final int ROTATION_CENTER = 1;
+	public static final int ROTATION_RIGHT = 2;
+
+	private static final String TRIGGER = "trigger";
+	private static final String UNTRIGGER = "untrigger";
+
+	private TilePlatformType platformType;
+
+	protected boolean movingClockwise;
+	protected boolean movingRight;
+	protected boolean movingUp;
+	protected boolean inversedTrigger;
+	private boolean verticalMoving;
+	private boolean horizontalMoving;
+	private boolean rotating;
+	private boolean shouldMove = true;
+	private boolean limited;
+	private boolean startMoveRight;
+
+	protected float maxSpeed;
+	private float rotationVelocity;
+	private float acceleration = 0.0004f;
+	private float rotationChange;
+
+	private int startLimit;
+	private int endLimit;
+	private int absStartLimit;
+	private int absEndLimit;
+
+	private int rotationAnchor;
+
+	private int rotationAnchorX;
+	private int rotationAnchorY;
+
+	public TilePlatform(TileType type, String metadata, int innerType, float rotation, Vector2f position, Level level, Dimension dimension, TileProperty properties, boolean allowMirrors)
+	{
+		super(type, metadata, innerType, rotation, position, level, dimension, properties, allowMirrors);
+	}
+
+	@Override
+	public LevelObject deepCopy(Map<Object, Object> copiedReferences)
+	{
+		TilePlatform copy = (TilePlatform) super.deepCopy(copiedReferences);
+
+		copy.shouldMove = this.shouldMove;
+		copy.limited = this.limited;
+		copy.maxSpeed = this.maxSpeed;
+		copy.rotationVelocity = this.rotationVelocity;
+		copy.rotationChange = this.rotationChange;
+		copy.startLimit = this.startLimit;
+		copy.endLimit = this.endLimit;
+		copy.absStartLimit = this.absStartLimit;
+		copy.absEndLimit = this.absEndLimit;
+		copy.rotationAnchor = this.rotationAnchor;
+		copy.rotationAnchorX = this.rotationAnchorX;
+		copy.rotationAnchorY = this.rotationAnchorY;
+		copy.movingClockwise = this.movingClockwise;
+		copy.movingRight = this.movingRight;
+		copy.movingUp = this.movingUp;
+
+		return copy;
+	}
+
+	@Override
+	public void init()
+	{
+		this.initPlatform();
+
+		super.init();
+	}
+
+	@Override
+	public void initMirror(Tile mirroredTile, LevelType levelType)
+	{
+		super.initMirror(mirroredTile, levelType);
+
+		if (levelType == LevelType.REVERSAL)
+		{
+			boolean listen = this.listen(this.receivePort) != null;
+			this.setTriggered(!listen);
+			this.trigger(listen, false, null);
+
+			((TilePlatform) this.mirroredTile).reverseMovement();
+
+			if (!this.limited && reverseInit())
+			{
+				this.reverseMovement();
+			}
+
+			if (this.limited)
+			{
+				if (this.horizontalMoving)
+				{
+					mirroredTile.setX(this.startMoveRight ? this.absStartLimit : this.absEndLimit - this.hitbox.getRawWidth());
+				}
+				else if (this.verticalMoving)
+				{
+					mirroredTile.setY(this.startMoveRight ? this.absStartLimit : this.absEndLimit - this.hitbox.getRawHeight());
+				}
+				else if (this.rotating)
+				{
+					mirroredTile.setRotation(this.endLimit);
+				}
+			}
+			else
+			{
+				this.initialising = true;
+
+				this.mirroredTile.setPosition(this.position.x, this.position.y);
+
+				this.dimension = Dimension.SHADOW;
+				this.update(null, 0.0f);
+				this.dimension = Dimension.LIGHT;
+
+				this.initialising = false;
+
+				if (this.horizontalMoving)
+				{
+					if (this.movingRight)
+					{
+						if (this.hitbox.isCheckedRight())
+						{
+							this.mirroredTile.setX(this.getX() + this.hitbox.getDistanceToBlockRight());
+						}
+						else
+						{
+							this.mirroredTile.setX(this.level.getMapWidth());
+						}
+					}
+					else
+					{
+						if (this.hitbox.isCheckedLeft())
+						{
+							this.mirroredTile.setX(this.getX() - this.hitbox.getDistanceToBlockLeft());
+						}
+						else
+						{
+							this.mirroredTile.setX(-this.hitbox.getWidth());
+						}
+					}
+				}
+				else if (this.verticalMoving)
+				{
+					if (this.movingUp)
+					{
+						if (this.hitbox.isCheckedAbove())
+						{
+							this.mirroredTile.setY(this.getY() - this.hitbox.getDistanceToBlockAbove());
+						}
+						else
+						{
+							this.mirroredTile.setY(-this.hitbox.getHeight());
+						}
+					}
+					else
+					{
+						if (this.hitbox.isCheckedBelowLeft() || this.hitbox.isCheckedBelowRight())
+						{
+							this.mirroredTile.setY(this.getY() + this.hitbox.getDistanceToBlockBelow());
+						}
+						else
+						{
+							this.mirroredTile.setY(this.level.getMapHeight());
+						}
+					}
+				}
+			}
+
+			if (!this.limited && reverseInit())
+			{
+				this.reverseMovement();
+
+				boolean hasControllers = false;
+
+				for (Tile tile : level.getTiles())
+				{
+					if (inSameDimension(tile) && tile.isSender() && tile.getSendPort() == this.receivePort)
+					{
+						hasControllers = true;
+
+						break;
+					}
+				}
+
+				if (!hasControllers)
+				{
+					((TilePlatform) this.mirroredTile).startMoveRight = !this.startMoveRight;
+				}
+			}
+		}
+	}
+
+	protected boolean reverseInit()
+	{
+		return true;
+	}
+
+	@Override
+	public void onUpdate(float delta, Random rng)
+	{
+		if (shouldMove && (level.getType() == LevelType.NORMAL || level.getType() == LevelType.REVERSAL || !inversedTrigger || !this.shared))
+		{
+			if (horizontalMoving)
+			{
+				if (movingRight)
+				{
+					if (!(this.limited && this.hitbox.getMaxX() >= absEndLimit + level.getCameraOffset().x) && !collidedRight)
+					{
+						velocity.x += acceleration * delta;
+					}
+				}
+				else
+				{
+					if (!(this.limited && this.hitbox.getMinX() <= absStartLimit + level.getCameraOffset().x) && !collidedLeft)
+					{
+						velocity.x -= acceleration * delta;
+					}
+				}
+
+				if (this.limited)
+				{
+					if (this.velocity.x > 0.0f && this.hitbox.getMaxX() + this.velocity.x * delta >= absEndLimit + level.getCameraOffset().x)
+					{
+						this.lockConnections();
+						this.position.x = absEndLimit + level.getCameraOffset().x - this.hitbox.getWidth();
+						this.resetVelocities();
+						this.updateConnections();
+					}
+					else if (this.velocity.x < 0.0f && this.hitbox.getMinX() + this.velocity.x * delta <= absStartLimit + level.getCameraOffset().x)
+					{
+						this.lockConnections();
+						this.position.x = absStartLimit + level.getCameraOffset().x;
+						this.resetVelocities();
+						this.updateConnections();
+					}
+				}
+
+				if (velocity.x > maxSpeed)
+				{
+					velocity.x = maxSpeed;
+				}
+				else if (-velocity.x > maxSpeed)
+				{
+					velocity.x = -maxSpeed;
+				}
+			}
+			else if (verticalMoving)
+			{
+				if (movingUp)
+				{
+					if (!(this.limited && this.position.y < absStartLimit + level.getCameraOffset().y) && !collidedAbove)
+					{
+						velocity.y -= acceleration * delta;
+					}
+				}
+				else if (!(this.limited && this.position.y + this.hitbox.getRawHeight() > absEndLimit + level.getCameraOffset().y) && !collidedBelow)
+				{
+					velocity.y += acceleration * delta;
+				}
+
+				if (this.limited && velocity.y != 0.0f)
+				{
+					if (!movingUp && this.position.y + this.hitbox.getRawHeight() + this.velocity.y * delta > absEndLimit + level.getCameraOffset().y)
+					{
+						lockConnections();
+						this.setY(absEndLimit + level.getCameraOffset().y - this.hitbox.getHeight());
+						updateConnections();
+						resetVelocities();
+					}
+					else if (movingUp && this.position.y + this.velocity.y * delta < absStartLimit + level.getCameraOffset().y)
+					{
+						lockConnections();
+						this.setY(absStartLimit + level.getCameraOffset().y);
+						updateConnections();
+						resetVelocities();
+					}
+				}
+
+				if (velocity.y > 0 && velocity.y > maxSpeed)
+				{
+					velocity.y = maxSpeed;
+				}
+				else if (velocity.y < 0 && -velocity.y > maxSpeed)
+				{
+					velocity.y = -maxSpeed;
+				}
+			}
+			else if (rotating)
+			{
+				float rotation = this.rotation;
+
+				if (movingClockwise)
+				{
+					if (rotation < this.absEndLimit)
+					{
+						rotation += this.rotationVelocity * delta;
+
+						if (rotation > this.absEndLimit)
+						{
+							rotation = this.absEndLimit;
+						}
+					}
+				}
+				else if (rotation > this.absStartLimit)
+				{
+					rotation -= this.rotationVelocity * delta;
+
+					if (rotation < this.absStartLimit)
+					{
+						rotation = this.absStartLimit;
+					}
+				}
+
+				this.rotationChange = rotation - this.rotation;
+
+				if (this.getRotation() != rotation)
+				{
+					changeRotationTo(rotation);
+				}
+			}
+		}
+		else
+		{
+			velocity.x = 0.0f;
+			velocity.y = 0.0f;
+		}
+	}
+
+	@Override
+	public void readMetadata()
+	{
+		String[] data = metadata.split(":");
+
+		try
+		{
+			this.platformType = TilePlatformType.values()[Integer.parseInt(data[0])];
+			this.maxSpeed = Float.parseFloat(data[1]);
+			this.rotationVelocity = Float.parseFloat(data[2]);
+			this.limited = Boolean.parseBoolean(data[3]);
+			this.startLimit = Integer.parseInt(data[4]);
+			this.endLimit = Integer.parseInt(data[5]);
+			this.setPort(Integer.parseInt(data[6]));
+			this.startMoveRight = Boolean.parseBoolean(data[7]);
+			this.rotationAnchor = Integer.parseInt(data[8]);
+		}
+		catch (Exception e)
+		{
+			this.maxSpeed = 0.08f;
+			this.rotationVelocity = 0.1f;
+			this.platformType = TilePlatformType.HORIZONTAL;
+		}
+
+		initPlatform();
+	}
+
+	public void initPlatform()
+	{
+		this.horizontalMoving = this.platformType == TilePlatformType.HORIZONTAL;
+		this.verticalMoving = this.platformType == TilePlatformType.VERTICAL;
+		this.rotating = this.platformType == TilePlatformType.ROTATING;
+
+		if (this.limited)
+		{
+			if (this.horizontalMoving)
+			{
+				this.absStartLimit = (int) (this.hitbox.getMinX() - this.startLimit);
+				this.absEndLimit = (int) (this.hitbox.getMaxX() + this.endLimit);
+			}
+			else if (this.verticalMoving)
+			{
+				this.absStartLimit = (int) (this.hitbox.getMinY() - this.startLimit);
+				this.absEndLimit = (int) (this.hitbox.getMaxY() + this.endLimit);
+			}
+			else if (this.rotating)
+			{
+				this.absStartLimit = (int) (this.startLimit + this.rotation);
+				this.absEndLimit = (int) (this.endLimit + this.rotation);
+			}
+		}
+
+		if (this.horizontalMoving)
+		{
+			this.movingRight = this.startMoveRight;
+		}
+		else if (this.verticalMoving)
+		{
+			this.movingUp = !this.startMoveRight;
+		}
+		else if (this.rotating)
+		{
+			this.movingClockwise = !this.startMoveRight;
+		}
+
+		this.updateAnchor();
+	}
+
+	@Override
+	public void onReSimulation()
+	{
+		super.onReSimulation();
+
+		if (rotating)
+		{
+			this.setRotation(this.mirroredTile.getRotation());
+		}
+	}
+
+	@Override
+	protected float getAdditionalCheckDistance(Vector2f otherVelocity)
+	{
+		if (this.initialising)
+		{
+			return Math.max(level.getMapWidth(), level.getMapHeight());
+		}
+		else
+		{
+			return this.velocity.length() + otherVelocity.length() * 20;
+		}
+	}
+
+	@Override
+	public void writeMetadata()
+	{
+		this.metadata = this.platformType.ordinal() + ":" + this.maxSpeed + ":" + this.rotationVelocity + ":" + this.limited + ":" + this.startLimit + ":" + this.endLimit + ":" + this.getPort() + ":" + this.startMoveRight + ":" + this.rotationAnchor;
+	}
+
+	@Override
+	public void onTrigger(boolean hasInversedMirror)
+	{
+		if (verticalMoving)
+		{
+			this.movingUp = startMoveRight;
+		}
+
+		if (horizontalMoving)
+		{
+			this.movingRight = !startMoveRight;
+		}
+
+		if (rotating)
+		{
+			this.movingClockwise = startMoveRight;
+		}
+
+		if (shouldRecord())
+		{
+			scheduleMirroredEvent(new ScheduledEvent(TRIGGER, hasInversedMirror));
+		}
+		
+		this.inversedTrigger = hasInversedMirror;
+	}
+
+	@Override
+	public void onUntrigger(boolean hasInversedMirror)
+	{
+		if (verticalMoving)
+		{
+			this.movingUp = !startMoveRight;
+		}
+
+		if (horizontalMoving)
+		{
+			this.movingRight = startMoveRight;
+		}
+
+		if (rotating)
+		{
+			this.movingClockwise = !startMoveRight;
+		}
+
+		if (shouldRecord())
+		{
+			scheduleMirroredEvent(new ScheduledEvent(UNTRIGGER, hasInversedMirror));
+		}
+
+		this.inversedTrigger = hasInversedMirror;
+	}
+
+	@Override
+	protected void onScheduledEvent(ScheduledEvent event)
+	{
+		if (event.type == TRIGGER)
+		{
+			onTrigger((Boolean) event.object);
+		}
+		else if (event.type == UNTRIGGER)
+		{
+			onUntrigger((Boolean) event.object);
+		}
+	}
+
+	protected void reverseMovement()
+	{
+		if (verticalMoving)
+		{
+			this.movingUp = !movingUp;
+		}
+
+		if (horizontalMoving)
+		{
+			this.movingRight = !movingRight;
+		}
+
+		if (rotating)
+		{
+			this.movingClockwise = !movingClockwise;
+		}
+	}
+
+	public void updateAnchor()
+	{
+		if (this.rotationAnchor == ROTATION_LEFT)
+		{
+			this.rotationAnchorX = 0;
+		}
+		else if (this.rotationAnchor == ROTATION_CENTER)
+		{
+			this.rotationAnchorX = (int) (this.hitbox.getRawWidth() / 2);
+		}
+		else if (this.rotationAnchor == ROTATION_RIGHT)
+		{
+			this.rotationAnchorX = (int) this.hitbox.getRawWidth();
+		}
+		else
+		{
+			throw new IllegalStateException("Invalid rotation anchor. Ouch. (" + this.rotationAnchor + ")");
+		}
+
+		if (this.rotationAnchor == ROTATION_CENTER)
+		{
+			this.rotationAnchorY = (int) (this.hitbox.getRawHeight() / 2);
+		}
+		else
+		{
+			if (this.startMoveRight)
+			{
+				this.rotationAnchorY = 0;
+			}
+			else
+			{
+				this.rotationAnchorY = (int) (this.hitbox.getRawHeight());
+			}
+		}
+
+		this.setRotation(this.getRotation());
+	}
+
+	@Override
+	protected boolean stopOnCollisionWith(Tile tile)
+	{
+		return !limited || tile.isChangeable();
+	}
+
+	public void updateMovement()
+	{
+		this.horizontalMoving = this.platformType == TilePlatformType.HORIZONTAL;
+		this.verticalMoving = this.platformType == TilePlatformType.VERTICAL;
+		this.rotating = this.platformType == TilePlatformType.ROTATING;
+	}
+
+	public void setStartMoveRight(boolean startMoveRight)
+	{
+		this.startMoveRight = startMoveRight;
+
+		if (this.horizontalMoving)
+		{
+			this.movingRight = this.startMoveRight;
+		}
+		else if (this.verticalMoving)
+		{
+			this.movingUp = !this.startMoveRight;
+		}
+		else if (this.rotating)
+		{
+			this.movingClockwise = !this.startMoveRight;
+		}
+	}
+
+	@Override
+	protected boolean isHorizontallyResizable()
+	{
+		return super.isHorizontallyResizable() && this.innerType == 0;
+	}
+
+	@Override
+	protected boolean isVerticallyResizable()
+	{
+		return super.isVerticallyResizable() && this.innerType == 1;
+	}
+
+	@Override
+	public boolean shouldMove()
+	{
+		return !this.initialising;
+	}
+
+	@Override
+	public boolean renderStatic()
+	{
+		return false;
+	}
+
+	@Override
+	public float getRotationChange()
+	{
+		return rotationChange;
+	}
+
+	@Override
+	protected boolean collidesWithTerrain()
+	{
+		return true;
+	}
+
+	@Override
+	public boolean shouldUpdate()
+	{
+		return true;
+	}
+
+	@Override
+	public float getCenterOfRotationX()
+	{
+		return rotationAnchorX + position.x;
+	}
+
+	@Override
+	public float getCenterOfRotationY()
+	{
+		return rotationAnchorY + position.y;
+	}
+
+	@Override
+	public boolean isHorizontallyMoveable()
+	{
+		return horizontalMoving;
+	}
+
+	@Override
+	public boolean isVerticallyMoveable()
+	{
+		return verticalMoving;
+	}
+
+	@Override
+	public boolean isRotatable()
+	{
+		return rotating;
+	}
+
+	@Override
+	public boolean isReallyChangeable()
+	{
+		return true;
+	}
+
+	@Override
+	public boolean isCycleObject()
+	{
+		return this.limited;
+	}
+
+	public TilePlatformType getPlatformType()
+	{
+		return this.platformType;
+	}
+
+	public boolean isLimited()
+	{
+		return limited;
+	}
+
+	public boolean isStartMoveRight()
+	{
+		return startMoveRight;
+	}
+
+	public float getMaxSpeed()
+	{
+		return maxSpeed;
+	}
+
+	public float getAcceleration()
+	{
+		return acceleration;
+	}
+
+	public float getRotationVelocity()
+	{
+		return rotationVelocity;
+	}
+
+	public int getStartLimit()
+	{
+		return startLimit;
+	}
+
+	public int getEndLimit()
+	{
+		return endLimit;
+	}
+
+	public void setPlatformType(TilePlatformType platformType)
+	{
+		this.platformType = platformType;
+	}
+
+	public void setLimited(boolean limited)
+	{
+		this.limited = limited;
+	}
+
+	public void setMaxSpeed(float maxSpeed)
+	{
+		this.maxSpeed = maxSpeed;
+	}
+
+	public void setRotationVelocity(float rotationVelocity)
+	{
+		this.rotationVelocity = rotationVelocity;
+	}
+
+	public void setStartLimit(int startLimit)
+	{
+		this.startLimit = startLimit;
+	}
+
+	public void setEndLimit(int endLimit)
+	{
+		this.endLimit = endLimit;
+	}
+
+	public int getRotationAnchor()
+	{
+		return rotationAnchor;
+	}
+
+	public void setRotationAnchor(int rotationAnchor)
+	{
+		this.rotationAnchor = rotationAnchor;
+	}
+}

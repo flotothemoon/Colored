@@ -1,0 +1,100 @@
+package com.unlogical.linked.terrain;
+
+import com.unlogical.linked.terrain.property.TileProperty;
+
+public enum TileType
+{
+	SPAWNPOINT("Spawnpoint", new TileProperty().setFixed()),
+
+	CAMERABLOCK("CameraBlock", new TileProperty().setRotationFixed().setScaleImage().useDefaultSize()),
+
+	BASIC_TILE("BasicTile", new TileProperty().setBlocked().setHasNoTextures()), 
+	BASIC_BLOCKEDABOVE("BlockedAbove", new TileProperty().setBlocked().setVerticallyFixed()),
+
+	SPIKES("Spikes", new TileProperty().setTouchDamage(2).setVerticallyFixed().setRenderBehindEntities()),
+
+	LIGHT("Light", new TileProperty().setVerticallyFixed().setHorizontallyFixed()),
+	
+	GRID("Grid", new TileProperty().setClimbable().setRenderBehindEntities().setRenderBehindTiles().setSlowdown(0.35f).setRotationFixed()), 
+	LADDER("Ladder", new TileProperty().setClimbable().setRenderBehindEntities().setRenderBehindTiles().setSlowdown(0.3f).setHorizontallyFixed().setRotationFixed()),
+
+	LEVER("Lever", new TileProperty().setRenderBehindTiles().setFixed()),
+	
+	PLATFORM("Platform", new TileProperty().setBlocked().setRotationStep(90.0f).setScaleImage()), 
+	
+	KEYGATE("KeyGate", new TileProperty().setFixed().setBlocked().setAnimated()), 
+	LEVERGATE("LeverGate", new TileProperty().setFixed().setBlocked().setAnimated()),
+
+	CANNON("Cannon", new TileProperty().setHorizontallyFixed().setVerticallyFixed().setBlocked()),
+
+	DOOR("Door", new TileProperty().setFixed().setRenderBehindEntities()),
+	WORLD_DOOR("WorldDoor", new TileProperty().setFixed().setRenderBehindEntities()),
+	
+	WOODEN_CAGE("Cage", new TileProperty().setFixed().setBlocked().setAnimated()), 
+	
+	CONVEYOR_BELT("ConveyorBelt", new TileProperty().setBlocked().setVerticallyFixed()),
+	
+	CLOUDPLATFORM("CloudPlatform", new TileProperty().setBlocked().setFixed().setRenderBehindTiles()),
+	;
+	
+	private String tileName;
+	private String unchangedName;
+	private TileProperty properties;
+
+	private TileType(String tileName, TileProperty properties)
+	{
+		this.unchangedName = tileName;
+		this.tileName = tileName.toLowerCase();
+		this.properties = properties;
+	}
+
+	public static TileProperty getProperty(TileType tileType)
+	{
+		return getProperty(tileType.getTileName());
+	}
+
+	public static TileProperty getProperty(String tileName)
+	{
+		tileName = tileName.toLowerCase();
+
+		for (TileType tileType : TileType.values())
+		{
+			if (tileType.getTileName().equals(tileName))
+			{
+				return tileType.getProperties();
+			}
+		}
+
+		return null;
+	}
+
+	public static TileType getTileType(String tileName)
+	{
+		tileName = tileName.toLowerCase();
+
+		for (TileType tileType : TileType.values())
+		{
+			if (tileType.getTileName().equals(tileName))
+			{
+				return tileType;
+			}
+		}
+
+		return null;
+	}
+
+	public String getTileName()
+	{
+		return tileName;
+	}
+
+	public TileProperty getProperties()
+	{
+		return properties;
+	}
+
+	public String getUnchangedName()
+	{
+		return unchangedName;
+	}
+}

@@ -1,0 +1,64 @@
+package com.unlogical.linked.terrain.tile;
+
+import org.newdawn.slick.Color;
+import org.newdawn.slick.Graphics;
+import org.newdawn.slick.geom.Vector2f;
+
+import com.unlogical.linked.level.Level;
+import com.unlogical.linked.resources.font.Fonts;
+import com.unlogical.linked.terrain.TileType;
+import com.unlogical.linked.terrain.property.TileProperty;
+import com.unlogical.linked.util.Dimension;
+
+public class TileText extends Tile
+{
+	public TileText(TileType type, String metadata, int innerType, float rotation, Vector2f position, Level level, Dimension dimension, TileProperty properties, boolean allowMirrors)
+	{
+		super(type, metadata, innerType, rotation, position, level, dimension, properties, allowMirrors);
+	}
+
+	@Override
+	public void onCreated()
+	{
+		super.onCreated();
+		
+		this.metadata = "Text";
+	}
+	
+	@Override
+	protected void customDraw(Graphics g)
+	{
+		super.customDraw(g);
+		
+		Fonts.drawFancy(getText(), Fonts.getDefaultFont(), Color.white, position.x, position.y, this.hitbox.getRawWidth(), this.hitbox.getRawHeight(), true, true, g);
+	}
+	
+	@Override
+	public boolean shouldUpdate()
+	{
+		return false;
+	}
+	
+	@Override
+	public boolean shouldRenderInGame()
+	{
+		return false;
+	}
+	
+	@Override
+	protected boolean shouldDrawTextures()
+	{
+		return false;
+	}
+	
+	@Override
+	public boolean shouldCopy()
+	{
+		return false;
+	}
+	
+	public String getText()
+	{
+		return this.metadata;
+	}
+}

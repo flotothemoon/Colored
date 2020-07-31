@@ -1,0 +1,200 @@
+package com.unlogical.colored.input;
+
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.InputMultiplexer;
+import com.badlogic.gdx.InputProcessor;
+import com.badlogic.gdx.controllers.Controller;
+import com.badlogic.gdx.controllers.ControllerAdapter;
+import com.badlogic.gdx.controllers.Controllers;
+import com.badlogic.gdx.math.Vector3;
+import com.unlogical.colored.debug.Debug;
+import com.unlogical.colored.util.Renderer;
+
+public class InputHandler
+{
+	private static final Vector3 buffer = new Vector3();
+
+	private static ControllerHandler usedController;
+	private static InputMultiplexer inputMultiplexer;
+	private static int lastInputX, lastInputY;
+	private static int currentInputX, currentInputY;
+
+	public static void init()
+	{
+		Controllers.addListener(new ControllerAdapter()
+		{
+			@Override
+			public void connected(Controller controller)
+			{
+				onControllerConnected(controller);
+			}
+
+			@Override
+			public void disconnected(Controller controller)
+			{
+				onControllerDisconnected(controller);
+			}
+		});
+
+		inputMultiplexer = new InputMultiplexer();
+		Gdx.input.setInputProcessor(inputMultiplexer);
+	}
+
+	public static void useController(Controller controller)
+	{
+		usedController = new ControllerHandler(controller);
+	}
+
+	public static void disconnectController()
+	{
+		usedController.target = null;
+		usedController = null;
+	}
+
+	public static void update(int delta)
+	{
+		if (usedController != null)
+		{
+			usedController.update(delta);
+		}
+
+		Vector3 realPos = Renderer.unproject(buffer.set(Gdx.input.getX(), Gdx.input.getY(), 0.0f));
+
+		currentInputX = (int) realPos.x;
+		currentInputY = (int) realPos.y;
+	}
+
+	public static void postUpdate()
+	{
+		lastInputX = currentInputX;
+		lastInputY = currentInputY;
+	}
+
+	public static void fetchControllers()
+	{
+		Debug.log("Fetching controllers...");
+
+		for (Controller controller : Controllers.getControllers())
+		{
+			onControllerConnected(controller);
+		}
+
+		if (Controllers.getControllers().size == 0)
+		{
+			Debug.log("No controllers found.");
+		}
+	}
+
+	private static boolean canUseController(Controller controller)
+	{
+		return true;
+	}
+
+	public static void onControllerConnected(Controller controller)
+	{
+		Debug.log("Controller connected: " + controller.getName());
+
+		if (usedController == null && canUseController(controller))
+		{
+			useController(controller);
+
+			Debug.log("Now using controller: " + controller.getName());
+		}
+	}
+
+	public static void onControllerDisconnected(Controller controller)
+	{
+		if (usedController != null && usedController.target == controller)
+		{
+			usedController = null;
+
+			Debug.log("Currently used controller was disconnected.");
+		}
+
+		fetchControllers();
+	}
+
+	public static float getHorizontalAxisFactor()
+	{
+		if (usedController != null)
+		{
+			if (usedController.currentAxisFactors[1] != 0.0f)
+			{
+				return usedController.currentAxisFactors[1];
+			}
+			else
+			{
+				return usedController.currentAxisFactors[3];
+			}
+		}
+
+		return 1.0f;
+	}
+
+	public static float getVerticalAxisFactor()
+	{
+		if (usedController != null)
+		{
+			if (usedController.currentAxisFactors[0] != 0.0f)
+			{
+				return usedController.currentAxisFactors[0];
+			}
+			else
+			{
+				return usedController.currentAxisFactors[2];
+			}
+		}
+
+		return 1.0f;
+	}
+
+	public static boolean isKeyPressed(InputAction action)
+	{
+		if (usedController != null && usedController.isButtonPressed(action))
+		{
+			return true;
+		}
+
+		return KeyBindings.isKeyPressed(action);
+	}
+
+	public static boolean isKeyDown(InputAction action)
+	{
+		if (usedController != null && usedController.isButtonDown(action))
+		{
+			return true;
+		}
+
+		return KeyBindings.isKeyDown(action);
+	}
+
+	public static void addInputProcessor(InputProcessor processor)
+	{
+		inputMultiplexer.addProcessor(processor);
+	}
+
+	public static void removeInputProcessor(InputProcessor processor)
+	{
+		inputMultiplexer.removeProcessor(processor);
+	}
+
+	public static int getLastInputX()
+	{
+		return lastInputX;
+	}
+
+	public static int getLastInputY()
+	{
+		return lastInputY;
+	}
+
+	public static int getCurrentInputX()
+	{
+		return currentInputX;
+	}
+
+	public static int getCurrentInputY()
+	{
+		return currentInputY;
+	}
+}

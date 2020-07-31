@@ -1,0 +1,294 @@
+package com.unlogical.colored.debug;
+
+import java.awt.Component;
+import java.awt.Desktop;
+import java.awt.Dimension;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.URLEncoder;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Calendar;
+import java.util.List;
+
+import javax.swing.BoxLayout;
+import javax.swing.ImageIcon;
+import javax.swing.JLabel;
+import javax.swing.JOptionPane;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JTextArea;
+import javax.swing.UIManager;
+
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.graphics.GL20;
+import com.unlogical.colored.GameLauncher;
+import com.unlogical.colored.GameLauncher.BuildInfo;
+import com.unlogical.colored.filesystem.FileManager;
+import com.unlogical.colored.filesystem.FilePaths;
+import com.unlogical.colored.input.InputHandler;
+import com.unlogical.colored.input.InputHandler.LogEntry;
+import com.unlogical.colored.level.Level;
+
+public class ErrorHandler
+{
+	private static boolean swallowErrors = false;
+
+	public static boolean shouldSwallowError(Exception e)
+	{
+		return swallowErrors;
+	}
+
+	public static void handleError(final Throwable e)
+	{
+		final StringBuilder basicMessage = new StringBuilder(getWittyCrashMessage() + "\n");
+		final StringBuilder detailedMessage = new StringBuilder();
+		final StringBuilder stackTrace = new StringBuilder();
+		final StackTraceElement[] elements = e.getStackTrace();
+		final BuildInfo buildInfo = GameLauncher.getBuildInfo();
+		final String location = elements[0].getClassName().substring(elements[0].getClassName().lastIndexOf('.') + 1) + "." + elements[0].getMethodName();
+		final String errorType = e.getClass().getSimpleName();
+		final String timestamp = new SimpleDateFormat("yyyy-MM-dd_HH-mm-ss").format(Calendar.getInstance().getTime());
+
+		if (!new File(FileManager.globaliseFile(FilePaths.LOGS)).exists())
+		{
+			new File(FilePaths.LOGS).mkdirs();
+		}
+
+		final String crashReportLocation = FileManager.globaliseFile(FilePaths.LOGS) + "/" + buildInfo.name + "_" + timestamp + ".log";
+		final File crashReportFile = new File(crashReportLocation);
+
+		BufferedWriter crashReportWriter = null;
+
+		boolean validCrashReport = true;
+
+		try
+		{
+			crashReportWriter = new BufferedWriter(new FileWriter(crashReportFile));
+
+			if (!crashReportFile.exists())
+			{
+				crashReportFile.createNewFile();
+			}
+		}
+		catch (IOException e1)
+		{
+			Debug.warn("Cannot write crash report: " + e1, e1);
+
+			validCrashReport = false;
+		}
+
+		basicMessage.append("Colored stopped running because it encountered an error at " + location + ": " + errorType + "\n");
+		basicMessage.append("If you wish to report this, send us an email at _EMAIL_ with the below crash report and any additional information.\n");
+
+		Throwable cause = e;
+		Throwable nextCause = e;
+
+		do
+		{
+			cause = nextCause;
+
+			stackTrace.append(cause + "\n");
+
+			for (StackTraceElement element : cause.getStackTrace())
+			{
+				stackTrace.append(element + "\n");
+			}
+
+			if (cause.getCause() != null)
+			{
+				stackTrace.append("Caused by: ");
+
+				nextCause = cause.getCause();
+			}
+		}
+		while (cause.getCause() != null);
+
+		detailedMessage.append(" -- General -- \n");
+		detailedMessage.append("Generated on: " + timestamp + "\n");
+		detailedMessage.append("Build: " + buildInfo.name + " from " + buildInfo.date + "\n");
+		detailedMessage.append("GameState: " + GameLauncher.getStatus() + " (previous: " + GameLauncher.getPreviousStatus() + ")" + "\n");
+		detailedMessage.append("Target FPS: " + GameLauncher.getTargetFPS() + "\n");
+		detailedMessage.append("Actual FPS: " + Gdx.graphics.getFramesPerSecond() + "\n");
+
+		detailedMessage.append("\n -- Display -- \n");
+		detailedMessage.append("Target Width / Height: " + GameLauncher.getWidth() + " / " + GameLauncher.getHeight() + "\n");
+		detailedMessage.append("Actual Width / Height: " + Gdx.graphics.getWidth() + " / " + Gdx.graphics.getHeight() + " (" + (Gdx.graphics.isFullscreen() ? "fullscreen" : "windowed") + ")\n");
+
+		detailedMessage.append("\n -- Environment -- \n");
+		detailedMessage.append("GPU: " + Gdx.gl.glGetString(GL20.GL_RENDERER) + " (" + Gdx.gl.glGetString(GL20.GL_VENDOR) + ")\n");
+		detailedMessage.append("OpenGL Version: " + Gdx.gl.glGetString(GL20.GL_VERSION) + "\n");
+
+		detailedMessage.append("Allocated Memory: " + GameLauncher.getPerformancePanel().getAllocatedMemory() + "MB\n");
+		detailedMessage.append("Used Memory: " + GameLauncher.getPerformancePanel().getUsedMemory() + "MB\n");
+
+		for (String property : Arrays.asList("os.name", "os.version", "os.arch", "java.version", "java.vendor", "sun.arch.data.model"))
+		{
+			detailedMessage.append("\"" + property + "\": " + System.getProperty(property) + "\n");
+		}
+
+		if (GameLauncher.getLevelContext() != null)
+		{
+			Level level = GameLauncher.getLevelContext();
+
+			detailedMessage.append("\n -- Level --\n");
+			detailedMessage.append("ID: " + level.getID() + " (internal: " + level.getInternalID() + ")\n");
+			detailedMessage.append("LevelType: " + level.getType() + "\n");
+			detailedMessage.append("Dimension: " + level.getForegroundDimension() + "\n");
+			detailedMessage.append("Location: " + Level.getMapPathByID(level.getID()) + "\n");
+		}
+
+		detailedMessage.append("\n -- Stack Trace -- \n");
+		detailedMessage.append(stackTrace);
+
+		List<String> log = Debug.getLog();
+		List<LogEntry> inputLog = new ArrayList<LogEntry>(InputHandler.getInputLog());
+
+		int shownLogEntries = Math.min(Math.max(0, log.size()), 20);
+		int shownInputEvents = Math.min(Math.max(0, inputLog.size()), 20);
+
+		detailedMessage.append("\n -- Last " + shownLogEntries + " Log Entries -- \n");
+
+		for (int i = log.size() - shownLogEntries; i < log.size(); i++)
+		{
+			detailedMessage.append(log.get(i) + "\n");
+		}
+
+		detailedMessage.append("\n -- Last " + shownInputEvents + " Input Events -- \n");
+
+		for (int i = inputLog.size() - shownInputEvents; i < inputLog.size(); i++)
+		{
+			detailedMessage.append(inputLog.get(i).getEntry() + " (" + (System.currentTimeMillis() - inputLog.get(i).getTime()) + "ms ago)\n");
+		}
+
+		if (validCrashReport)
+		{
+			try
+			{
+				crashReportWriter.write(detailedMessage.toString());
+				crashReportWriter.close();
+			}
+			catch (IOException e1)
+			{
+				Debug.warn("Cannot write crash report: " + e1, e1);
+
+				validCrashReport = false;
+			}
+		}
+
+		if (validCrashReport)
+		{
+			basicMessage.append("For your convenience, this crash report was saved at \"" + crashReportLocation + "\" - here is the detailed report:\n");
+		}
+		else
+		{
+			basicMessage.append("For some reason we were unable to write to the crash report - here is the detailed report:\n");
+		}
+
+		final JPanel panel = new JPanel();
+
+		panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+
+		String emailSubject = "Colored Crash Report - Build " + buildInfo.name + " - " + System.getProperty("os.name");
+		String emailBody = "" //
+				+ " -- Additional Info -- \n" //
+				+ " What were you doing when the crash happened? Detailed information will help us find and fix the issue as soon as possible. Thanks for your help <3\n\n" //
+				+ " -- Please replace this with the crash report -- ";
+
+		JLabel topLabel = new JLabel(labelise(basicMessage.toString().replace("_EMAIL_", "<a href=\"support@colored-game.com\">support@colored-game.com</a>")));
+
+		try
+		{
+			if (validCrashReport)
+			{
+				emailSubject = URLEncoder.encode(emailSubject, "UTF-8").replace("+", "%20");
+				emailBody = URLEncoder.encode(emailBody, "UTF-8").replace("+", "%20");
+
+				String uriCrashReportPath = URLEncoder.encode(crashReportFile.getAbsolutePath(), "UTF-8").replace(" ", "%20");
+
+				final String uriEmail = "mailto:support@colored-game.com?subject=" + emailSubject + "&body=" + emailBody + "&attach=" + uriCrashReportPath;
+
+				topLabel.addMouseListener(new MouseAdapter()
+				{
+					@Override
+					public void mouseClicked(MouseEvent e)
+					{
+						if (Desktop.isDesktopSupported())
+						{
+							try
+							{
+								Desktop.getDesktop().mail(new URI(uriEmail));
+							}
+							catch (URISyntaxException | IOException ex)
+							{
+							}
+						}
+					}
+				});
+			}
+		}
+		catch (Exception e1)
+		{
+		}
+
+		JPanel topPanel = new JPanel();
+
+		topPanel.add(topLabel);
+		topPanel.setAlignmentY(Component.LEFT_ALIGNMENT);
+
+		panel.add(topPanel);
+
+		JTextArea field = new JTextArea(detailedMessage.toString());
+
+		field.setWrapStyleWord(true);
+		field.setLineWrap(true);
+		field.setEditable(false);
+
+		JScrollPane detailedPane = new JScrollPane(field);
+
+		detailedPane.setPreferredSize(new Dimension(600, 200));
+
+		panel.add(detailedPane);
+		panel.setMaximumSize(new Dimension(600, 500));
+
+		new Thread()
+		{
+			@Override
+			public void run()
+			{
+				ImageIcon icon = null;
+
+				try
+				{
+					icon = new ImageIcon(FileManager.getFile(FileManager.globaliseFile("res/gui/crash_icon.png")).readAllBytes());
+				}
+				catch (Exception e)
+				{
+				}
+
+				UIManager.put("OptionPane.okButtonText", "Got it");
+
+				JOptionPane.showMessageDialog(null, panel, "Colored has crashed!", JOptionPane.ERROR_MESSAGE, icon);
+			}
+		}.start();
+	}
+
+	private static String labelise(String message)
+	{
+		return "<html>" + message.replace("\n", "<br>") + "</html>";
+	}
+
+	private static final String getWittyCrashMessage()
+	{
+		String[] messages = { "He's dead, Jim!", "Your princess is in another castle.", "Your bug is in another castle - oh, nevermind, here it is.", "Well, that's awkward.", "Have a hug :)" };
+
+		return messages[(int) (messages.length * Math.random())];
+	}
+}

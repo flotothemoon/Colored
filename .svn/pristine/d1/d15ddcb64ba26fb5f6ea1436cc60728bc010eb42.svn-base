@@ -1,0 +1,544 @@
+package com.unlogical.colored.gui.panel;
+
+import java.io.IOException;
+import java.util.List;
+
+import com.badlogic.gdx.Input;
+import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.g2d.Batch;
+import com.unlogical.colored.GameLauncher;
+import com.unlogical.colored.debug.Debug;
+import com.unlogical.colored.filesystem.files.TerrainFileHandler;
+import com.unlogical.colored.filesystem.organisation.MapOrganisation;
+import com.unlogical.colored.gui.GUICheckbox;
+import com.unlogical.colored.gui.InputChangeListener;
+import com.unlogical.colored.gui.UserInputLine;
+import com.unlogical.colored.gui.button.Button;
+import com.unlogical.colored.level.Level;
+import com.unlogical.colored.mapeditor.MapEditor;
+import com.unlogical.colored.terrain.tile.Tile;
+import com.unlogical.colored.terrain.tile.TileDoor;
+import com.unlogical.colored.util.Dimension;
+import com.unlogical.colored.util.Renderer;
+import com.unlogical.colored.util.ShaderHandler;
+
+public class DoorPanel extends GUIPanel
+{
+	private TileDoor door;
+
+	private GUICheckbox levelStart;
+	private GUICheckbox levelExit;
+	private UserInputLine doorID;
+
+	private UserInputLine nextLevelID;
+
+	private GUICheckbox leadsToStart;
+	private UserInputLine otherDoorID;
+
+	private Button validateButton;
+	private Button loopButton;
+	private Button goThereButton;
+	private Button closeButton;
+
+	private Color validColor = Color.GREEN;
+	private Color invalidColor = Color.RED;
+	private Color cantCheckColor = Color.ORANGE;
+	private Color ignoreColor = Color.BLACK;
+	private Color needsValidation = Color.BLUE;
+
+	private long lastPressed;
+
+	private boolean validNextLevel;
+	private boolean validNextLevelStart;
+	private boolean validNextLevelOtherDoor;
+
+	public DoorPanel(String title, float xOffset, float yOffset, float width, float height)
+	{
+		super(title, xOffset, yOffset, width, height);
+
+		this.fillColor = new Color(MapEditor.panelColor);
+
+		int lineHeight = 30;
+		int inputWidth = (int) (width / 2) + 15;
+		int currentOffset = 40;
+		int inputX = (int) (xOffset + width / 2) - 20;
+
+		this.levelStart = new GUICheckbox(true, inputX + inputWidth / 2 - lineHeight / 2, currentOffset, lineHeight, lineHeight)
+		{
+			@Override
+			public void onChecked()
+			{
+				for (Tile tile : DoorPanel.this.door.getLevel().getTiles())
+				{
+					if (tile instanceof TileDoor)
+					{
+						((TileDoor) tile).setLevelStart(false);
+					}
+				}
+
+				DoorPanel.this.door.setLevelStart(true);
+			}
+
+			@Override
+			public void onUnchecked()
+			{
+				DoorPanel.this.door.setLevelStart(false);
+			}
+		};
+		this.levelStart.setActive(true);
+
+		currentOffset += this.levelStart.getHeight() + 10;
+
+		this.levelExit = new GUICheckbox(true, inputX + inputWidth / 2 - lineHeight / 2, currentOffset, lineHeight, lineHeight)
+		{
+			@Override
+			public void onChecked()
+			{
+				DoorPanel.this.door.setLevelExit(true);
+			}
+
+			@Override
+			public void onUnchecked()
+			{
+				DoorPanel.this.door.setLevelExit(false);
+			}
+		};
+		this.levelExit.setActive(true);
+
+		currentOffset += this.levelExit.getHeight() + 10;
+
+		this.doorID = new UserInputLine(inputX, currentOffset, inputWidth, lineHeight);
+		this.doorID.setAllowUserInput(false);
+		this.doorID.setActive(true);
+
+		currentOffset += this.doorID.getHeight() + 20;
+
+		this.nextLevelID = new UserInputLine(inputX, currentOffset, inputWidth, lineHeight);
+		this.nextLevelID.addInputChangedListener(new InputChangeListener()
+		{
+			@Override
+			public void onInputChanged()
+			{
+				DoorPanel.this.door.setNextLevelID(DoorPanel.this.nextLevelID.getInput());
+				DoorPanel.this.nextLevelID.setBorderColor(DoorPanel.this.needsValidation);
+			}
+		});
+		this.nextLevelID.setActive(true);
+		this.nextLevelID.setAllowSpecialCharacters(true);
+
+		currentOffset += this.nextLevelID.getHeight() + 20;
+
+		this.leadsToStart = new GUICheckbox(true, inputX + inputWidth / 2 - lineHeight / 2, currentOffset, lineHeight, lineHeight)
+		{
+			@Override
+			public void onChecked()
+			{
+				DoorPanel.this.door.setLeadsToStart(true);
+				this.setBorderColor(DoorPanel.this.needsValidation);
+			}
+
+			@Override
+			public void onUnchecked()
+			{
+				DoorPanel.this.door.setLeadsToStart(false);
+
+				this.setBorderColor(DoorPanel.this.ignoreColor);
+			}
+		};
+		this.leadsToStart.setActive(true);
+
+		currentOffset += this.leadsToStart.getHeight() + 10;
+
+		this.otherDoorID = new UserInputLine(inputX, currentOffset, inputWidth, lineHeight);
+		this.otherDoorID.addInputChangedListener(new InputChangeListener()
+		{
+			@Override
+			public void onInputChanged()
+			{
+				try
+				{
+					DoorPanel.this.door.setOtherDoorID(Integer.parseInt(DoorPanel.this.otherDoorID.getInput()));
+					DoorPanel.this.otherDoorID.setBorderColor(DoorPanel.this.needsValidation);
+				}
+				catch (Exception e)
+				{
+					DoorPanel.this.otherDoorID.setBorderColor(DoorPanel.this.invalidColor);
+				}
+			}
+		});
+		this.otherDoorID.setActive(true);
+
+		currentOffset += this.otherDoorID.getHeight() + 20;
+
+		this.validateButton = new Button("Validate", (int) xOffset, currentOffset, (int) width, lineHeight, false)
+		{
+			@Override
+			public void onClick()
+			{
+				DoorPanel.this.updateNextLevelPath();
+			}
+		};
+		this.validateButton.setActive(true);
+
+		currentOffset += this.validateButton.getHeight();
+
+		this.loopButton = new Button("Loop", (int) xOffset, currentOffset, (int) width, lineHeight, false)
+		{
+			@Override
+			public void onClick()
+			{
+				if (DoorPanel.this.validNextLevelOtherDoor || DoorPanel.this.validNextLevelStart)
+				{
+					DoorPanel.this.loopBackConnectedDoor();
+				}
+			}
+		};
+		this.loopButton.setActive(true);
+
+		currentOffset += this.loopButton.getHeight();
+
+		this.goThereButton = new Button("Go there!", (int) xOffset, currentOffset, (int) width, lineHeight, false)
+		{
+			@Override
+			public void onClick()
+			{
+				if ((DoorPanel.this.validNextLevelOtherDoor || DoorPanel.this.validNextLevelStart) && DoorPanel.this.validNextLevel)
+				{
+					DoorPanel.this.goToConnectedDoor();
+				}
+			}
+		};
+		this.goThereButton.setActive(true);
+
+		currentOffset += this.goThereButton.getHeight();
+
+		this.closeButton = new Button("Close", (int) xOffset, currentOffset, (int) width, lineHeight, false)
+		{
+			@Override
+			public void onClick()
+			{
+				DoorPanel.this.setActive(false);
+			}
+		};
+		this.closeButton.setActive(true);
+
+		currentOffset += this.closeButton.getHeight() - 5;
+
+		this.setHeight(currentOffset);
+	}
+
+	@Override
+	public boolean touchDown(int x, int y, int pointer, int button)
+	{
+		if (button == Input.Buttons.RIGHT)
+		{
+			if (this.isActive() && this.isShown() && this.door != null && this.door.getHitbox().contains(x, y))
+			{
+				if (this.lastPressed > 0 && System.currentTimeMillis() - this.lastPressed < 500)
+				{
+					if ((this.validNextLevelOtherDoor || this.validNextLevelStart) && this.validNextLevel)
+					{
+						this.goToConnectedDoor();
+					}
+
+					this.lastPressed = 0;
+				}
+				else
+				{
+					this.lastPressed = System.currentTimeMillis();
+				}
+			}
+			else
+			{
+				this.lastPressed = 0;
+			}
+		}
+
+		return false;
+	}
+
+	protected void updateNextLevelPath()
+	{
+		this.validNextLevel = Level.mapFilesExist(this.door.getNextLevelID());
+
+		if (this.validNextLevel)
+		{
+			this.nextLevelID.setBorderColor(this.validColor);
+		}
+		else
+		{
+			this.nextLevelID.setBorderColor(this.invalidColor);
+		}
+
+		this.validNextLevelOtherDoor = false;
+		this.validNextLevelStart = false;
+
+		this.updateLeadsToStart();
+		this.updateOtherDoorID();
+	}
+
+	protected void updateOtherDoorID()
+	{
+		if (this.door.isLeadsToStart())
+		{
+			this.otherDoorID.setBorderColor(this.ignoreColor);
+		}
+		else
+		{
+			if (this.validNextLevel)
+			{
+				this.validateNextLevelDoor();
+
+				if (this.validNextLevelOtherDoor)
+				{
+					this.otherDoorID.setBorderColor(this.validColor);
+				}
+				else
+				{
+					this.otherDoorID.setBorderColor(this.invalidColor);
+				}
+			}
+			else
+			{
+				this.otherDoorID.setBorderColor(this.cantCheckColor);
+			}
+		}
+	}
+
+	private void goToConnectedDoor()
+	{
+		MapEditor.saveItAll();
+		MapEditor.initMap(this.door.getNextLevelID(), Level.getMapPathByID(this.door.getNextLevelID()));
+
+		Level level = MapEditor.getLevel();
+		TileDoor entryDoor = null;
+
+		for (Tile tile : level.getTiles())
+		{
+			if (tile instanceof TileDoor && tile.getDimension() == Dimension.COLORED)
+			{
+				if (this.door.isLeadsToStart() && ((TileDoor) tile).isLevelStart() || this.door.getOtherDoorID() == ((TileDoor) tile).getDoorID())
+				{
+					entryDoor = (TileDoor) tile;
+
+					break;
+				}
+			}
+		}
+
+		MapEditor.adjustCameraOffset(GameLauncher.getWidth() / 2.0f - entryDoor.getCenterX(), GameLauncher.getHeight() / 2.0f - entryDoor.getCenterY());
+	}
+
+	private void loopBackConnectedDoor()
+	{
+		try
+		{
+			TerrainFileHandler handler = new TerrainFileHandler(Level.getMapPathByID(this.door.getNextLevelID()) + "/terrain.map");
+
+			Level newLevel = new Level();
+			newLevel.setDummyLevel(true);
+			newLevel.createParticleSystem();
+
+			List<Tile> tiles = handler.read(newLevel);
+			TileDoor loopBackDoor = null;
+
+			for (Tile tile : tiles)
+			{
+				if (tile.getDimension() == Dimension.COLORED && tile instanceof TileDoor)
+				{
+					if (this.door.isLeadsToStart() && ((TileDoor) tile).isLevelStart() || this.door.getOtherDoorID() == ((TileDoor) tile).getDoorID())
+					{
+						loopBackDoor = (TileDoor) tile;
+
+						break;
+					}
+				}
+			}
+
+			if (loopBackDoor == null)
+			{
+				throw new IllegalStateException("No loop back door found in map " + this.door.getNextLevelID() + ".");
+			}
+
+			loopBackDoor.setLevelExit(true);
+			loopBackDoor.setLeadsToStart(false);
+			loopBackDoor.setNextLevelID(this.door.getLevel().getID());
+			loopBackDoor.setOtherDoorID(this.door.getDoorID());
+
+			handler.write(tiles, newLevel);
+		}
+		catch (Exception e)
+		{
+			Debug.warn("Unable to loop back door: " + e, e);
+		}
+	}
+
+	private void validateNextLevelDoor()
+	{
+		try
+		{
+			TerrainFileHandler handler = new TerrainFileHandler(Level.getMapPathByID(this.door.getNextLevelID()) + "/terrain.map");
+			Level newLevel = new Level();
+			newLevel.setDummyLevel(true);
+			newLevel.createParticleSystem();
+
+			List<Tile> tiles = handler.read(newLevel);
+
+			this.validNextLevelStart = false;
+			this.validNextLevelOtherDoor = false;
+
+			for (Tile tile : tiles)
+			{
+				if (tile.getDimension() == Dimension.COLORED && tile instanceof TileDoor)
+				{
+					if (this.door.isLeadsToStart())
+					{
+						if (((TileDoor) tile).isLevelStart())
+						{
+							this.validNextLevelStart = true;
+							break;
+						}
+					}
+					else
+					{
+						if (this.door.getOtherDoorID() == ((TileDoor) tile).getDoorID())
+						{
+							this.validNextLevelOtherDoor = true;
+							break;
+						}
+					}
+				}
+			}
+		}
+		catch (IOException e)
+		{
+			Debug.warn("Error while fetching map: " + e);
+
+			this.validNextLevelOtherDoor = false;
+			this.validNextLevelStart = false;
+		}
+	}
+
+	protected void updateLeadsToStart()
+	{
+		if (this.door.isLeadsToStart())
+		{
+			if (this.validNextLevel)
+			{
+				this.validateNextLevelDoor();
+
+				if (this.validNextLevelStart)
+				{
+					this.leadsToStart.setBorderColor(this.validColor);
+				}
+				else
+				{
+					this.leadsToStart.setBorderColor(this.invalidColor);
+				}
+			}
+			else
+			{
+				this.leadsToStart.setBorderColor(this.cantCheckColor);
+			}
+		}
+		else
+		{
+			this.leadsToStart.setBorderColor(this.ignoreColor);
+		}
+	}
+
+	public void init(TileDoor door)
+	{
+		this.door = door;
+
+		this.levelStart.setChecked(door.isLevelStart());
+		this.levelExit.setChecked(door.isLevelExit());
+
+		this.doorID.setInput(door.getDoorID() + "");
+
+		if (door.getNextLevelID() != null && Level.mapFilesExist(door.getNextLevelID()) && MapOrganisation.isValidMap(Level.getMapPathByID(door.getNextLevelID())))
+		{
+			this.nextLevelID.setInput(door.getNextLevelID());
+		}
+		else
+		{
+			this.nextLevelID.setInput("");
+		}
+
+		this.leadsToStart.setChecked(door.isLeadsToStart());
+		this.otherDoorID.setInput(door.getOtherDoorID() + "");
+
+		this.updateNextLevelPath();
+	}
+
+	@Override
+	protected void customUpdate(int delta)
+	{
+		if (this.door.isRemoved())
+		{
+			this.door = null;
+			this.setActive(false);
+
+			return;
+		}
+
+		this.levelStart.update(delta);
+		this.levelExit.update(delta);
+		this.doorID.update(delta);
+		this.nextLevelID.update(delta);
+		this.leadsToStart.update(delta);
+		this.otherDoorID.update(delta);
+		this.validateButton.update(delta);
+		this.loopButton.update(delta);
+		this.goThereButton.update(delta);
+		this.closeButton.update(delta);
+	}
+
+	@Override
+	protected void customRender(float alphaFactor, Batch batch)
+	{
+		this.levelStart.render(alphaFactor, batch);
+		this.levelExit.render(alphaFactor, batch);
+		this.doorID.render(alphaFactor, batch);
+		this.nextLevelID.render(alphaFactor, batch);
+		this.leadsToStart.render(alphaFactor, batch);
+		this.otherDoorID.render(alphaFactor, batch);
+		this.validateButton.render(alphaFactor, batch);
+		this.loopButton.render(alphaFactor, batch);
+		this.goThereButton.render(alphaFactor, batch);
+		this.closeButton.render(alphaFactor, batch);
+
+		ShaderHandler.disableLighting();
+
+		Renderer.useSpriteBatch();
+
+		Renderer.drawString("LevelStart", this.xOffset + 5, this.levelStart.getCenterY() - Renderer.getLineHeight() / 2, 1.0f, batch);
+		Renderer.drawString("LevelExit", this.xOffset + 5, this.levelExit.getCenterY() - Renderer.getLineHeight() / 2, 1.0f, batch);
+		Renderer.drawString("DoorID", this.xOffset + 5, this.doorID.getCenterY() - Renderer.getLineHeight() / 2, 1.0f, batch);
+		Renderer.drawString("NextLevelID", this.xOffset + 5, this.nextLevelID.getCenterY() - Renderer.getLineHeight() / 2, 1.0f, batch);
+		Renderer.drawString("LeadsToStart", this.xOffset + 5, this.leadsToStart.getCenterY() - Renderer.getLineHeight() / 2, 1.0f, batch);
+		Renderer.drawString("OtherDoorID", this.xOffset + 5, this.otherDoorID.getCenterY() - Renderer.getLineHeight() / 2, 1.0f, batch);
+
+		ShaderHandler.enableLighting();
+	}
+
+	@Override
+	public void onPositionUpdate(int xChange, int yChange)
+	{
+		this.levelStart.adjust(xChange, yChange);
+		this.levelExit.adjust(xChange, yChange);
+		this.doorID.adjust(xChange, yChange);
+		this.nextLevelID.adjust(xChange, yChange);
+		this.leadsToStart.adjust(xChange, yChange);
+		this.otherDoorID.adjust(xChange, yChange);
+		this.validateButton.adjust(xChange, yChange);
+		this.loopButton.adjust(xChange, yChange);
+		this.goThereButton.adjust(xChange, yChange);
+		this.closeButton.adjust(xChange, yChange);
+	}
+
+	public TileDoor getDoor()
+	{
+		return this.door;
+	}
+}

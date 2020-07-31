@@ -1,0 +1,403 @@
+package com.unlogical.colored.terrain.tile.platform;
+
+import java.util.Map;
+import java.util.Random;
+
+import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.math.Vector2;
+import com.unlogical.colored.entity.EntityLiving;
+import com.unlogical.colored.level.Level;
+import com.unlogical.colored.level.LevelType;
+import com.unlogical.colored.particle.EmitterType;
+import com.unlogical.colored.sound.SoundManager.SoundType;
+import com.unlogical.colored.terrain.TerrainObject;
+import com.unlogical.colored.terrain.TileType;
+import com.unlogical.colored.terrain.property.TileProperty;
+import com.unlogical.colored.terrain.tile.cannon.ICannonBall;
+import com.unlogical.colored.terrain.tile.properties.ITileBlockedFromAbove;
+import com.unlogical.colored.terrain.tile.properties.ITileSender;
+import com.unlogical.colored.util.Dimension;
+import com.unlogical.colored.util.LevelObject;
+import com.unlogical.colored.util.ScheduledEvent;
+
+public class TileCloudPlatform extends TilePlatform implements ITileBlockedFromAbove, ICannonBall
+{
+	private static final int TOTAL_FADE_IN_TIME = 500;
+	private static final int TOTAL_FADE_OUT_TIME = 500;
+
+	private LevelObject cannon;
+	private boolean inCannon;
+	private boolean reversing;
+	private boolean alive = true;
+	private boolean fading;
+	private boolean fadingIn;
+	private float drawAlpha = 1.0f;
+	private int fadeTime;
+
+	public TileCloudPlatform(TileType type, String metadata, int innerType, float rotation, Vector2 position, Level level, Dimension dimension, TileProperty properties, boolean allowMirrors)
+	{
+		super(type, metadata, innerType, rotation, position, level, dimension, properties, allowMirrors);
+	}
+
+	@Override
+	public LevelObject deepCopy(Map<Object, Object> copiedReferences)
+	{
+		TileCloudPlatform copy = (TileCloudPlatform) super.deepCopy(copiedReferences);
+
+		copy.cannon = (LevelObject) Level.getCopy(this.cannon, copiedReferences);
+		copy.inCannon = this.inCannon;
+		copy.reversing = this.reversing;
+		copy.alive = this.alive;
+		copy.drawAlpha = this.drawAlpha;
+		copy.fadeTime = this.fadeTime;
+		copy.fading = this.fading;
+		copy.fadingIn = this.fadingIn;
+
+		return copy;
+	}
+
+	@Override
+	public void onUpdate(float delta, Random rng)
+	{
+		super.onUpdate(delta, rng);
+
+		if (this.alive)
+		{
+			if (this.reversing)
+			{
+				if (!this.inCannon && this.cannon.getHitbox().intersects(this.hitbox))
+				{
+					this.inCannon = true;
+				}
+
+				if (this.inCannon)
+				{
+					if (!this.movingRight)
+					{
+						this.relRenderStartOffset = (int) (this.cannon.getHitbox().getMaxX() - this.hitbox.getMinX()) - 10;
+					}
+					else
+					{
+						this.relRenderEndOffset = (int) (this.hitbox.getMaxX() - this.cannon.getHitbox().getMinX() + 0.5f) - 10;
+					}
+
+					if (!this.movingRight && this.hitbox.getMaxX() - this.cannon.getHitbox().getMaxX() < 0 || this.movingRight && this.cannon.getHitbox().getMinX() - this.hitbox.getMinX() < 0)
+					{
+						if (this.hasMirror())
+						{
+							this.mirroredTile.removeMirror();
+						}
+
+						this.level.removeTile(this);
+					}
+				}
+			}
+			else
+			{
+				if (this.inCannon)
+				{
+					this.relRenderStartOffset = 0;
+					this.relRenderEndOffset = 0;
+
+					if (!this.cannon.getHitbox().intersects(this.hitbox) && !this.cannon.getHitbox().contains(this.hitbox))
+					{
+						this.inCannon = false;
+					}
+					else
+					{
+						if (this.movingRight)
+						{
+							this.relRenderStartOffset = (int) (this.cannon.getHitbox().getMaxX() - this.hitbox.getMinX() + 0.5f) - 10;
+						}
+						else
+						{
+							this.relRenderEndOffset = (int) (this.hitbox.getMaxX() - this.cannon.getHitbox().getMinX() + 0.5f) - 10;
+						}
+					}
+				}
+			}
+
+			if (this.movingRight && this.collidedRight || !this.movingRight && this.collidedLeft)
+			{
+				this.onDeath();
+
+				if (this.shouldRecord())
+				{
+					this.scheduleMirroredEvent(new ScheduledEvent(EntityLiving.DEATH));
+				}
+			}
+		}
+		else
+		{
+			if (!this.hasActiveEmitters() && this.drawAlpha <= 0.0f)
+			{
+				if (this.level.getType() == LevelType.TIME_TRAVEL && this.dimension == Dimension.LIGHT && !this.shared)
+				{
+					if (!this.containsScheduledEvent(REMOVAL))
+					{
+						this.scheduleEvent(new ScheduledEvent(REMOVAL), this.level.timeStepHandler.currentFrameBeforeStart);
+					}
+				}
+				else
+				{
+					this.level.removeTile(this);
+				}
+			}
+		}
+
+		if (this.fading)
+		{
+			this.fadeTime += delta;
+
+			int totalFadeTime;
+
+			if (this.fadingIn)
+			{
+				totalFadeTime = TOTAL_FADE_IN_TIME;
+			}
+			else
+			{
+				totalFadeTime = TOTAL_FADE_OUT_TIME;
+			}
+
+			if (this.fadeTime >= totalFadeTime)
+			{
+				this.fadeTime = totalFadeTime;
+				this.fading = false;
+			}
+
+			this.drawAlpha = (float) this.fadeTime / (float) totalFadeTime;
+
+			if (!this.fadingIn)
+			{
+				this.drawAlpha = 1.0f - this.drawAlpha;
+			}
+		}
+	}
+
+	@Override
+	protected void onScheduledEvent(ScheduledEvent event)
+	{
+		super.onScheduledEvent(event);
+
+		if (event.type == REMOVAL)
+		{
+			if (this.hasActiveEmitters())
+			{
+				this.reScheduleEvent = true;
+			}
+			else
+			{
+				this.level.removeTile(this);
+			}
+		}
+		else if (event.type == EntityLiving.DEATH)
+		{
+			this.onDeath();
+		}
+	}
+
+	@Override
+	public void onReSimulation()
+	{
+		super.onReSimulation();
+
+		if (!this.shared)
+		{
+			TileCloudPlatform mirror = (TileCloudPlatform) this.mirroredTile;
+
+			this.inCannon = mirror.inCannon;
+			this.cannon = mirror.cannon == null || mirror.cannon.getDimension() == this.dimension ? mirror.cannon : mirror.cannon.getMirror();
+			this.alive = mirror.alive;
+			this.reversing = mirror.reversing;
+			this.drawAlpha = mirror.drawAlpha;
+			this.relRenderStartOffset = mirror.relRenderStartOffset;
+			this.relRenderEndOffset = mirror.relRenderEndOffset;
+		}
+	}
+
+	private void onDeath()
+	{
+		if (this.alive)
+		{
+			this.alive = false;
+
+			this.stopAllEmitters();
+
+			this.fading = true;
+			this.fadingIn = false;
+		}
+	}
+
+	@Override
+	protected Color customModifiyDrawColor(Color color)
+	{
+		color.a *= this.drawAlpha;
+
+		return color;
+	}
+
+	@Override
+	public boolean checkPreReSimulation()
+	{
+		if (this.shared)
+		{
+			return super.checkPreReSimulation();
+		}
+
+		if (!this.hasMirror())
+		{
+			this.level.removeTile(this);
+		}
+
+		return this.hasMirror() && super.checkPreReSimulation();
+	}
+
+	@Override
+	public void onShoot(LevelObject cannon, float cannonRotation, float shootSpeed)
+	{
+		this.cannon = cannon;
+
+		if (this.level.getType() == LevelType.REVERSAL && this.dimension == Dimension.SHADOW)
+		{
+			this.fading = true;
+			this.fadingIn = true;
+
+			this.reversing = true;
+			this.drawAlpha = 0.0f;
+		}
+		else
+		{
+			this.inCannon = true;
+		}
+
+		this.movingRight = this.velocity.x > 0.0f;
+		this.maxSpeed *= shootSpeed * 2.0f;
+
+		if (!this.reversing)
+		{
+			if (this.movingRight)
+			{
+				this.relRenderStartOffset = (int) this.hitbox.getWidth();
+			}
+			else
+			{
+				this.relRenderEndOffset = (int) this.hitbox.getWidth();
+			}
+		}
+
+		if (this.hasMirror() && this.dimension == Dimension.LIGHT && this.level.getType() == LevelType.REVERSAL)
+		{
+			Vector2 mirrorVelocity = ((ICannonBall) this.mirroredTile).getStartVelocity(cannon, cannonRotation, shootSpeed).cpy();
+
+			mirrorVelocity.x *= -1.0f;
+
+			this.mirroredTile.setPosition(this.position.x, this.position.y);
+			this.mirroredTile.setVelocity(mirrorVelocity);
+
+			this.initMirror(this.mirroredTile, this.level.getLevelType());
+
+			((ICannonBall) this.mirroredTile).onShoot(cannon, cannonRotation, shootSpeed);
+		}
+	}
+
+	@Override
+	public Vector2 getStartVelocity(LevelObject cannon, float cannonRotation, float shootSpeedFactor)
+	{
+		bufferedVector.setAngle(0.0f);
+		bufferedVector.x = 0.0f;
+		bufferedVector.y = -shootSpeedFactor * 2.0f * this.maxSpeed;
+		bufferedVector.setAngle(bufferedVector.angle() + cannonRotation);
+		bufferedVector.y = 0.0f;
+
+		return bufferedVector;
+	}
+
+	@Override
+	public Vector2 getStartPosition(LevelObject cannon, float cannonRotation)
+	{
+		if (cannon.getRotation() != cannonRotation)
+		{
+			cannonRotation *= -1.0f;
+		}
+
+		if (cannonRotation >= 0)
+		{
+			bufferedVector.x = cannon.getHitbox().getMaxX() - this.hitbox.getWidth();
+		}
+		else
+		{
+			bufferedVector.x = cannon.getHitbox().getMinX();
+		}
+
+		bufferedVector.y = cannon.getHitbox().getMinY() + 4;
+
+		return bufferedVector;
+	}
+
+	@Override
+	protected boolean reverseInit()
+	{
+		return false;
+	}
+
+	@Override
+	public void onTrigger(ITileSender sender, boolean hasInversedMirror)
+	{
+
+	}
+
+	@Override
+	public void onUntrigger(ITileSender changedTile, boolean hasInversedMirror)
+	{
+
+	}
+
+	@Override
+	protected boolean isBlocked(TerrainObject tile, Vector2 myVelocity)
+	{
+		return tile != this.cannon && !(this.cannon != null && this.cannon.hasMirror() && this.cannon.getMirror() == tile) && super.isBlocked(tile, myVelocity) && !(tile instanceof TileCloudPlatform || tile instanceof ITileBlockedFromAbove);
+	}
+
+	@Override
+	public boolean isDead()
+	{
+		return !this.alive;
+	}
+
+	@Override
+	public boolean hasCollided()
+	{
+		return this.collidedLeft || this.collidedRight || this.collidedAbove || this.collidedBelow;
+	}
+
+	@Override
+	protected boolean renderPartially()
+	{
+		return this.inCannon;
+	}
+
+	@Override
+	public ICannonBall getMirroredBall()
+	{
+		return (ICannonBall) this.mirroredTile;
+	}
+
+	@Override
+	public boolean isCycleObject()
+	{
+		return !this.wasCreatedFromFile;
+	}
+
+	@Override
+	public SoundType getOnShotSound()
+	{
+		return SoundType.CANNON_SHOOT_CLOUD;
+	}
+
+	@Override
+	public EmitterType getPreShootEmitterType()
+	{
+		return EmitterType.CLOUD_PRESHOOT;
+	}
+}

@@ -1,0 +1,330 @@
+package com.unlogical.colored.terrain.tile.cage;
+
+import java.util.List;
+import java.util.Random;
+
+import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.math.Vector2;
+import com.unlogical.colored.GameLauncher;
+import com.unlogical.colored.level.Level;
+import com.unlogical.colored.particle.EmitterType;
+import com.unlogical.colored.particle.ParticleEmitter;
+import com.unlogical.colored.particle.ParticleEmitterImpl;
+import com.unlogical.colored.story.EndingStoryHandler;
+import com.unlogical.colored.terrain.TileType;
+import com.unlogical.colored.terrain.property.TileProperty;
+import com.unlogical.colored.terrain.tile.Tile;
+import com.unlogical.colored.util.Dimension;
+import com.unlogical.colored.util.ILightSource;
+import com.unlogical.colored.util.IZDistortion;
+import com.unlogical.colored.util.LightType;
+import com.unlogical.colored.util.ZDistortion;
+
+public abstract class TileCage extends Tile implements IZDistortion, ILightSource
+{
+	private static final Color lightColor = new Color(0.9882353f, 0.8608475f, 0.0038754323f, 1.0f);
+
+	private static final float OPENED_CAGE_AMBIENT_LIGHT_INTENSITY = 0.05f;
+
+	private ZDistortion distortion;
+
+	private int cageID;
+
+	private boolean brightnessChanging;
+	private boolean opened;
+	private boolean completelyCleared;
+
+	private float intensityOffset;
+	private float intensityFactor = 0.5f;
+	private float brightnessChangeFactor;
+
+	private ParticleEmitter transitionEmitter;
+	private ParticleEmitter closedEmitter;
+
+	protected TileCage(TileType type, String metadata, int innerType, float rotation, Vector2 position, Level level, Dimension dimension, TileProperty properties, boolean allowMirrors)
+	{
+		super(type, metadata, innerType, rotation, position, level, dimension, properties, allowMirrors);
+
+		this.distortion = new ZDistortion()
+		{
+			@Override
+			public float getZDistortion(float x, float y)
+			{
+				return 0.0f;
+			}
+		};
+
+		if (this.dimension == Dimension.LIGHT && !this.shared)
+		{
+			this.setShared(true);
+		}
+	}
+
+	@Override
+	public boolean shouldCopy()
+	{
+		return false;
+	}
+
+	@Override
+	public boolean shouldReSimulate()
+	{
+		return false;
+	}
+
+	@Override
+	public void init()
+	{
+		super.init();
+				
+		if (level.shouldInverseCages())
+		{
+			this.innerType = 2;
+		}
+		
+		this.opened = this.innerType == 2;
+
+		if (level.isPlayMode())
+		{
+			if (level.readFromLevelSave(this.type + "" + cageID) != null && !(level.getStoryHandler().getCustomStoryHandler() instanceof EndingStoryHandler))
+			{
+				this.opened = Boolean.parseBoolean((String) level.readFromLevelSave(this.type + "" + cageID)[0]);
+				this.setInnerType(this.opened ? 2 : 0);
+				
+				if (isCleared())
+				{
+					level.onCageCleared(this, true);
+				}
+			}
+		}
+		
+		if (this.opened)
+		{
+
+		}
+		else
+		{
+			this.closedEmitter = this.resumeOrAddEmitter(EmitterType.LIGHT_CAGE_CLOSED, dimension);
+		}
+	}
+
+	@Override
+	public void onUpdate(float delta, Random rng)
+	{
+		if (brightnessChanging)
+		{
+			intensityFactor = OPENED_CAGE_AMBIENT_LIGHT_INTENSITY * brightnessChangeFactor + (1.0f - level.getBrightnessTransitionFactor()) * 0.5f;
+		}
+		else if (!completelyCleared)
+		{
+			intensityOffset = (float) Math.sin(Math.toRadians(age / 5.0f)) / 6.0f;
+		}
+
+		if (level.shouldInverseCages() && this.transitionEmitter != null && this.transitionEmitter.hasActiveParticles())
+		{			
+//			if (level.getRNG(this).nextFloat() > 0.05f)
+			{
+				((ParticleEmitterImpl) this.transitionEmitter).radialPull(this.getCenterX(), this.getCenterY() + 20, 0.000005f * delta, level.getRNG(this), 0.98f);
+			}
+		}
+	}
+
+	public void clear()
+	{
+		if (!isCleared())
+		{
+			if (level.shouldInverseCages())
+			{
+				transitionEmitter = this.addEmitter(EmitterType.LIGHT_CAGE_CLOSING, this.dimension, new Vector2(0.0f, 0.0f), GameLauncher.TARGET_WIDTH, GameLauncher.TARGET_HEIGHT, EmitterType.LIGHT_CAGE_CLOSING.maxParticles, false, 0);
+			}
+			else
+			{
+				transitionEmitter = this.addEmitter(EmitterType.LIGHT_CAGE_OPENING, this.dimension);
+			}
+
+			brightnessChanging = true;
+			completelyCleared = false;
+			opened = !level.shouldInverseCages();
+
+			if (closedEmitter != null)
+			{
+				this.stopAndRemoveEmitter(closedEmitter);
+			}
+
+			if (level.shouldInverseCages())
+			{
+				this.transitionAnimation(1, 0, true, true);
+			}
+			else
+			{
+				this.transitionAnimation(1, 2, false, true);
+			}
+
+			level.writeToLevelSave(this.type + "" + cageID, opened);
+
+			if (!level.isBonusLevel())
+			{
+				Object[] levelData = level.readFromLevelSave(Level.LEVEL_CLEARED_CAGE_COUNT);
+				Object[] worldData = level.readFromWorldSave(Level.WORLD_CLEARED_CAGE_COUNT);
+				int openedLevelCount = levelData != null ? Integer.parseInt((String) levelData[0]) : 0;
+				int openedWorldCount = worldData != null ? Integer.parseInt((String) worldData[0]) : 0;
+
+				level.writeToLevelSave(Level.LEVEL_CLEARED_CAGE_COUNT, openedLevelCount + 1);
+				level.writeToWorldSave(Level.WORLD_CLEARED_CAGE_COUNT, openedWorldCount + 1);
+				level.saveToActiveSave();
+			}
+
+			brightnessChangeFactor = level.onCageCleared(this, false);
+		}
+	}
+
+	@Override
+	protected void onTransitionFinished(int transitionInnerType, int finalInnerType)
+	{
+		if (finalInnerType == 0 || finalInnerType == 2)
+		{
+			completelyCleared = true;
+		}
+	}
+
+	public void onBrightnessChangeFinished()
+	{
+		intensityFactor = OPENED_CAGE_AMBIENT_LIGHT_INTENSITY * brightnessChangeFactor;
+
+		if (transitionEmitter != null)
+		{
+			this.stopAndRemoveEmitter(transitionEmitter);
+		}
+
+		brightnessChanging = false;
+	}
+
+	@Override
+	public void onCreated()
+	{
+		int maxID = 0;
+
+		for (Tile door : level.getTiles())
+		{
+			if (door.getDimension() == Dimension.LIGHT && door instanceof TileCage)
+			{
+				if (((TileCage) door).getCageID() > maxID)
+				{
+					maxID = ((TileCage) door).getCageID();
+				}
+			}
+		}
+
+		this.cageID = maxID + 1;
+	}
+
+	@Override
+	public void readMetadata()
+	{
+		try
+		{
+			this.cageID = Integer.parseInt(this.metadata);
+		}
+		catch (Exception e)
+		{
+			this.cageID = 0;
+		}
+	}
+
+	@Override
+	public void writeMetadata()
+	{
+		this.metadata = this.cageID + "";
+	}
+
+	@Override
+	public Color getColor()
+	{
+		return lightColor;
+	}
+
+	@Override
+	public float getPositionX()
+	{
+		return this.getCenterX();
+	}
+
+	@Override
+	public float getPositionY()
+	{
+		return this.getCenterY();
+	}
+
+	@Override
+	public float getIntensity()
+	{
+		return intensityFactor * (1.1f + intensityOffset);
+	}
+
+	@Override
+	public LightType getLightType()
+	{
+		return LightType.CONE;
+	}
+
+	@Override
+	public int getDistance()
+	{
+		return (int) (300 + 50 * intensityOffset);
+	}
+
+	@Override
+	public int getSpotDirection()
+	{
+		return 0;
+	}
+
+	@Override
+	public int getAngle()
+	{
+		return 360;
+	}
+
+	@Override
+	public ZDistortion getZDistortion()
+	{
+		return distortion;
+	}
+
+	@Override
+	public boolean shouldUpdate()
+	{
+		return true;
+	}
+
+	@Override
+	public List<ILightSource> getConnectedLights()
+	{
+		return null;
+	}
+
+	public boolean isReallyChangeable()
+	{
+		return true;
+	}
+
+	public int getCageID()
+	{
+		return cageID;
+	}
+
+	public void setCageID(int cageID)
+	{
+		this.cageID = cageID;
+	}
+
+	public boolean isCleared()
+	{
+		return this.opened ^ this.level.shouldInverseCages();
+	}
+
+	public boolean renderStatic()
+	{
+		return true;
+	}
+}

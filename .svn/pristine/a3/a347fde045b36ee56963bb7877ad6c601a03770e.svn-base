@@ -1,0 +1,89 @@
+package com.unlogical.linked.levelrendering.gui;
+
+import java.io.IOException;
+import java.util.concurrent.Semaphore;
+
+import org.newdawn.slick.Color;
+import org.newdawn.slick.GameContainer;
+import org.newdawn.slick.Graphics;
+
+import com.unlogical.linked.GameLauncher;
+import com.unlogical.linked.entity.player.EntityPlayer;
+import com.unlogical.linked.filesystem.FilePaths;
+import com.unlogical.linked.level.Level;
+import com.unlogical.linked.levelrendering.LevelRenderer;
+import com.unlogical.linked.resources.image.Images;
+import com.unlogical.linked.util.ColorHelper;
+
+public final class GUIRenderer
+{
+	private static final String SPACE_HINT = "spaceHint";
+	private static final String RESUME_HINT = "resumeHint";
+	private static final String RIGHT_HINT = "rightHint";
+	private static final String LEFT_HINT = "leftHint";
+	
+	private static Level level;
+	private static int selectionTime;
+	
+	public static void init() throws IOException
+	{
+		Images.registerAndLoad(SPACE_HINT, FilePaths.GUI + "/space.png", 200, 50, true);
+		Images.registerAndLoad(RESUME_HINT, FilePaths.GUI + "/resume.png", 200, 200, true);
+		Images.registerAndLoad(RIGHT_HINT, FilePaths.GUI + "/right.png", 40, 40, true);
+		Images.registerAndLoad(LEFT_HINT, FilePaths.GUI + "/left.png", 40, 40, true);
+	}
+
+	public static void initMap(Level level)
+	{
+		GUIRenderer.level = level;
+	}
+
+	public static void update(GameContainer container, int delta)
+	{
+		if (LevelRenderer.isInCheckpointSelectionMode())
+		{
+			selectionTime += delta;
+		}
+		else if (selectionTime > 0)
+		{
+			selectionTime -= delta * 6;
+		}
+	}
+	
+	public static void render(GameContainer container, Graphics g)
+	{
+		level.getControllingPlayer().drawOverlay(g);
+
+		if (level.getControllingPlayer().hasMirror())
+		{
+			((EntityPlayer) level.getControllingPlayer().getMirroredEntity()).drawOverlay(g);
+		}
+		
+		if (selectionTime > 0)
+		{
+			if (selectionTime >= 1000)
+			{				
+				float alpha = (float) (Math.min(((float) (selectionTime - 1000)) / (1500.0f), 1.0f) + Math.sin(selectionTime / (LevelRenderer.isInCheckpointSelectionMode() ? 1.0f : 100.0f) / 400.0f) * 0.5f - 0.3f) * LevelRenderer.getCheckpointingFactor();
+												
+				g.drawImage(Images.getImage(RESUME_HINT), 30, GameLauncher.getHeight() - 290, ColorHelper.applyAlphaAndCopy(Color.white, alpha));
+				g.drawImage(Images.getImage(SPACE_HINT), 30, GameLauncher.getHeight() - 80, ColorHelper.applyAlphaAndCopy(Color.white, alpha));
+				
+				if (selectionTime >= 2500)
+				{
+					EntityPlayer player = GameLauncher.getLevelContext().getControllingPlayer();
+					alpha = (float) (Math.min(((float) (selectionTime - 2500)) / (1500.0f), 1.0f) + Math.sin(selectionTime / (LevelRenderer.isInCheckpointSelectionMode() ? 1.0f : 100.0f) / 400.0f) * 0.5f - 0.3f) * LevelRenderer.getCheckpointingFactor();
+					
+					if (LevelRenderer.isPreviousCheckpointAvailable())
+					{
+						g.drawImage(Images.getImage(LEFT_HINT), player.getMinX() - 40, player.getCenterY() - 15, ColorHelper.applyAlphaAndCopy(Color.white, alpha));
+					}
+					
+					if (LevelRenderer.isNextCheckpointAvailable())
+					{
+						g.drawImage(Images.getImage(RIGHT_HINT), player.getMaxX(), player.getCenterY() - 15, ColorHelper.applyAlphaAndCopy(Color.white, alpha));
+					}
+				}
+			}
+		}
+	}
+}

@@ -1,0 +1,256 @@
+package com.unlogical.colored.gui.selection;
+
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Input;
+import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.g2d.Batch;
+import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
+import com.badlogic.gdx.graphics.glutils.ShapeRenderer.ShapeType;
+import com.badlogic.gdx.math.Rectangle;
+import com.unlogical.colored.configuration.Resolutions;
+import com.unlogical.colored.gui.GUIItem;
+import com.unlogical.colored.gui.panel.GUIPanel;
+import com.unlogical.colored.input.InputHandler;
+import com.unlogical.colored.util.ColorHelper;
+import com.unlogical.colored.util.Renderer;
+
+public abstract class GUIItemSelection extends GUIPanel
+{
+	private GUIItem[] items;
+	private GUIItem selected;
+
+	private float barHeight;
+	private float barOffset;
+	private float actualOffset;
+
+	private int itemsPerLine;
+	private int itemBoxHeight;
+	private int totalRows;
+
+	private Rectangle moveableScrollbar;
+	private Rectangle scrollbarBorder;
+
+	private boolean scrolling = false;
+	private boolean moveable = true;
+
+	public GUIItemSelection(String title, GUIItem[] items, int itemsPerLine, int itemsPerColumn, int xOffset, int yOffset)
+	{
+		super(title, xOffset, yOffset, (10 * 2 + 50) * itemsPerLine + Resolutions.SELECTION_MENU_SCROLLBAR_WIDTH, (10 * 2 + 50) * itemsPerColumn);
+
+		this.items = items;
+		this.itemsPerLine = itemsPerLine;
+		this.itemBoxHeight = 10 * 2 + 50;
+		this.totalRows = items.length / itemsPerLine;
+
+		if ((items.length % itemsPerLine) != 0)
+		{
+			this.totalRows++;
+		}
+
+		this.height = itemBoxHeight * itemsPerColumn;
+		this.width = itemBoxHeight * itemsPerLine + Resolutions.SELECTION_MENU_SCROLLBAR_WIDTH;
+		this.barHeight = (int) ((((float) itemsPerColumn) / ((float) totalRows)) * (height));
+
+		if (itemsPerColumn > totalRows)
+		{
+			this.barHeight = this.height;
+		}
+
+		this.moveableScrollbar = new Rectangle(xOffset + itemBoxHeight * itemsPerLine, yOffset, Resolutions.SELECTION_MENU_SCROLLBAR_WIDTH, barHeight);
+		this.scrollbarBorder = new Rectangle(moveableScrollbar.getX(), moveableScrollbar.getY(), moveableScrollbar.getWidth(), contentBox.getHeight());
+	}
+
+	@Override
+	public void customUpdate(int delta)
+	{
+		Input input = Gdx.input;
+
+		if (moveableScrollbar.contains(InputHandler.getCurrentInputX(), InputHandler.getCurrentInputY()))
+		{
+			if (input.isButtonPressed(Input.Buttons.LEFT))
+			{
+				scrolling = true;
+			}
+		}
+		else if (!input.isButtonPressed(Input.Buttons.LEFT))
+		{
+			scrolling = false;
+		}
+
+		if (scrolling)
+		{
+			if ((barOffset + barHeight) > (height))
+			{
+				barOffset = height - barHeight;
+			}
+			else if ((barOffset) < (0))
+			{
+				barOffset = 0;
+			}
+		}
+
+		scrollbarBorder.setX(contentBox.getX() + contentBox.width - Resolutions.SELECTION_MENU_SCROLLBAR_WIDTH);
+		scrollbarBorder.setY(yOffset);
+
+		moveableScrollbar.setX(contentBox.x + contentBox.width - Resolutions.SELECTION_MENU_SCROLLBAR_WIDTH);
+		moveableScrollbar.setY(yOffset + barOffset);
+
+		actualOffset = -(int) (((barOffset) / height) * (itemBoxHeight * totalRows));
+
+		for (int i = 0; i < items.length; i++)
+		{
+			if (items[i].isSelected() && (selected != items[i] || selected == null))
+			{
+				itemSelected(i, items[i].getName(), items[i].getMetadata());
+
+				if (selected != null)
+				{
+					selected.setSelected(false);
+				}
+
+				selected = items[i];
+			}
+
+			items[i].setXPos((int) (xOffset + (i % itemsPerLine) * itemBoxHeight));
+			items[i].setYPos((int) (yOffset + actualOffset + ((i / itemsPerLine) * itemBoxHeight)));
+			items[i].updateBox();
+
+			if (items[i].getYPos() >= yOffset - items[i].getItemBox().getHeight() && (items[i].getYPos() + itemBoxHeight) <= (yOffset + height + items[i].getItemBox().getHeight()))
+			{
+				items[i].setActive(true);
+				items[i].setEnabled(items[i].getYPos() >= yOffset && (items[i].getYPos() + itemBoxHeight) <= (yOffset + height));
+				items[i].update(delta);
+			}
+			else
+			{
+				items[i].setActive(false);
+			}
+		}
+	}
+
+	@Override
+	public void customRender(float alphaFactor, Batch batch)
+	{
+		ShapeRenderer sr = Renderer.useShapeRenderer(); 
+		
+		sr.set(ShapeType.Filled);
+		
+		ColorHelper.applyAlphaAndCopy(Color.WHITE, alphaFactor, sr);
+		sr.rect(scrollbarBorder.x, scrollbarBorder.y, scrollbarBorder.width, scrollbarBorder.height);
+
+		ColorHelper.applyAlphaAndCopy(Color.DARK_GRAY, alphaFactor, sr);
+		sr.rect(moveableScrollbar.x, moveableScrollbar.y, moveableScrollbar.width, moveableScrollbar.height);
+
+		sr.set(ShapeType.Line);
+		
+		ColorHelper.applyAlphaAndCopy(Color.BLACK, alphaFactor, sr);
+		sr.rect(scrollbarBorder.x, scrollbarBorder.y, scrollbarBorder.width, scrollbarBorder.height);
+
+		Renderer.push2DScissor((int) xOffset, (int) yOffset, (int) width - 2, (int) height - 2);
+		
+		for (int j = 0; j <= totalRows; j++)
+		{
+			for (int i = itemsPerLine - 1; i >= 0; i--)
+			{
+				if (i + j * itemsPerLine < items.length)
+				{
+					items[i + j * itemsPerLine].render(alphaFactor == 0.8f ? 1.0f : alphaFactor, batch);
+				}
+			}
+		}
+		
+		Renderer.popScissor();
+	}
+
+	public void clearSelection()
+	{
+		if (selected != null)
+		{
+			selected.setSelected(false);
+
+			selected = null;
+		}
+	}
+
+	@Override
+	public boolean touchDragged(int newx, int newy, int pointer)
+	{
+		if (scrolling)
+		{
+			barOffset += newy - InputHandler.getLastInputY();
+		}
+		else if (movingMode && moveable)
+		{
+			return super.touchDragged(newx, newy, pointer);
+		}
+		
+		return false;
+	}
+
+	public abstract void itemSelected(int number, String name, String metadata);
+
+	public GUIItem getItemByName(String name)
+	{
+		for (int i = 0; i < items.length; i++)
+		{
+			if (items[i].getName().equalsIgnoreCase(name))
+			{
+				return items[i];
+			}
+		}
+
+		return null;
+	}
+
+	public GUIItem getItemByMetadata(String metadata)
+	{
+		for (int i = 0; i < items.length; i++)
+		{
+			if (items[i].getMetadata().equalsIgnoreCase(metadata))
+			{
+				return items[i];
+			}
+		}
+
+		return null;
+	}
+
+	public void select(GUIItem item)
+	{
+		if (item != null)
+		{
+			if (selected != null)
+			{
+				selected.setSelected(false);
+			}
+
+			item.setSelected(true);
+			selected = item;
+		}
+	}
+
+	public GUIItem[] getItems()
+	{
+		return items;
+	}
+
+	public boolean isMovingMode()
+	{
+		return scrolling;
+	}
+
+	public void setMovingMode(boolean movingMode)
+	{
+		this.scrolling = movingMode;
+	}
+
+	public boolean isMoveable()
+	{
+		return moveable;
+	}
+
+	public void setMoveable(boolean moveable)
+	{
+		this.moveable = moveable;
+	}
+}

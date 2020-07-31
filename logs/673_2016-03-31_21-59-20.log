@@ -1,0 +1,83 @@
+ -- General -- 
+Generated on: 2016-03-31_21-59-20
+Build: 673 from 09:47 PM - 30/03/16
+GameState: IN_LEVEL (previous: MAP_EDITOR)
+Target FPS: 60
+Actual FPS: 61
+
+ -- Display -- 
+Target Width / Height: 1920 / 1080
+Actual Width / Height: 1920 / 1017 (windowed)
+
+ -- Environment -- 
+GPU: GeForce GTX 980 Ti/PCIe/SSE2 (NVIDIA Corporation)
+OpenGL Version: 4.5.0 NVIDIA 361.43
+Allocated Memory: 15MB
+Used Memory: 1MB
+"os.name": Windows 10
+"os.version": 10.0
+"os.arch": x86
+"java.version": 1.8.0_66
+"java.vendor": Oracle Corporation
+"sun.arch.data.model": 32
+
+ -- Level --
+ID: 23-02 (internal: 02)
+LevelType: FROZEN
+Dimension: LIGHT
+Location: ../worlds/maps/23-02
+
+ -- Stack Trace -- 
+java.lang.IllegalStateException: SpriteBatch.begin must be called before draw.
+com.unlogical.colored.util.CustomVerticesSpriteBatch.draw(CustomVerticesSpriteBatch.java:804)
+com.unlogical.colored.resources.image.Images.draw(Images.java:109)
+com.unlogical.colored.resources.image.Images.draw(Images.java:99)
+com.unlogical.colored.levelmanaging.GUIManager.render(GUIManager.java:162)
+com.unlogical.colored.levelmanaging.LevelManager.render(LevelManager.java:1146)
+com.unlogical.colored.GameLauncher.render(GameLauncher.java:464)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication.mainLoop(LwjglApplication.java:218)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication$1.run(LwjglApplication.java:123)
+
+ -- Last 20 Log Entries -- 
+@Log: Play sound CANNON_SHOOT_CLOUD at volume 0.0 and pitch 1.0 (once). (11)
+@Log: Play sound CANNON_SHOOT_CLOUD at volume 0.0 and pitch 1.0 (once). (11)
+@Log: Play sound CANNON_SHOOT_CLOUD at volume 0.0 and pitch 1.0 (once). (11)
+@Log: Play sound CANNON_SHOOT_CLOUD at volume 0.0 and pitch 1.0 (once). (11)
+@Log: Play sound CANNON_SHOOT_CLOUD at volume 0.0 and pitch 1.0 (once). (11)
+@Log: Play sound CANNON_SHOOT_CLOUD at volume 0.0 and pitch 1.0 (once). (11)
+@Log: Play sound CANNON_SHOOT_CLOUD at volume 0.0 and pitch 1.0 (once). (11)
+@Log: Play sound CANNON_SHOOT_CLOUD at volume 0.0 and pitch 1.0 (once). (11)
+@Log: Play sound CANNON_SHOOT_CLOUD at volume 0.0 and pitch 1.0 (once). (11)
+@Log: Play sound CANNON_SHOOT_CLOUD at volume 0.0 and pitch 1.0 (once). (11)
+@Log: Play sound CANNON_SHOOT_CLOUD at volume 0.0 and pitch 1.0 (once). (11)
+@Log: Play sound CANNON_SHOOT_CLOUD at volume 0.0 and pitch 1.0 (once). (11)
+@Log: Play sound CANNON_SHOOT_CLOUD at volume 0.0 and pitch 1.0 (once). (11)
+@Log: Play sound CANNON_SHOOT_CLOUD at volume 0.0 and pitch 1.0 (once). (11)
+@Log: Play sound CANNON_SHOOT_CLOUD at volume 0.0 and pitch 1.0 (once). (11)
+@Log: Play sound CANNON_SHOOT_CLOUD at volume 0.0 and pitch 1.0 (once). (11)
+@Log: Pre-simulating particles for 45000.0ms (300 x 150.0ms)... (11)
+@Log: Particle pre-simulation complete. Particles are now ahead of time by 45000.0ms. (11)
+@Log: Active save was saved to disk. (11)
+@Log: Loaded 23-02 (took 50ms). (11)
+
+ -- Last 20 Input Events -- 
+Touch dragged: pointer: 0 at x:1404 y: 393 (3484ms ago)
+Touch dragged: pointer: 0 at x:1404 y: 396 (3468ms ago)
+Touch dragged: pointer: 0 at x:1403 y: 402 (3451ms ago)
+Touch dragged: pointer: 0 at x:1403 y: 403 (3434ms ago)
+Touch dragged: pointer: 0 at x:1403 y: 405 (3334ms ago)
+Touch dragged: pointer: 0 at x:1403 y: 407 (3318ms ago)
+Touch dragged: pointer: 0 at x:1403 y: 408 (3269ms ago)
+Touch dragged: pointer: 0 at x:1403 y: 409 (3251ms ago)
+Touch dragged: pointer: 0 at x:1403 y: 410 (3234ms ago)
+Touch dragged: pointer: 0 at x:1403 y: 411 (3218ms ago)
+Touch dragged: pointer: 0 at x:1403 y: 413 (2834ms ago)
+Touch dragged: pointer: 0 at x:1403 y: 414 (2818ms ago)
+Touch up: 0 (pointer: 0) at x:1403 y: 414 (2751ms ago)
+Touch down: 0 (pointer: 0) at x:1059 y: 555 (2118ms ago)
+Touch up: 0 (pointer: 0) at x:1059 y: 555 (2068ms ago)
+Touch down: 0 (pointer: 0) at x:1044 y: 522 (1851ms ago)
+Touch up: 0 (pointer: 0) at x:1044 y: 522 (1784ms ago)
+Touch down: 0 (pointer: 0) at x:1044 y: 522 (1734ms ago)
+Touch up: 0 (pointer: 0) at x:1044 y: 522 (1675ms ago)
+Key down: F11 (254) (58ms ago)

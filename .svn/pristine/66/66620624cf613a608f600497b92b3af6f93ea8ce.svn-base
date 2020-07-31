@@ -1,0 +1,5 @@
+package com.unlogical.linked.entity.item;
+
+public class ItemStack {
+
+}

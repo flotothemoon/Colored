@@ -1,0 +1,89 @@
+package com.unlogical.colored.debug;
+
+import java.util.ArrayList;
+
+public class Debug
+{
+	private static final ArrayList<String> log = new ArrayList<String>();
+
+	public static synchronized String log(String message)
+	{
+//		if (GameLauncher.isDeveloperMode())
+		{
+			String data = "@Log: " + message + " (" + Thread.currentThread().getId() + ")";
+			
+			log.add(data);
+	
+			System.out.println(data);
+		}
+
+		return message;
+	}
+	
+
+	public static synchronized void log(String data, Throwable e)
+	{
+//		if (GameLauncher.isDeveloperMode())
+		{
+			log(data);
+			logStackTrace(e);
+		}
+	}
+	
+	public static synchronized void logStackTrace(Throwable e)
+	{
+//		if (GameLauncher.isDeveloperMode())
+		{
+			log(e.toString());
+			for (int i = 0; i < e.getStackTrace().length; i++)
+			{
+				log(e.getStackTrace()[i] + "");
+			}
+		}
+	}
+	
+	public static String warn(String message)
+	{
+//		if (GameLauncher.isDeveloperMode())
+		{
+			String data = "@Warning: " + message + " (" + Thread.currentThread().getId() + ")";
+			
+			log.add(data);
+			
+			System.err.println(data);
+		}
+		
+		return message;
+	}
+	
+	public static void warn(String message, Throwable e)
+	{
+		warn(message);
+		warnStackTrace(e);
+	}
+	
+	public static synchronized void warnStackTrace(Throwable e)
+	{
+//		if (GameLauncher.isDeveloperMode())
+		{
+			warn(e.toString());
+			for (int i = 0; i < e.getStackTrace().length; i++)
+			{
+				warn(e.getStackTrace()[i] + "");
+			}
+		}
+	}
+	
+	public static void printStackTrace(int elements)
+	{
+		for (int i = 0; i < elements && i + 3 < Thread.currentThread().getStackTrace().length; i++)
+		{
+			System.out.println(Thread.currentThread().getStackTrace()[i + 3]);
+		}
+	}
+
+	public static ArrayList<String> getLog()
+	{
+		return log;
+	}
+}

@@ -1,0 +1,211 @@
+package com.unlogical.colored.resources.font;
+
+import java.awt.Font;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
+import org.newdawn.slick.Color;
+import org.newdawn.slick.Graphics;
+import org.newdawn.slick.TrueTypeFont;
+
+import com.unlogical.colored.util.Renderer;
+import com.unlogical.colored.util.ShaderHandler;
+
+public class Fonts
+{
+	private static Font font = new Font("Times", Font.PLAIN, 34);
+	private static Font smallFont = font.deriveFont(24.0f); // typematching is a
+	private static Font verySmallFont = font.deriveFont(16.0f);
+	private static Font fontBold = font.deriveFont(Font.BOLD);
+	private static Font smallFontBold = smallFont.deriveFont(Font.BOLD);
+	private static Font bigFont = font.deriveFont(48.0f);
+	private static Font veryBigFont = font.deriveFont(54.0f);
+	private static TrueTypeFont gameFont;
+	private static TrueTypeFont smallGameFont;
+	private static TrueTypeFont verySmallGameFont;
+	private static TrueTypeFont boldGameFont;
+	private static TrueTypeFont smallBoldGameFont;
+	private static TrueTypeFont bigGameFont;
+	private static TrueTypeFont veryBigGameFont;
+
+	private static final List<String> lines = new ArrayList<String>();
+	private static final List<String> words = new ArrayList<String>();
+
+	public static void init()
+	{
+		gameFont = new TrueTypeFont(font, true);
+		smallGameFont = new TrueTypeFont(smallFont, true);
+		verySmallGameFont = new TrueTypeFont(verySmallFont, true);
+		boldGameFont = new TrueTypeFont(fontBold, true);
+		smallBoldGameFont = new TrueTypeFont(smallFontBold, true);
+		bigGameFont = new TrueTypeFont(bigFont, true);
+		veryBigGameFont = new TrueTypeFont(veryBigFont, true);
+	}
+
+	public static void drawFancy(String text, TrueTypeFont font, Color color, float x, float y, float width, float height, boolean centerHorizontally, boolean centerVertically, Graphics g)
+	{
+		drawFancy(text, font, color, x, y, width, height, centerHorizontally, centerVertically, false, g);
+	}
+
+	public static void drawFancy(String text, TrueTypeFont font, Color color, float x, float y, float width, float height, boolean centerHorizontally, boolean centerVertically, boolean keepWordsTogether, Graphics g)
+	{
+		if (width < 30.0f || height < 0)
+		{
+			return;
+		}
+
+		text = text.replaceAll("\\s+", " "); // clean text
+
+		lines.clear();
+		words.clear();
+
+		words.addAll(text.contains(" ") ? Arrays.asList(text.split(" ")) : Arrays.asList(text));
+
+		String currentLine = "";
+
+		if (!keepWordsTogether)
+		{
+			for (int i = 0; i < words.size(); i++)
+			{
+				if (font.getWidth(words.get(i)) > width && words.get(i).length() > 1)
+				{
+					String word = words.get(i);
+
+					words.remove(i);
+
+					String newWord = "";
+					int cIndex = 0;
+
+					while (font.getWidth(newWord) < width && cIndex < word.length())
+					{
+						if (font.getWidth(newWord + word.charAt(cIndex)) < width)
+						{
+							newWord += word.charAt(cIndex);
+						}
+						else
+						{
+							break;
+						}
+
+						cIndex++;
+					}
+
+					words.add(i, newWord);
+					words.add(i + 1, word.substring(cIndex));
+				}
+			}
+		}
+
+		for (int i = 0; i < words.size(); i++)
+		{
+			boolean addedWord = false;
+
+			String word = words.get(i);
+
+			if (font.getWidth(currentLine + word) > width)
+			{
+				if (!currentLine.isEmpty())
+				{
+					lines.add(currentLine.substring(0, currentLine.length()));
+
+					currentLine = word + " ";
+
+					if (i == words.size() - 1)
+					{
+						lines.add(word);
+					}
+
+					addedWord = true;
+				}
+				else
+				{
+					currentLine = "";
+				}
+			}
+			else if (i == words.size() - 1)
+			{
+				lines.add(currentLine.substring(0, currentLine.length()) + word);
+
+				addedWord = true;
+			}
+
+			if (!addedWord)
+			{
+				currentLine += word + " ";
+			}
+		}
+
+		ShaderHandler.disableLighting();
+
+		g.setFont(font);
+		g.setColor(color);
+
+		float startY = y;
+		float ySpacing = -6.0f;
+		float centerX = x + width / 2;
+		float textHeight = font.getLineHeight() * lines.size() + ySpacing * (lines.size() - 1);
+
+		if (centerVertically)
+		{
+			float centerY = y + height / 2;
+
+			startY = centerY - textHeight / 2;
+		}
+
+		float currentY = startY;
+
+		for (int i = 0; i < lines.size(); i++)
+		{
+			String line = lines.get(i).trim();
+
+			float drawX = x;
+
+			if (centerHorizontally)
+			{
+				drawX = centerX - font.getWidth(line) / 2;
+			}
+
+			g.drawString(line, drawX, currentY);
+
+			currentY += font.getHeight() + ySpacing;
+		}
+
+		Renderer.bindTexture(null);
+	}
+
+	public static TrueTypeFont getDefaultFont()
+	{
+		return gameFont;
+	}
+
+	public static TrueTypeFont getSmallFont()
+	{
+		return smallGameFont;
+	}
+
+	public static TrueTypeFont getBoldDefaultFont()
+	{
+		return boldGameFont;
+	}
+
+	public static TrueTypeFont getSmallBoldFont()
+	{
+		return smallBoldGameFont;
+	}
+
+	public static TrueTypeFont getVerySmallGameFont()
+	{
+		return verySmallGameFont;
+	}
+
+	public static TrueTypeFont getBigGameFont()
+	{
+		return bigGameFont;
+	}
+
+	public static TrueTypeFont getVeryBigGameFont()
+	{
+		return veryBigGameFont;
+	}
+}

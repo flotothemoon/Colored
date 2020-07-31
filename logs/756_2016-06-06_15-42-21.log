@@ -1,0 +1,55 @@
+ -- General -- 
+Generated on: 2016-06-06_15-42-21
+Build: 756 from 05:47 PM - 05/06/16
+GameState: IN_LEVEL (previous: LOADING)
+Target FPS: 60
+Actual FPS: 29
+
+ -- Display -- 
+Target Width / Height: 1920 / 1080
+Actual Width / Height: 1920 / 1017 (windowed)
+
+ -- Environment -- 
+GPU: GeForce GTX 980 Ti/PCIe/SSE2 (NVIDIA Corporation)
+OpenGL Version: 4.5.0 NVIDIA 361.43
+Allocated Memory: 123MB
+Used Memory: 79MB
+"os.name": Windows 10
+"os.version": 10.0
+"os.arch": x86
+"java.version": 1.8.0_66
+"java.vendor": Oracle Corporation
+"sun.arch.data.model": 32
+
+ -- Stack Trace -- 
+java.lang.RuntimeException: Level path for 20-01 not found! Fatal, aborting...
+com.unlogical.colored.level.Level.getMapPathByID(Level.java:702)
+com.unlogical.colored.GameLauncher.goToLastVisitedLevel(GameLauncher.java:815)
+com.unlogical.colored.GameLauncher.update(GameLauncher.java:376)
+com.unlogical.colored.GameLauncher.render(GameLauncher.java:460)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication.mainLoop(LwjglApplication.java:218)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication$1.run(LwjglApplication.java:123)
+
+ -- Last 20 Log Entries -- 
+@Log    : Loaded 12 sounds, took 248ms. (tid: 15)
+@Log    : Fetching chapters / worlds... (tid: 15)
+@Log    : Requesting available map files... (tid: 15)
+@Log    : 9 found. (tid: 15)
+@Log    : Loading resources, entity textures... (1 / 3) (tid: 15)
+@Log    : Loading resources, terrain textures... (2 / 3) (tid: 15)
+@Log    : Loading resources, misc... (3 / 3) (tid: 15)
+@Log    : Initializing shaders... (tid: 15)
+@Log    : Loading save states... (tid: 15)
+@Log    : No save states found - using default save state. (tid: 15)
+@Log    : Initializing animation handler... (tid: 15)
+@Log    : Fetching maps... (tid: 15)
+@Log    : Initializing map editor... (tid: 15)
+@Log    : Initialising levelrenderer... (tid: 15)
+@Log    : Initializing menus... (tid: 15)
+@Log    : SaveState 1.dat found and read successfully. (tid: 15)
+@Log    : Initializing story handler... (tid: 15)
+@Log    : Initializing credits screen... (tid: 15)
+@Log    : Resizing contents to current window size... (tid: 15)
+@Log    : Finished loading, took 646ms. (tid: 15)
+
+ -- Last 0 Input Events -- 

@@ -1,0 +1,47 @@
+package com.unlogical.colored.gui.menu;
+
+import com.unlogical.colored.GameLauncher;
+import com.unlogical.colored.filesystem.organisation.MapOrganisation;
+import com.unlogical.colored.gui.selection.MapSelectionMenu;
+import com.unlogical.colored.level.Level;
+import com.unlogical.colored.mapeditor.MapEditor;
+import com.unlogical.colored.util.GameStatus;
+
+public class MapEditorMenu extends MapSelectionMenu
+{
+	protected static MapOrganisation organisation;
+
+	public MapEditorMenu(int yOffset, int width, int height)
+	{
+		super(Level.getLevels(), yOffset, width, height);
+		
+		this.updateSaveStates();
+	}
+	
+	@Override
+	protected void onSelect(SelectionState saveState)
+	{
+		MapEditor.initMap(saveState.getID(), saveState.getPath());
+		
+		GameLauncher.setStatus(GameStatus.MAP_EDITOR);
+	}
+
+	@Override
+	protected void onBackButton()
+	{
+		GameLauncher.setStatus(GameStatus.MAIN_MENU);
+	}
+
+	@Override
+	protected void onAddButton()
+	{
+		GameLauncher.setStatus(GameStatus.MAP_CREATION_MENU);
+	}
+
+	@Override
+	protected SelectionState[] loadSaveStates()
+	{
+		return Level.getLevels();
+	}
+
+}

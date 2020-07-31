@@ -1,0 +1,437 @@
+package com.unlogical.colored.util;
+
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Input;
+import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.g2d.Batch;
+import com.badlogic.gdx.graphics.glutils.ShaderProgram;
+import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
+import com.badlogic.gdx.math.Vector2;
+import com.badlogic.gdx.physics.box2d.World;
+import com.badlogic.gdx.utils.FloatArray;
+import com.badlogic.gdx.utils.Pools;
+import com.unlogical.colored.GameLauncher;
+import com.unlogical.colored.debug.Debug;
+import com.unlogical.colored.level.Level;
+import com.unlogical.colored.mapeditor.MapEditor;
+import com.unlogical.colored.terrain.tile.Tile;
+
+import box2dLight.ChainLight;
+import box2dLight.ConeLight;
+import box2dLight.Light;
+import box2dLight.RayHandler;
+
+public class ShaderHandler
+{
+	public static final String GRAYSCALE_UNIFORM = "u_grayScaleFactor";
+	public static int NUM_LIGHT_RAYS = 12;
+	public static int NUM_BLURS = 2;
+
+	private static Level level;
+	private static RayHandler rayHandler;
+	private static ShaderProgram lightShader;
+	private static Color lastAmbient = new Color();
+
+	private static Map<ILightSource, Light> lights = new HashMap<ILightSource, Light>();
+	private static Set<ILightSource> allLights = new HashSet<ILightSource>();
+
+	private static int vertexShaderTextureAttr = -1;
+	private static int vertexCoordinateAttr = -1;
+	private static int horizontalFadeSize;
+	private static int verticalFadeSize;
+
+	private static boolean ambientActive = true;
+	private static boolean enabled = true;
+	private static boolean init = false;
+
+	public static void init()
+	{
+		loadShaders();
+
+		lightShader = createLightShader();
+
+		rayHandler = new RayHandler(new World(new Vector2(), false))
+		{
+			@Override
+			protected void updateLightShader()
+			{
+				lightShader.setUniformf(GRAYSCALE_UNIFORM, GameLauncher.getLevelContext().getDimensionFactor(Dimension.MONOCHROME));
+			}
+		};
+		rayHandler.setShadows(true);
+		rayHandler.setLightShader(lightShader);
+
+		init = true;
+	}
+
+	private static void loadShaders()
+	{
+
+	}
+
+	public static void initlevel(Level level)
+	{
+		ShaderHandler.level = level;
+
+		fetchLights(level);
+	}
+
+	public static void fetchLights(Level level)
+	{
+		Debug.log("Fetching lights for level \"" + level.getID() + "\" ...");
+
+		removeAllLights();
+
+		for (Tile tile : level.getTiles())
+		{
+			if (tile instanceof ILightSource && !sourceUsed((ILightSource) tile))
+			{
+				addLight0((ILightSource) tile);
+			}
+		}
+
+		Debug.log("Lights fetched for level \"" + level.getID() + "\", " + lights.size() + " light" + (lights.size() != 1 ? "s" : "") + " found.");
+	}
+
+	private static boolean sourceUsed(ILightSource source)
+	{
+		if (allLights.contains(source))
+		{
+			return true;
+		}
+
+		for (ILightSource s : lights.keySet())
+		{
+			if (s.getLightType() == LightType.CHAIN && s.getConnectedLights().contains(source))
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	private static Light createLightFor(ILightSource source)
+	{
+		Light light = source.getLightType().createLightFor(source, NUM_LIGHT_RAYS, rayHandler);
+
+		if (light == null)
+		{
+			return null;
+		}
+
+		light.setStaticLight(false);
+		light.setSoftnessLength(0.0f);
+
+		return light;
+	}
+
+	private static Light addLight0(ILightSource source)
+	{
+		allLights.add(source);
+
+		if (source.getLightType() != LightType.AMBIENT)
+		{
+			Light light = createLightFor(source);
+
+			if (light != null)
+			{
+				lights.put(source, light);
+			}
+
+			return light;
+		}
+
+		return null;
+	}
+
+	public static void addLight(ILightSource source)
+	{
+		Light light = addLight0(source);
+
+		if (light != null && source.getLightType() == LightType.CHAIN)
+		{
+			fetchLights(source.getLevel());
+		}
+	}
+
+	public static void removeAllLights()
+	{
+		lights.clear();
+		allLights.clear();
+
+		rayHandler.removeAll();
+
+		Renderer.setAmbientColor(Color.WHITE);
+	}
+
+	public static void removeLight(ILightSource light)
+	{
+		allLights.remove(light);
+
+		if (lights.get(light) != null)
+		{
+			lights.get(light).remove();
+			lights.remove(light);
+
+			if (light.getLightType() == LightType.CHAIN)
+			{
+				fetchLights(light.getLevel());
+			}
+		}
+	}
+
+	public static void initRender()
+	{
+		if (Gdx.input.isKeyPressed(Input.Keys.F7))
+		{
+			Debug.log("Re-initializing shaders...");
+
+			loadShaders();
+
+			Debug.log("Shaders re-initialized.");
+		}
+	}
+
+	private static void updateLights()
+	{
+		for (ILightSource source : allLights)
+		{
+			if (source.getLightType() == LightType.AMBIENT)
+			{
+				Color color = source.getColor();
+
+				Renderer.setAmbientColor(color.r * source.getIntensity(), color.g * source.getIntensity(), color.b * source.getIntensity(), 1.0f);
+			}
+			else if (lights.containsKey(source))
+			{
+				source.getLightType().updateLight(lights.get(source), source, rayHandler);
+			}
+		}
+	}
+
+	public static void updateAndRender(Batch batch)
+	{
+		if (!init)
+		{
+			return;
+		}
+
+		if (enabled)
+		{
+			updateLights();
+
+			Renderer.flushCurrent();
+
+			rayHandler.setBlurNum(NUM_BLURS);
+			rayHandler.setCombinedMatrix(Renderer.getCamera());
+			rayHandler.setAmbientLight(0.0f, 0.0f, 0.0f, 1.0f);
+			rayHandler.updateAndRender();
+
+			if (GameLauncher.isDeveloperMode() && !MapEditor.isLockingInput() && Gdx.input.isKeyPressed(Input.Keys.O))
+			{
+				ShapeRenderer sr = Renderer.useShapeRenderer();
+
+				for (ILightSource source : lights.keySet())
+				{
+					Light light = lights.get(source);
+
+					if (light instanceof ChainLight)
+					{
+						((ChainLight) light).debugRender(sr);
+					}
+					else if (light instanceof ConeLight)
+					{
+						FloatArray vertices = Pools.obtain(FloatArray.class);
+
+						ConeLight cLight = (ConeLight) light;
+
+						float baseX = light.getX(), baseY = light.getY();
+
+						vertices.clear();
+
+						if (source.getAngle() < 180)
+						{
+							vertices.addAll(baseX, baseY);
+						}
+
+						Vector2 buffer = Pools.get(Vector2.class).obtain();
+
+						for (int i = 0; i <= cLight.getRayNum(); i++)
+						{
+							float angle = -source.getSpotDirection() - source.getAngle() + (float) i / (float) cLight.getRayNum() * source.getAngle() * 2;
+
+							buffer.set(source.getDistance(), 0.0f);
+							buffer.setAngle(angle);
+
+							vertices.addAll(baseX + buffer.x, baseY + buffer.y);
+							vertices.addAll(baseX, baseY);
+							vertices.addAll(baseX + buffer.x, baseY + buffer.y);
+						}
+
+						Pools.free(buffer);
+
+						if (source.getAngle() < 180)
+						{
+							vertices.addAll(baseX, baseY);
+						}
+
+						sr.setColor(source.getColor());
+						sr.polygon(vertices.shrink());
+
+						Pools.free(vertices);
+					}
+				}
+
+				Renderer.useSpriteBatch();
+			}
+		}
+	}
+
+	/**
+	 * customised light shader for grayscale lighting
+	 */
+	private static ShaderProgram createLightShader()
+	{
+		String gamma = "";
+		if (RayHandler.getGammaCorrection())
+		{
+			gamma = "sqrt";
+		}
+
+		final String vertexShader = "attribute vec4 vertex_positions;\n" //
+		+ "attribute vec4 quad_colors;\n" //
+		+ "attribute float s;\n" //
+		+ "uniform mat4 u_projTrans;\n" //
+		+ "varying vec4 v_color;\n" //
+		+ "void main()\n" //
+		+ "{\n" //
+		+ "   v_color = s * quad_colors;\n" //
+		+ "   gl_Position =  u_projTrans * vertex_positions;\n" //
+		+ "}\n";
+
+		final String fragmentShader = "#ifdef GL_ES\n" //
+		+ "precision lowp float;\n" //
+		+ "#define MED mediump\n"//
+		+ "#else\n"//
+		+ "#define MED \n" //
+		+ "#endif\n" //
+		+ "uniform float " + GRAYSCALE_UNIFORM + ";\n"//
+		+ "varying vec4 v_color;\n" //
+		+ "void main()\n"//
+		+ "{\n" //
+		+ "  vec4 color = " + gamma + "(v_color);\n" //
+		+ "	 float gray = dot(color.rgb, vec3(0.299, 0.587, 0.114)) * " + GRAYSCALE_UNIFORM + ";\n" //
+		+ "  float invFactor = 1.0 - " + GRAYSCALE_UNIFORM + ";\n" //
+		+ "  color.rgb = vec3(gray + invFactor * color.r, gray + invFactor * color.g, gray + invFactor * color.b);\n" //
+		+ "  gl_FragColor = color;\n" //
+		+ "}";
+
+		ShaderProgram.pedantic = false;
+		ShaderProgram shader = new ShaderProgram(vertexShader, fragmentShader);
+
+		if (!shader.isCompiled())
+		{
+			Debug.warn("Error while compiling custom light shader: " + shader.getLog());
+		}
+
+		return shader;
+	}
+
+	public static void disable()
+	{
+		enabled = false;
+	}
+
+	public static void enable()
+	{
+		enabled = true;
+	}
+
+	public static void toggleLighting()
+	{
+		enabled = !enabled;
+
+		if (enabled)
+		{
+			if (level != null)
+			{
+				fetchLights(level);
+			}
+		}
+	}
+
+	public static void disableLighting()
+	{
+		if (ambientActive)
+		{
+			Renderer.flushCurrent();
+
+			lastAmbient.set(Renderer.getUnsafeBatch().getAmbientColor());
+
+			Renderer.getUnsafeBatch().setAmbientColor(Color.WHITE);
+
+			ambientActive = false;
+		}
+	}
+
+	public static void enableLighting()
+	{
+		if (!ambientActive && enabled)
+		{
+			Renderer.flushCurrent();
+
+			Renderer.getUnsafeBatch().setAmbientColor(lastAmbient);
+
+			ambientActive = true;
+		}
+	}
+
+	public static void resize(int x, int y, int width, int height)
+	{
+		if (rayHandler != null)
+		{
+			rayHandler.useCustomViewport(x, y, width, height);
+		}
+	}
+
+	public static boolean isEnabled()
+	{
+		return enabled;
+	}
+
+	public static int getVertexShaderTextureCode()
+	{
+		return vertexShaderTextureAttr;
+	}
+
+	public static int getVertexCoordinateAttr()
+	{
+		return vertexCoordinateAttr;
+	}
+
+	public static Map<ILightSource, Light> getLights()
+	{
+		return lights;
+	}
+
+	public static RayHandler getRayHandler()
+	{
+		return rayHandler;
+	}
+
+	public static int getVerticalFadeSize()
+	{
+		return verticalFadeSize;
+	}
+
+	public static int getHorizontalFadeSize()
+	{
+		return horizontalFadeSize;
+	}
+}

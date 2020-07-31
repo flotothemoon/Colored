@@ -1,0 +1,306 @@
+package com.unlogical.colored.audio;
+
+import java.io.IOException;
+import java.util.HashSet;
+import java.util.Set;
+
+import org.lwjgl.openal.AL10;
+
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.audio.Music;
+import com.badlogic.gdx.audio.Music.OnCompletionListener;
+import com.badlogic.gdx.backends.lwjgl.audio.OpenALMusic;
+import com.unlogical.colored.configuration.SoundVolume;
+import com.unlogical.colored.debug.Debug;
+import com.unlogical.colored.filesystem.FileManager;
+import com.unlogical.colored.filesystem.FilePaths;
+import com.unlogical.colored.level.Level;
+import com.unlogical.colored.util.Dimension;
+
+public class MusicManager
+{
+	public static final String[] MUSIC_FORMATS = new String[] { "mp3", "wav", "ogg" };
+	public static final float MIN_MUSIC_VOLUME = 0.3f;
+	public static final float MAX_MUSIC_VOLUME = 1.0f;
+
+	public static final int DEFAULT_FADE_IN_TIME = 5000;
+	private static Set<MusicWrapper> activeMusic = new HashSet<MusicWrapper>();
+	private static Set<MusicWrapper> toRemove = new HashSet<MusicWrapper>();
+
+	public static void initLevel(Level level)
+	{
+		String music = getMusicFor(level);
+
+		boolean musicAlreadyPlaying = false;
+
+		cleanUpMusic();
+
+		for (MusicWrapper wrapper : activeMusic)
+		{
+			if (wrapper.music.equals(music))
+			{
+				musicAlreadyPlaying = true;
+			}
+		}
+
+		if (!musicAlreadyPlaying)
+		{
+			play(music, DEFAULT_FADE_IN_TIME);
+
+			update(0.0f, level);
+		}
+	}
+
+	public static void update(float delta, Level level)
+	{
+		float coloredFactor = MIN_MUSIC_VOLUME + level.getDimensionFactor(Dimension.COLORED) * (MAX_MUSIC_VOLUME - MIN_MUSIC_VOLUME);
+		float monochromeFactor = MIN_MUSIC_VOLUME + level.getDimensionFactor(Dimension.MONOCHROME) * (MAX_MUSIC_VOLUME - MIN_MUSIC_VOLUME);
+
+		float coloredPitch = level.getColoredDeltaFactor();
+		float monochromePitch = level.getMonochromeDeltaFactor();
+
+		for (MusicWrapper wrapper : activeMusic)
+		{
+			wrapper.update(delta, coloredFactor, monochromeFactor, coloredPitch, monochromePitch);
+		}
+	}
+
+	private static void play(String music, int fadeInTime)
+	{
+		MusicWrapper wrapper = load(music);
+
+		if (wrapper == null)
+		{
+			Debug.warn("Unable to play music \"" + music + "\".");
+
+			return;
+		}
+
+		wrapper.play(fadeInTime);
+
+		activeMusic.add(wrapper);
+	}
+
+	private static MusicWrapper load(String musicName)
+	{
+		try
+		{
+			Music coloredMusic = loadMusic(musicName + "_colored");
+			Music monochromeMusic = loadMusic(musicName + "_monochrome");
+
+			return new MusicWrapper(musicName, coloredMusic, monochromeMusic);
+		}
+		catch (Exception e)
+		{
+			Debug.warn("Unable to load music \"" + musicName + "\": " + e);
+
+			return null;
+		}
+	}
+
+	private static Music loadMusic(String musicPath)
+	{
+		for (String format : MUSIC_FORMATS)
+		{
+			try
+			{
+				Music music = Gdx.audio.newMusic(FileManager.getFile(FileManager.globaliseFile(FilePaths.MUSIC + "/" + musicPath + "." + format)));
+
+				if (music != null)
+				{
+					return music;
+				}
+			}
+			catch (IOException e)
+			{
+			}
+		}
+
+		throw new RuntimeException("Unable to load music at " + musicPath + "");
+	}
+
+	private static void cleanUpMusic()
+	{
+		for (MusicWrapper wrapper : activeMusic)
+		{
+			if (!wrapper.playing)
+			{
+				toRemove.add(wrapper);
+			}
+		}
+
+		activeMusic.removeAll(toRemove);
+	}
+
+	public static String getMusicFor(Level level)
+	{
+		return level.getWorldID();
+	}
+
+	public static String getDebugString()
+	{
+		if (activeMusic.isEmpty())
+		{
+			return "none";
+		}
+
+		String str = "";
+
+		for (MusicWrapper wrapper : activeMusic)
+		{
+			str += wrapper.toString() + "\n";
+		}
+
+		return str;
+	}
+
+	public static class MusicWrapper
+	{
+		private String music;
+
+		private Music coloredMusic;
+		private Music monochromeMusic;
+
+		private boolean playing;
+		private boolean canAccessPitch;
+
+		private float volume;
+		private float coloredVolume;
+		private float monochromeVolume;
+		private float coloredPitch;
+		private float monochromePitch;
+		private int totalFadeInTime;
+		private int fadeInTime;
+		private int totalFadeOutTime;
+		private int fadeOutTime;
+
+		public MusicWrapper(String music, Music coloredMusic, Music monochromeMusic)
+		{
+			this.music = music;
+			this.coloredMusic = coloredMusic;
+			this.monochromeMusic = monochromeMusic;
+
+			try
+			{
+				this.canAccessPitch = coloredMusic instanceof OpenALMusic && monochromeMusic instanceof OpenALMusic;
+			}
+			catch (Exception e)
+			{
+				Debug.warn("Cannot cast to OpenALMusic. OpenAl access not supported. Cannot access sourceID and pitch: " + e);
+
+				this.canAccessPitch = false;
+			}
+		}
+
+		public void play(int fadeInTime)
+		{
+			this.totalFadeInTime = fadeInTime;
+			this.fadeInTime = fadeInTime;
+
+			this.coloredMusic.play();
+			this.monochromeMusic.play();
+
+			this.coloredMusic.setOnCompletionListener(new OnCompletionListener()
+			{
+				@Override
+				public void onCompletion(Music music)
+				{
+
+				}
+			});
+
+			this.monochromeMusic.setOnCompletionListener(new OnCompletionListener()
+			{
+				@Override
+				public void onCompletion(Music music)
+				{
+
+				}
+			});
+
+			this.coloredMusic.setLooping(true);
+			this.monochromeMusic.setLooping(true);
+
+			this.playing = true;
+		}
+
+		public void update(float delta, float coloredFactor, float monochromeFactor, float coloredPitch, float monochromePitch)
+		{
+			this.volume = SoundVolume.MUSIC.relVolumeClamped();
+
+			if (this.fadeInTime > 0)
+			{
+				this.fadeInTime -= delta;
+				this.volume *= 1.0f - (float) this.fadeInTime / this.totalFadeInTime;
+			}
+
+			if (this.fadeOutTime > 0)
+			{
+				this.fadeOutTime -= delta;
+				this.volume *= (float) this.fadeOutTime / this.totalFadeOutTime;
+
+				if (this.fadeOutTime <= 0)
+				{
+					this.coloredMusic.stop();
+					this.monochromeMusic.stop();
+
+					this.playing = false;
+				}
+			}
+
+			this.coloredVolume = this.volume * coloredFactor;
+			this.monochromeVolume = this.volume * monochromeFactor;
+
+			this.coloredMusic.setVolume(this.coloredVolume);
+			this.monochromeMusic.setVolume(this.monochromeVolume);
+
+			if (!this.coloredMusic.isPlaying() && !this.monochromeMusic.isPlaying())
+			{
+				this.playing = false;
+			}
+
+			if (this.canAccessPitch)
+			{
+				AL10.alSourcef(((OpenALMusic) this.coloredMusic).getSourceId(), AL10.AL_PITCH, coloredPitch);
+				AL10.alSourcef(((OpenALMusic) this.monochromeMusic).getSourceId(), AL10.AL_PITCH, monochromePitch);
+
+				this.coloredPitch = coloredPitch;
+				this.monochromePitch = monochromePitch;
+			}
+		}
+
+		public void stopFadeOut()
+		{
+			if (this.fadeOutTime > 0)
+			{
+				this.fadeOutTime = 0;
+				this.totalFadeOutTime = 0;
+			}
+		}
+
+		public void fadeOut(int fadeOutTime)
+		{
+			this.totalFadeOutTime = fadeOutTime;
+			this.fadeOutTime = fadeOutTime;
+
+			this.coloredMusic.setLooping(false);
+			this.monochromeMusic.setLooping(false);
+		}
+
+		public boolean isFadingIn()
+		{
+			return this.fadeInTime > 0;
+		}
+
+		public boolean isFadingOut()
+		{
+			return this.fadeOutTime > 0;
+		}
+
+		@Override
+		public String toString()
+		{
+			return this.music + " - " + String.format("c: t:%3.1fs v:%1.2f p:%1.2f | m: t:%3.1fs v:%1.2f p:%1.2f", this.coloredMusic.getPosition(), this.coloredVolume, this.coloredPitch, this.monochromeMusic.getPosition(), this.monochromeVolume, this.monochromePitch);
+		}
+	}
+}

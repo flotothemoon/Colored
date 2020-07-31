@@ -1,0 +1,88 @@
+ -- General -- 
+Generated on: 2016-06-23_16-06-14
+Build: 766 from 09:45 PM - 22/06/16
+GameState: MAP_EDITOR (previous: MAP_EDITOR_MENU)
+Target FPS: 60
+Actual FPS: 61
+
+ -- Display -- 
+Target Width / Height: 1920 / 1080
+Actual Width / Height: 1920 / 1017 (windowed)
+
+ -- Environment -- 
+GPU: GeForce GTX 980 Ti/PCIe/SSE2 (NVIDIA Corporation)
+OpenGL Version: 4.5.0 NVIDIA 361.43
+Allocated Memory: 123MB
+Used Memory: 9MB
+"os.name": Windows 10
+"os.version": 10.0
+"os.arch": x86
+"java.version": 1.8.0_66
+"java.vendor": Oracle Corporation
+"sun.arch.data.model": 32
+
+ -- Level --
+ID: test (internal: unknown)
+LevelType: REVERSAL
+Dimension: COLORED
+Location: ../worlds/maps/test
+
+ -- Stack Trace -- 
+java.lang.ArithmeticException: / by zero
+com.unlogical.colored.particle.ParticleEmitterImpl.updateParticle(ParticleEmitterImpl.java:639)
+com.unlogical.colored.particle.Particle.update(Particle.java:138)
+com.unlogical.colored.particle.ParticleSystem.simulateEmitter(ParticleSystem.java:170)
+com.unlogical.colored.gui.panel.ParticleEmitterPanel.updateWrapper(ParticleEmitterPanel.java:1229)
+com.unlogical.colored.gui.panel.ParticleEmitterPanel$12.onChecked(ParticleEmitterPanel.java:364)
+com.unlogical.colored.gui.GUICheckbox.update(GUICheckbox.java:68)
+com.unlogical.colored.gui.panel.ParticleEmitterPanel.customUpdate(ParticleEmitterPanel.java:1443)
+com.unlogical.colored.gui.panel.GUIPanel.update(GUIPanel.java:90)
+com.unlogical.colored.mapeditor.MapEditor.update(MapEditor.java:1632)
+com.unlogical.colored.GameLauncher.update(GameLauncher.java:394)
+com.unlogical.colored.GameLauncher.render(GameLauncher.java:460)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication.mainLoop(LwjglApplication.java:218)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication$1.run(LwjglApplication.java:123)
+
+ -- Last 20 Log Entries -- 
+@Log    : Loading map files took 182ms. (tid: 12)
+@Warning: Tried to load image(s) from path res/gui/icons/22_01, the resolved path res/gui/icons/22_01.png however does not exist. (tid: 12)
+@Warning: Couldn't load level icon for 22-01. (tid: 12)
+@Log    : Fetching lights for level "22-01" ... (tid: 12)
+@Log    : Lights fetched for level "22-01", 4 lights found. (tid: 12)
+@Log    : Pre-simulating particles for 45000.0ms (300 x 150.0ms)... (tid: 12)
+@Log    : Particle pre-simulation complete. Particles are now ahead of time by 45000.0ms. (tid: 12)
+@Log    : Active save was saved to disk. (tid: 12)
+@Log    : Loaded 22-01 (took 257ms). (tid: 12)
+@Log    : Fetching lights for level "22-01" ... (tid: 12)
+@Log    : Lights fetched for level "22-01", 4 lights found. (tid: 12)
+@Log    : Loaded map Perspective (22-01, ../worlds/maps/22-01), took 38ms. (tid: 12)
+@Warning: Currently in session levelmng, cannot end update (tid: 12)
+@Log    : Play sound MENUCLICK at volume 0.0, pitch 1.0 and pan 0.0 (once). (tid: 12)
+@Log    : Play sound MENUCLICK at volume 0.0, pitch 1.0 and pan 0.0 (once). (tid: 12)
+@Log    : Fetching lights for level "test" ... (tid: 12)
+@Log    : Lights fetched for level "test", 0 lights found. (tid: 12)
+@Warning: Unable to load music "unknown": java.lang.RuntimeException: Main music for "unknown_colored" not found (tid: 12)
+@Warning: Unable to play music "unknown". (tid: 12)
+@Log    : Loaded map Test (test, ../worlds/maps/test), took 2ms. (tid: 12)
+
+ -- Last 20 Input Events -- 
+Touch dragged: pointer: 0 at x:1398 y: 787 (3570ms ago)
+Touch dragged: pointer: 0 at x:1398 y: 795 (3554ms ago)
+Touch dragged: pointer: 0 at x:1398 y: 797 (3533ms ago)
+Touch dragged: pointer: 0 at x:1397 y: 802 (3520ms ago)
+Touch up: 0 (pointer: 0) at x:1397 y: 802 (3487ms ago)
+Touch down: 0 (pointer: 0) at x:1076 y: 540 (2954ms ago)
+Touch up: 0 (pointer: 0) at x:1076 y: 540 (2904ms ago)
+Touch down: 0 (pointer: 0) at x:1076 y: 540 (2854ms ago)
+Touch up: 0 (pointer: 0) at x:1076 y: 540 (2754ms ago)
+Touch down: 0 (pointer: 0) at x:1088 y: 569 (2336ms ago)
+Key down: A (29) (2270ms ago)
+Key down: L-Ctrl (129) (2254ms ago)
+Key up: A (29) (2004ms ago)
+Key up: L-Ctrl (129) (1870ms ago)
+Key down: D (32) (1620ms ago)
+Key up: D (32) (1487ms ago)
+Touch down: 0 (pointer: 0) at x:1196 y: 464 (1070ms ago)
+Touch dragged: pointer: 0 at x:1196 y: 463 (1054ms ago)
+Touch up: 0 (pointer: 0) at x:1196 y: 463 (1037ms ago)
+Touch down: 0 (pointer: 0) at x:1749 y: 257 (4ms ago)

@@ -1,0 +1,82 @@
+ -- General -- 
+Generated on: 2016-03-24_14-03-03
+Build: 667 from 09:39 PM - 22/03/16
+GameState: IN_LEVEL (previous: MAP_EDITOR)
+Target FPS: 60
+Actual FPS: 61
+
+ -- Display -- 
+Target Width / Height: 1920 / 1080
+Actual Width / Height: 1920 / 1017 (windowed)
+
+ -- Environment -- 
+GPU: GeForce GTX 980 Ti/PCIe/SSE2 (NVIDIA Corporation)
+OpenGL Version: 4.5.0 NVIDIA 361.43
+Allocated Memory: 15MB
+Used Memory: 9MB
+"os.name": Windows 10
+"os.version": 10.0
+"os.arch": x86
+"java.version": 1.8.0_66
+"java.vendor": Oracle Corporation
+"sun.arch.data.model": 32
+
+ -- Level --
+ID: 23-02 (internal: 02)
+LevelType: FROZEN
+Dimension: LIGHT
+Location: ../worlds/maps/23-02
+
+ -- Stack Trace -- 
+java.lang.IllegalStateException: SpriteBatch.begin must be called before draw.
+com.unlogical.colored.util.CustomVerticesSpriteBatch.draw(CustomVerticesSpriteBatch.java:804)
+com.unlogical.colored.resources.image.Images.draw(Images.java:111)
+com.unlogical.colored.resources.image.Images.draw(Images.java:101)
+com.unlogical.colored.levelmanaging.GUIManager.render(GUIManager.java:160)
+com.unlogical.colored.levelmanaging.LevelManager.render(LevelManager.java:1146)
+com.unlogical.colored.GameLauncher.render(GameLauncher.java:464)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication.mainLoop(LwjglApplication.java:218)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication$1.run(LwjglApplication.java:123)
+
+ -- Last 20 Log Entries -- 
+@Log: --- NEW UPDATE FRAME (200) --- (11)
+@Log: --- NEW UPDATE FRAME (200) --- (11)
+@Log: --- NEW UPDATE FRAME (200) --- (11)
+@Log: --- NEW UPDATE FRAME (200) --- (11)
+@Log: --- NEW UPDATE FRAME (200) --- (11)
+@Log: --- NEW UPDATE FRAME (200) --- (11)
+@Log: --- NEW UPDATE FRAME (200) --- (11)
+@Log: --- NEW UPDATE FRAME (200) --- (11)
+@Log: --- NEW UPDATE FRAME (200) --- (11)
+@Log: --- NEW UPDATE FRAME (200) --- (11)
+@Log: --- NEW UPDATE FRAME (200) --- (11)
+@Log: --- NEW UPDATE FRAME (200) --- (11)
+@Log: --- NEW UPDATE FRAME (200) --- (11)
+@Log: --- NEW UPDATE FRAME (200) --- (11)
+@Log: --- NEW UPDATE FRAME (200) --- (11)
+@Log: Pre-simulating particles for 45000.0ms (300 x 150.0ms)... (11)
+@Log: Particle pre-simulation complete. Particles are now ahead of time by 45000.0ms. (11)
+@Log: Active save was saved to disk. (11)
+@Log: Loaded 23-02 (took 40ms). (11)
+@Log: --- NEW UPDATE FRAME (43) --- (11)
+
+ -- Last 19 Input Events -- 
+Touch up: 0 (pointer: 0) at x:1237 y: 331 (21469ms ago)
+Touch down: 0 (pointer: 0) at x:1457 y: 404 (17820ms ago)
+Touch up: 0 (pointer: 0) at x:1457 y: 404 (17802ms ago)
+Key down: F11 (254) (17151ms ago)
+Key up: F11 (254) (17102ms ago)
+Key down: F11 (254) (17019ms ago)
+Key up: F11 (254) (16929ms ago)
+Key down: L-Ctrl (129) (15579ms ago)
+Key down: F (34) (15462ms ago)
+Key up: L-Ctrl (129) (15362ms ago)
+Touch down: 0 (pointer: 0) at x:1424 y: 761 (4237ms ago)
+Touch up: 0 (pointer: 0) at x:1424 y: 761 (4204ms ago)
+Key down: F11 (254) (2421ms ago)
+Key up: F11 (254) (2354ms ago)
+Key down: F11 (254) (2254ms ago)
+Key up: F11 (254) (2177ms ago)
+Key down: L-Ctrl (129) (827ms ago)
+Key up: L-Ctrl (129) (361ms ago)
+Key down: G (35) (11ms ago)

@@ -1,0 +1,138 @@
+package com.unlogical.colored.sound;
+
+import java.io.File;
+import java.util.Random;
+
+import javax.sound.sampled.AudioInputStream;
+import javax.sound.sampled.AudioSystem;
+import javax.sound.sampled.Clip;
+import javax.sound.sampled.DataLine;
+
+import com.unlogical.colored.debug.Debug;
+import com.unlogical.colored.filesystem.FilePaths;
+
+
+public class Sounds
+{
+	private static Clip[] click = new Clip[3];
+	private static Clip[] explode = new Clip[3];
+	private static Clip[] stab = new Clip[3];
+	private static Clip[] hurt = new Clip[3];
+	private static Clip[] water = new Clip[3];
+	private static Clip[] fire = new Clip[3];
+	private static Clip[] unlock = new Clip[3];
+	private static Clip gameover;
+	private static Random generator = new Random();
+	private static int soundsVolume = 100;
+
+	public static void play(Clip clip)
+	{
+		if (clip != null)
+		{
+			clip.stop();
+			clip.setFramePosition(0);
+			// TODO ADD SOUND VOLUME
+			clip.start();
+		}
+	}
+
+	public static void play(String type)
+	{
+		if (type != null)
+		{
+			if (type.equalsIgnoreCase("CLICK"))
+			{
+				play(click[generator.nextInt(3)]);
+			}
+			else if (type.equalsIgnoreCase("EXPLODE"))
+			{
+				play(explode[generator.nextInt(3)]);
+			}
+			else if (type.equalsIgnoreCase("STAB"))
+			{
+				play(stab[generator.nextInt(3)]);
+			}
+			else if (type.equalsIgnoreCase("HURT"))
+			{
+				play(hurt[generator.nextInt(3)]);
+			}
+			else if (type.equalsIgnoreCase("GAMEOVER"))
+			{
+				play(gameover);
+			}
+			else if (type.equalsIgnoreCase("WATER"))
+			{
+				play(water[generator.nextInt(3)]);
+			}
+			else if (type.equalsIgnoreCase("FIRE"))
+			{
+				play(fire[generator.nextInt(3)]);
+			}
+			else if (type.equalsIgnoreCase("UNLOCK"))
+			{
+				play(unlock[generator.nextInt(3)]);
+			}
+		}
+	}
+
+	public static void load()
+	{
+		Debug.log("Loading sounds...");
+		click[0] = loadClip(FilePaths.SOUNDS + "/click-1.wav");
+		click[1] = loadClip(FilePaths.SOUNDS + "/click-2.wav");
+		click[2] = loadClip(FilePaths.SOUNDS + "/click-3.wav");
+
+		explode[0] = loadClip(FilePaths.SOUNDS + "/explode-1.wav");
+		explode[1] = loadClip(FilePaths.SOUNDS + "/explode-2.wav");
+		explode[2] = loadClip(FilePaths.SOUNDS + "/explode-3.wav");
+
+		stab[0] = loadClip(FilePaths.SOUNDS + "/stab-1.wav");
+		stab[1] = loadClip(FilePaths.SOUNDS + "/stab-2.wav");
+		stab[2] = loadClip(FilePaths.SOUNDS + "/stab-3.wav");
+
+		hurt[0] = loadClip(FilePaths.SOUNDS + "/hurt-1.wav");
+		hurt[1] = loadClip(FilePaths.SOUNDS + "/hurt-2.wav");
+		hurt[2] = loadClip(FilePaths.SOUNDS + "/hurt-3.wav");
+
+		water[0] = loadClip(FilePaths.SOUNDS + "/water-1.wav");
+		water[1] = loadClip(FilePaths.SOUNDS + "/water-2.wav");
+		water[2] = loadClip(FilePaths.SOUNDS + "/water-3.wav");
+
+		unlock[0] = loadClip(FilePaths.SOUNDS + "/unlock-1.wav");
+		unlock[1] = loadClip(FilePaths.SOUNDS + "/unlock-2.wav");
+		unlock[2] = loadClip(FilePaths.SOUNDS + "/unlock-3.wav");
+
+		gameover = loadClip(FilePaths.SOUNDS + "/gameover-1.wav");
+		Debug.log("Sounds loaded.");
+	}
+
+	public static Clip loadClip(String res)
+	{
+		try
+		{
+			Clip clip;
+			AudioInputStream sound = AudioSystem.getAudioInputStream(new File(res));
+
+			DataLine.Info info = new DataLine.Info(Clip.class, sound.getFormat());
+			clip = (Clip) AudioSystem.getLine(info);
+			clip.open(sound);
+
+			return clip;
+		}
+		catch (Exception e)
+		{
+			e.printStackTrace();
+			return null;
+		}
+	}
+
+	public static void setSoundsVolume(int volume)
+	{
+		soundsVolume = volume;
+	}
+
+	public static int getSoundsVolume()
+	{
+		return soundsVolume;
+	}
+}

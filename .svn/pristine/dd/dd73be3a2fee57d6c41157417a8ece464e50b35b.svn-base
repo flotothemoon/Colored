@@ -1,0 +1,1673 @@
+package com.unlogical.colored.gui.panel;
+
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Input;
+import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.g2d.Batch;
+import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
+import com.badlogic.gdx.graphics.glutils.ShapeRenderer.ShapeType;
+import com.unlogical.colored.GameLauncher;
+import com.unlogical.colored.collision.Hitbox;
+import com.unlogical.colored.debug.Debug;
+import com.unlogical.colored.filesystem.FilePaths;
+import com.unlogical.colored.gui.GUICheckbox;
+import com.unlogical.colored.gui.InputChangeListener;
+import com.unlogical.colored.gui.UserInputLine;
+import com.unlogical.colored.gui.button.Button;
+import com.unlogical.colored.gui.colorpicker.ColorPicker;
+import com.unlogical.colored.gui.colorpicker.ColorPickerListener;
+import com.unlogical.colored.gui.menu.MenuHandler;
+import com.unlogical.colored.mapeditor.MapEditor;
+import com.unlogical.colored.particle.EmitterType;
+import com.unlogical.colored.particle.ParticleEmitter;
+import com.unlogical.colored.particle.ParticleEmitterImpl;
+import com.unlogical.colored.resources.font.Fonts;
+import com.unlogical.colored.util.ColorHelper;
+import com.unlogical.colored.util.Renderer;
+import com.unlogical.colored.util.ShaderHandler;
+import com.unlogical.colored.wrapper.WrapperTexture;
+
+public class ParticleEmitterPanel extends GUIPanel
+{
+	public static final float FACTOR_SCALE = 500;
+
+	private WrapperTexture wrapper;
+
+	private GUICheckbox limitToWrapper;
+	private GUICheckbox shouldBounceOutOfArea;
+	private GUICheckbox circularEmitter;
+	private GUICheckbox relativeAccelerations;
+	private GUICheckbox limitedLifetime;
+	private GUICheckbox scaleWithWidth;
+	private GUICheckbox scaleWithHeight;
+	private GUICheckbox scissorUp;
+	private GUICheckbox scissorDown;
+	private GUICheckbox scissorLeft;
+	private GUICheckbox scissorRight;
+	private GUICheckbox maxOutParticles;
+
+	private UserInputLine simpleName;
+	private UserInputLine depth;
+	private UserInputLine parallax;
+	private UserInputLine rotation;
+	private UserInputLine maxParticles;
+	private UserInputLine emitterLifetime;
+
+	private UserInputLine spawnIntervalMin;
+	private UserInputLine spawnIntervalMax;
+
+	private UserInputLine spawnCountMin;
+	private UserInputLine spawnCountMax;
+
+	private UserInputLine initialLifeMin;
+	private UserInputLine initialLifeMax;
+
+	private UserInputLine initialSizeMin;
+	private UserInputLine initialSizeMax;
+
+	private UserInputLine xOffsetMin;
+	private UserInputLine xOffsetMax;
+
+	private UserInputLine yOffsetMin;
+	private UserInputLine yOffsetMax;
+
+	private UserInputLine velocityXMin;
+	private UserInputLine velocityXMax;
+
+	private UserInputLine velocityYMin;
+	private UserInputLine velocityYMax;
+
+	private UserInputLine startRotationMin;
+	private UserInputLine startRotationMax;
+
+	private UserInputLine rotationVelocityMin;
+	private UserInputLine rotationVelocityMax;
+
+	private UserInputLine growthFactorMin;
+	private UserInputLine growthFactorMax;
+
+	private UserInputLine gravityFactorMin;
+	private UserInputLine gravityFactorMax;
+
+	private UserInputLine windFactorMin;
+	private UserInputLine windFactorMax;
+
+	private UserInputLine targetAlphaMin;
+	private UserInputLine targetAlphaMax;
+
+	private UserInputLine fadeInMin;
+	private UserInputLine fadeInMax;
+
+	private UserInputLine fadeOutMin;
+	private UserInputLine fadeOutMax;
+
+	private UserInputLine saveAsTemplate;
+
+	private ColorPicker startColor;
+	private ColorPicker endColor;
+	private ColorPicker addColor;
+
+	private Button startColorButton;
+	private Button endColorButton;
+	private Button addColorButton;
+	private Button colorDistrModeButton;
+
+	private Hitbox spawnHitbox = new Hitbox(0.0f, 0.0f, 0.0f, 0.0f);
+
+	public ParticleEmitterPanel(float xOffset, float yOffset, float width, float height)
+	{
+		super("", xOffset, yOffset, width, height);
+
+		this.fillColor = new Color(MapEditor.panelColor);
+
+		int lineHeight = 25;
+		int inputWidth = (int) (width / 2) + 15;
+		int halfWidth = inputWidth / 2;
+		int currentOffset = 40;
+		int inputX = (int) (xOffset + width / 2) - 20;
+		int yGap = 5;
+
+		simpleName = new UserInputLine(inputX, currentOffset, inputWidth, lineHeight);
+		simpleName.addInputChangedListener(new InputChangeListener()
+		{
+			@Override
+			public void onInputChanged()
+			{
+				if (!simpleName.getInput().isEmpty())
+				{
+					wrapper.setSimpleName(simpleName.getInput());
+				}
+			}
+		});
+
+		currentOffset += simpleName.getHeight() + yGap;
+
+		depth = new UserInputLine(inputX, currentOffset, inputWidth, lineHeight);
+		depth.setOnlyNumeric(true);
+		depth.setMaxChars(7);
+		depth.addInputChangedListener(new InputChangeListener()
+		{
+			@Override
+			public void onInputChanged()
+			{
+				if (!depth.getInput().isEmpty())
+				{
+					wrapper.setDepth(Integer.parseInt(depth.getInput()));
+					wrapper.getLevel().sortWrappers();
+				}
+			}
+		});
+
+		currentOffset += depth.getHeight() + yGap;
+
+		parallax = new UserInputLine(inputX, currentOffset, inputWidth, lineHeight);
+		parallax.setMaxChars(5);
+		parallax.addInputChangedListener(new InputChangeListener()
+		{
+			@Override
+			public void onInputChanged()
+			{
+				try
+				{
+					wrapper.setParallax(Float.parseFloat(parallax.getInput()));
+				}
+				catch (Exception e)
+				{
+				}
+			}
+		});
+
+		currentOffset += depth.getHeight() + yGap;
+
+		rotation = new UserInputLine(inputX, currentOffset, inputWidth, lineHeight);
+		rotation.setOnlyNumeric(true);
+		rotation.setMaxChars(3);
+		rotation.addInputChangedListener(new InputChangeListener()
+		{
+			@Override
+			public void onInputChanged()
+			{
+				if (!rotation.getInput().isEmpty())
+				{
+					wrapper.setRotation(Integer.parseInt(rotation.getInput()));
+					updateWrapper(wrapper, true);
+					wrapper.updateBorders();
+				}
+			}
+		});
+		rotation.setAllowUserInput(true);
+
+		currentOffset += rotation.getHeight() + yGap;
+
+		maxParticles = new UserInputLine(inputX, currentOffset, inputWidth, lineHeight);
+		maxParticles.setOnlyNumeric(true);
+		maxParticles.setMaxChars(5);
+		maxParticles.addInputChangedListener(new InputChangeListener()
+		{
+			@Override
+			public void onInputChanged()
+			{
+				if (!maxParticles.getInput().isEmpty())
+				{
+					wrapper.setMaxParticles(Integer.parseInt(maxParticles.getInput()));
+					wrapper.updateEmitterOriginals();
+					wrapper.recreateEmitter();
+					updateWrapper(wrapper, true);
+				}
+			}
+		});
+		maxParticles.setAllowUserInput(true);
+
+		currentOffset += maxParticles.getHeight() + yGap;
+
+		emitterLifetime = new UserInputLine(inputX, currentOffset, inputWidth, lineHeight);
+		emitterLifetime.setOnlyNumeric(true);
+		emitterLifetime.setMaxChars(9);
+		emitterLifetime.addInputChangedListener(new InputChangeListener()
+		{
+			@Override
+			public void onInputChanged()
+			{
+				if (!emitterLifetime.getInput().isEmpty())
+				{
+					wrapper.getEmitter().setLifeTime(Integer.parseInt(emitterLifetime.getInput()));
+					updateWrapper(wrapper, true);
+				}
+			}
+		});
+		emitterLifetime.setAllowUserInput(true);
+
+		currentOffset += emitterLifetime.getHeight() + yGap;
+
+		limitToWrapper = new GUICheckbox(false, inputX + inputWidth / 4 - lineHeight / 2, currentOffset, lineHeight, lineHeight)
+		{
+			@Override
+			public void onUnchecked()
+			{
+				wrapper.getEmitter().setLimitToWrapper(false);
+				updateWrapper(wrapper, true);
+			}
+
+			@Override
+			public void onChecked()
+			{
+				wrapper.getEmitter().setLimitToWrapper(true);
+				updateWrapper(wrapper, true);
+			}
+		};
+
+		shouldBounceOutOfArea = new GUICheckbox(false, inputX + 3 * inputWidth / 4 - lineHeight / 2, currentOffset, lineHeight, lineHeight)
+		{
+			@Override
+			public void onUnchecked()
+			{
+				wrapper.getEmitter().setShouldBounceOutOfArea(false);
+				wrapper.getEmitter().initMirror();
+				updateWrapper(wrapper, true);
+			}
+
+			@Override
+			public void onChecked()
+			{
+				wrapper.getEmitter().setShouldBounceOutOfArea(true);
+				wrapper.getEmitter().initMirror();
+				updateWrapper(wrapper, true);
+			}
+		};
+
+		currentOffset += shouldBounceOutOfArea.getHeight() + yGap;
+
+		circularEmitter = new GUICheckbox(false, inputX + inputWidth / 2 - lineHeight / 2, currentOffset, lineHeight, lineHeight)
+		{
+			@Override
+			public void onUnchecked()
+			{
+				wrapper.getEmitter().setCircularEmitter(false);
+				updateWrapper(wrapper, true);
+			}
+
+			@Override
+			public void onChecked()
+			{
+				wrapper.getEmitter().setCircularEmitter(true);
+				updateWrapper(wrapper, true);
+			}
+		};
+
+		currentOffset += circularEmitter.getHeight() + yGap;
+
+		relativeAccelerations = new GUICheckbox(false, inputX + inputWidth / 2 - lineHeight / 2, currentOffset, lineHeight, lineHeight)
+		{
+			@Override
+			public void onUnchecked()
+			{
+				wrapper.getEmitter().setRotateAccelerations(false);
+				updateWrapper(wrapper, true);
+			}
+
+			@Override
+			public void onChecked()
+			{
+				wrapper.getEmitter().setRotateAccelerations(true);
+				updateWrapper(wrapper, true);
+			}
+		};
+
+		currentOffset += relativeAccelerations.getHeight() + yGap;
+
+		limitedLifetime = new GUICheckbox(false, inputX + inputWidth / 2 - lineHeight / 2, currentOffset, lineHeight, lineHeight)
+		{
+			@Override
+			public void onUnchecked()
+			{
+				wrapper.getEmitter().setHasLimitedLifetime(false);
+				wrapper.getEmitter().restart();
+
+				if (wrapper.getEmitter().hasMirror())
+				{
+					wrapper.getEmitter().restart();
+				}
+
+				updateWrapper(wrapper, true);
+			}
+
+			@Override
+			public void onChecked()
+			{
+				wrapper.getEmitter().setHasLimitedLifetime(true);
+				wrapper.getEmitter().restart();
+
+				if (wrapper.getEmitter().hasMirror())
+				{
+					wrapper.getEmitter().restart();
+				}
+
+				updateWrapper(wrapper, true);
+			}
+		};
+
+		currentOffset += limitedLifetime.getHeight() + yGap;
+
+		scaleWithWidth = new GUICheckbox(false, inputX + inputWidth / 4 - lineHeight / 2, currentOffset, lineHeight, lineHeight)
+		{
+			@Override
+			public void onUnchecked()
+			{
+				wrapper.getEmitter().setScaleWithWidth(false);
+				wrapper.updateEmitterOriginals();
+				updateWrapper(wrapper, false);
+			}
+
+			@Override
+			public void onChecked()
+			{
+				wrapper.getEmitter().setScaleWithWidth(true);
+				wrapper.updateEmitterOriginals();
+				updateWrapper(wrapper, false);
+			}
+		};
+
+		scaleWithHeight = new GUICheckbox(false, inputX + 3 * inputWidth / 4 - lineHeight / 2, currentOffset, lineHeight, lineHeight)
+		{
+			@Override
+			public void onUnchecked()
+			{
+				wrapper.getEmitter().setScaleWithHeight(false);
+				wrapper.updateEmitterOriginals();
+				updateWrapper(wrapper, false);
+			}
+
+			@Override
+			public void onChecked()
+			{
+				wrapper.getEmitter().setScaleWithHeight(true);
+				wrapper.updateEmitterOriginals();
+				updateWrapper(wrapper, false);
+			}
+		};
+
+		currentOffset += scaleWithHeight.getHeight() + yGap;
+
+		scissorUp = new GUICheckbox(false, inputX + inputWidth / 8 - lineHeight / 2, currentOffset, lineHeight, lineHeight)
+		{
+			@Override
+			public void onUnchecked()
+			{
+				wrapper.getEmitter().setShouldScissor(ParticleEmitter.UP, false);
+			}
+
+			@Override
+			public void onChecked()
+			{
+				wrapper.getEmitter().setShouldScissor(ParticleEmitter.UP, true);
+			}
+		};
+
+		scissorDown = new GUICheckbox(false, inputX + 3 * inputWidth / 8 - lineHeight / 2, currentOffset, lineHeight, lineHeight)
+		{
+			@Override
+			public void onUnchecked()
+			{
+				wrapper.getEmitter().setShouldScissor(ParticleEmitter.DOWN, false);
+			}
+
+			@Override
+			public void onChecked()
+			{
+				wrapper.getEmitter().setShouldScissor(ParticleEmitter.DOWN, true);
+			}
+		};
+
+		scissorLeft = new GUICheckbox(false, inputX + 5 * inputWidth / 8 - lineHeight / 2, currentOffset, lineHeight, lineHeight)
+		{
+			@Override
+			public void onUnchecked()
+			{
+				wrapper.getEmitter().setShouldScissor(ParticleEmitter.LEFT, false);
+			}
+
+			@Override
+			public void onChecked()
+			{
+				wrapper.getEmitter().setShouldScissor(ParticleEmitter.LEFT, true);
+			}
+		};
+
+		scissorRight = new GUICheckbox(false, inputX + 7 * inputWidth / 8 - lineHeight / 2, currentOffset, lineHeight, lineHeight)
+		{
+			@Override
+			public void onUnchecked()
+			{
+				wrapper.getEmitter().setShouldScissor(ParticleEmitter.RIGHT, false);
+			}
+
+			@Override
+			public void onChecked()
+			{
+				wrapper.getEmitter().setShouldScissor(ParticleEmitter.RIGHT, true);
+			}
+		};
+
+		currentOffset += scissorUp.getHeight() + yGap;
+
+		maxOutParticles = new GUICheckbox(false, inputX + inputWidth / 2 - lineHeight / 2, currentOffset, lineHeight, lineHeight)
+		{
+			@Override
+			public void onUnchecked()
+			{
+				wrapper.getEmitter().setMaxOutParticles(false);
+				updateWrapper(wrapper, true);
+			}
+
+			@Override
+			public void onChecked()
+			{
+				wrapper.getEmitter().setMaxOutParticles(true);
+				updateWrapper(wrapper, true);
+			}
+		};
+
+		currentOffset += maxOutParticles.getHeight() + yGap;
+
+		spawnIntervalMin = new UserInputLine(inputX, currentOffset, halfWidth, lineHeight);
+		spawnIntervalMin.addInputChangedListener(new InputChangeListener()
+		{
+			@Override
+			public void onInputChanged()
+			{
+				if (!spawnIntervalMin.getInput().isEmpty())
+				{
+					wrapper.getEmitter().getSpawnInterval().setMinValue(Integer.parseInt(spawnIntervalMin.getInput()));
+					wrapper.updateEmitterOriginals();
+					updateWrapper(wrapper, true);
+				}
+			}
+		});
+		spawnIntervalMin.setOnlyNumeric(true);
+
+		spawnIntervalMax = new UserInputLine(inputX + halfWidth, currentOffset, halfWidth, lineHeight);
+		spawnIntervalMax.addInputChangedListener(new InputChangeListener()
+		{
+			@Override
+			public void onInputChanged()
+			{
+				if (!spawnIntervalMax.getInput().isEmpty())
+				{
+					wrapper.getEmitter().getSpawnInterval().setMaxValue(Integer.parseInt(spawnIntervalMax.getInput()));
+					wrapper.updateEmitterOriginals();
+					updateWrapper(wrapper, true);
+				}
+			}
+		});
+		spawnIntervalMax.setOnlyNumeric(true);
+
+		currentOffset += spawnIntervalMin.getHeight() + yGap;
+
+		spawnCountMin = new UserInputLine(inputX, currentOffset, halfWidth, lineHeight);
+		spawnCountMin.addInputChangedListener(new InputChangeListener()
+		{
+			@Override
+			public void onInputChanged()
+			{
+				if (!spawnCountMin.getInput().isEmpty())
+				{
+					wrapper.getEmitter().getSpawnCount().setMinValue(Integer.parseInt(spawnCountMin.getInput()));
+					wrapper.updateEmitterOriginals();
+					updateWrapper(wrapper, true);
+				}
+			}
+		});
+		spawnCountMin.setOnlyNumeric(true);
+
+		spawnCountMax = new UserInputLine(inputX + halfWidth, currentOffset, halfWidth, lineHeight);
+		spawnCountMax.addInputChangedListener(new InputChangeListener()
+		{
+			@Override
+			public void onInputChanged()
+			{
+				if (!spawnCountMax.getInput().isEmpty())
+				{
+					wrapper.getEmitter().getSpawnCount().setMaxValue(Integer.parseInt(spawnCountMax.getInput()));
+					wrapper.updateEmitterOriginals();
+					updateWrapper(wrapper, true);
+				}
+			}
+		});
+		spawnCountMax.setOnlyNumeric(true);
+
+		currentOffset += spawnCountMin.getHeight() + yGap;
+
+		initialLifeMin = new UserInputLine(inputX, currentOffset, halfWidth, lineHeight);
+		initialLifeMin.addInputChangedListener(new InputChangeListener()
+		{
+			@Override
+			public void onInputChanged()
+			{
+				if (!initialLifeMin.getInput().isEmpty())
+				{
+					wrapper.getEmitter().getInitialLife().setMinValue(Integer.parseInt(initialLifeMin.getInput()));
+					updateWrapper(wrapper, true);
+				}
+			}
+		});
+		initialLifeMin.setOnlyNumeric(true);
+
+		initialLifeMax = new UserInputLine(inputX + halfWidth, currentOffset, halfWidth, lineHeight);
+		initialLifeMax.addInputChangedListener(new InputChangeListener()
+		{
+			@Override
+			public void onInputChanged()
+			{
+				if (!initialLifeMax.getInput().isEmpty())
+				{
+					wrapper.getEmitter().getInitialLife().setMaxValue(Integer.parseInt(initialLifeMax.getInput()));
+					updateWrapper(wrapper, true);
+				}
+			}
+		});
+		initialLifeMax.setOnlyNumeric(true);
+
+		currentOffset += initialLifeMin.getHeight() + yGap;
+
+		initialSizeMin = new UserInputLine(inputX, currentOffset, halfWidth, lineHeight);
+		initialSizeMin.addInputChangedListener(new InputChangeListener()
+		{
+			@Override
+			public void onInputChanged()
+			{
+				if (!initialSizeMin.getInput().isEmpty())
+				{
+					wrapper.getEmitter().getInitialSize().setMinValue(Integer.parseInt(initialSizeMin.getInput()));
+					updateWrapper(wrapper, true);
+				}
+			}
+		});
+		initialSizeMin.setOnlyNumeric(true);
+
+		initialSizeMax = new UserInputLine(inputX + halfWidth, currentOffset, halfWidth, lineHeight);
+		initialSizeMax.addInputChangedListener(new InputChangeListener()
+		{
+			@Override
+			public void onInputChanged()
+			{
+				if (!initialSizeMax.getInput().isEmpty())
+				{
+					wrapper.getEmitter().getInitialSize().setMaxValue(Integer.parseInt(initialSizeMax.getInput()));
+					updateWrapper(wrapper, true);
+				}
+			}
+		});
+		initialSizeMax.setOnlyNumeric(true);
+
+		currentOffset += initialSizeMin.getHeight() + yGap;
+
+		xOffsetMin = new UserInputLine(inputX, currentOffset, halfWidth, lineHeight);
+		xOffsetMin.addInputChangedListener(new InputChangeListener()
+		{
+			@Override
+			public void onInputChanged()
+			{
+				if (!xOffsetMin.getInput().isEmpty())
+				{
+					wrapper.getEmitter().getXOffset().setMinValue(Float.parseFloat(xOffsetMin.getInput()));
+					updateWrapper(wrapper, true);
+				}
+			}
+		});
+
+		xOffsetMax = new UserInputLine(inputX + halfWidth, currentOffset, halfWidth, lineHeight);
+		xOffsetMax.addInputChangedListener(new InputChangeListener()
+		{
+			@Override
+			public void onInputChanged()
+			{
+				if (!xOffsetMax.getInput().isEmpty())
+				{
+					wrapper.getEmitter().getXOffset().setMaxValue(Float.parseFloat(xOffsetMax.getInput()));
+					updateWrapper(wrapper, true);
+				}
+			}
+		});
+
+		currentOffset += xOffsetMin.getHeight() + yGap;
+
+		yOffsetMin = new UserInputLine(inputX, currentOffset, halfWidth, lineHeight);
+		yOffsetMin.addInputChangedListener(new InputChangeListener()
+		{
+			@Override
+			public void onInputChanged()
+			{
+				if (!yOffsetMin.getInput().isEmpty())
+				{
+					wrapper.getEmitter().getYOffset().setMinValue(Float.parseFloat(yOffsetMin.getInput()));
+					updateWrapper(wrapper, true);
+				}
+			}
+		});
+
+		yOffsetMax = new UserInputLine(inputX + halfWidth, currentOffset, halfWidth, lineHeight);
+		yOffsetMax.addInputChangedListener(new InputChangeListener()
+		{
+			@Override
+			public void onInputChanged()
+			{
+				if (!yOffsetMax.getInput().isEmpty())
+				{
+					wrapper.getEmitter().getYOffset().setMaxValue(Float.parseFloat(yOffsetMax.getInput()));
+					updateWrapper(wrapper, true);
+				}
+			}
+		});
+
+		currentOffset += yOffsetMin.getHeight() + yGap;
+
+		velocityXMin = new UserInputLine(inputX, currentOffset, halfWidth, lineHeight);
+		velocityXMin.addInputChangedListener(new InputChangeListener()
+		{
+			@Override
+			public void onInputChanged()
+			{
+				if (!velocityXMin.getInput().isEmpty())
+				{
+					wrapper.getEmitter().getVelocityX().setMinValue(Integer.parseInt(velocityXMin.getInput()) / FACTOR_SCALE);
+					updateWrapper(wrapper, true);
+				}
+			}
+		});
+
+		velocityXMax = new UserInputLine(inputX + halfWidth, currentOffset, halfWidth, lineHeight);
+		velocityXMax.addInputChangedListener(new InputChangeListener()
+		{
+			@Override
+			public void onInputChanged()
+			{
+				if (!velocityXMax.getInput().isEmpty())
+				{
+					wrapper.getEmitter().getVelocityX().setMaxValue(Integer.parseInt(velocityXMax.getInput()) / FACTOR_SCALE);
+					updateWrapper(wrapper, true);
+				}
+			}
+		});
+
+		currentOffset += xOffsetMin.getHeight() + yGap;
+
+		velocityYMin = new UserInputLine(inputX, currentOffset, halfWidth, lineHeight);
+		velocityYMin.addInputChangedListener(new InputChangeListener()
+		{
+			@Override
+			public void onInputChanged()
+			{
+				if (!velocityYMin.getInput().isEmpty())
+				{
+					wrapper.getEmitter().getVelocityY().setMinValue(Integer.parseInt(velocityYMin.getInput()) / FACTOR_SCALE);
+					updateWrapper(wrapper, true);
+				}
+			}
+		});
+
+		velocityYMax = new UserInputLine(inputX + halfWidth, currentOffset, halfWidth, lineHeight);
+		velocityYMax.addInputChangedListener(new InputChangeListener()
+		{
+			@Override
+			public void onInputChanged()
+			{
+				if (!velocityYMax.getInput().isEmpty())
+				{
+					wrapper.getEmitter().getVelocityY().setMaxValue(Integer.parseInt(velocityYMax.getInput()) / FACTOR_SCALE);
+					updateWrapper(wrapper, true);
+				}
+			}
+		});
+
+		currentOffset += velocityYMin.getHeight() + yGap;
+
+		startRotationMin = new UserInputLine(inputX, currentOffset, halfWidth, lineHeight);
+		startRotationMin.addInputChangedListener(new InputChangeListener()
+		{
+			@Override
+			public void onInputChanged()
+			{
+				if (!startRotationMin.getInput().isEmpty())
+				{
+					wrapper.getEmitter().getStartRotation().setMinValue(Integer.parseInt(startRotationMin.getInput()));
+					updateWrapper(wrapper, true);
+				}
+			}
+		});
+
+		startRotationMax = new UserInputLine(inputX + halfWidth, currentOffset, halfWidth, lineHeight);
+		startRotationMax.addInputChangedListener(new InputChangeListener()
+		{
+			@Override
+			public void onInputChanged()
+			{
+				if (!startRotationMax.getInput().isEmpty())
+				{
+					wrapper.getEmitter().getStartRotation().setMaxValue(Integer.parseInt(startRotationMax.getInput()));
+					updateWrapper(wrapper, true);
+				}
+			}
+		});
+
+		currentOffset += startRotationMin.getHeight() + yGap;
+
+		rotationVelocityMin = new UserInputLine(inputX, currentOffset, halfWidth, lineHeight);
+		rotationVelocityMin.addInputChangedListener(new InputChangeListener()
+		{
+			@Override
+			public void onInputChanged()
+			{
+				if (!rotationVelocityMin.getInput().isEmpty())
+				{
+					wrapper.getEmitter().getRotationVelocity().setMinValue(Float.parseFloat(rotationVelocityMin.getInput()));
+					updateWrapper(wrapper, true);
+				}
+			}
+		});
+
+		rotationVelocityMax = new UserInputLine(inputX + halfWidth, currentOffset, halfWidth, lineHeight);
+		rotationVelocityMax.addInputChangedListener(new InputChangeListener()
+		{
+			@Override
+			public void onInputChanged()
+			{
+				if (!rotationVelocityMax.getInput().isEmpty())
+				{
+					wrapper.getEmitter().getRotationVelocity().setMaxValue(Float.parseFloat(rotationVelocityMax.getInput()));
+					updateWrapper(wrapper, true);
+				}
+			}
+		});
+
+		currentOffset += rotationVelocityMax.getHeight() + yGap;
+
+		growthFactorMin = new UserInputLine(inputX, currentOffset, halfWidth, lineHeight);
+		growthFactorMin.addInputChangedListener(new InputChangeListener()
+		{
+			@Override
+			public void onInputChanged()
+			{
+				if (!growthFactorMin.getInput().isEmpty())
+				{
+					wrapper.getEmitter().getGrowthFactor().setMinValue(((Integer.parseInt(growthFactorMin.getInput()))) / FACTOR_SCALE);
+					updateWrapper(wrapper, true);
+				}
+			}
+		});
+
+		growthFactorMax = new UserInputLine(inputX + halfWidth, currentOffset, halfWidth, lineHeight);
+		growthFactorMax.addInputChangedListener(new InputChangeListener()
+		{
+			@Override
+			public void onInputChanged()
+			{
+				if (!growthFactorMax.getInput().isEmpty())
+				{
+					wrapper.getEmitter().getGrowthFactor().setMaxValue(((Integer.parseInt(growthFactorMax.getInput()))) / FACTOR_SCALE);
+					updateWrapper(wrapper, true);
+				}
+			}
+		});
+
+		currentOffset += growthFactorMax.getHeight() + yGap;
+
+		gravityFactorMin = new UserInputLine(inputX, currentOffset, halfWidth, lineHeight);
+		gravityFactorMin.addInputChangedListener(new InputChangeListener()
+		{
+			@Override
+			public void onInputChanged()
+			{
+				if (!gravityFactorMin.getInput().isEmpty())
+				{
+					wrapper.getEmitter().getGravityFactor().setMinValue(((Integer.parseInt(gravityFactorMin.getInput()))) / (FACTOR_SCALE * 50.0f));
+					updateWrapper(wrapper, true);
+				}
+			}
+		});
+
+		gravityFactorMax = new UserInputLine(inputX + halfWidth, currentOffset, halfWidth, lineHeight);
+		gravityFactorMax.addInputChangedListener(new InputChangeListener()
+		{
+			@Override
+			public void onInputChanged()
+			{
+				if (!gravityFactorMax.getInput().isEmpty())
+				{
+					wrapper.getEmitter().getGravityFactor().setMaxValue(((Integer.parseInt(gravityFactorMax.getInput()))) / (FACTOR_SCALE * 50.0f));
+					updateWrapper(wrapper, true);
+				}
+			}
+		});
+
+		currentOffset += gravityFactorMax.getHeight() + yGap;
+
+		windFactorMin = new UserInputLine(inputX, currentOffset, halfWidth, lineHeight);
+		windFactorMin.addInputChangedListener(new InputChangeListener()
+		{
+			@Override
+			public void onInputChanged()
+			{
+				if (!windFactorMin.getInput().isEmpty())
+				{
+					wrapper.getEmitter().getWindFactor().setMinValue(((Integer.parseInt(windFactorMin.getInput()))) / (FACTOR_SCALE * 50.0f));
+					updateWrapper(wrapper, true);
+				}
+			}
+		});
+
+		windFactorMax = new UserInputLine(inputX + halfWidth, currentOffset, halfWidth, lineHeight);
+		windFactorMax.addInputChangedListener(new InputChangeListener()
+		{
+			@Override
+			public void onInputChanged()
+			{
+				if (!windFactorMax.getInput().isEmpty())
+				{
+					wrapper.getEmitter().getWindFactor().setMaxValue(((Integer.parseInt(windFactorMax.getInput()))) / (FACTOR_SCALE * 50.0f));
+					updateWrapper(wrapper, true);
+				}
+			}
+		});
+
+		currentOffset += windFactorMax.getHeight() + yGap;
+
+		targetAlphaMin = new UserInputLine(inputX, currentOffset, halfWidth, lineHeight);
+		targetAlphaMin.addInputChangedListener(new InputChangeListener()
+		{
+			@Override
+			public void onInputChanged()
+			{
+				if (!targetAlphaMin.getInput().isEmpty())
+				{
+					wrapper.getEmitter().getStartAlpha().setMinValue(Integer.parseInt(targetAlphaMin.getInput()));
+					reSelectColors(wrapper);
+					updateWrapper(wrapper, true);
+				}
+			}
+		});
+
+		targetAlphaMax = new UserInputLine(inputX + halfWidth, currentOffset, halfWidth, lineHeight);
+		targetAlphaMax.addInputChangedListener(new InputChangeListener()
+		{
+			@Override
+			public void onInputChanged()
+			{
+				if (!targetAlphaMax.getInput().isEmpty())
+				{
+					wrapper.getEmitter().getStartAlpha().setMaxValue(Integer.parseInt(targetAlphaMax.getInput()));
+					reSelectColors(wrapper);
+					updateWrapper(wrapper, false);
+				}
+			}
+		});
+
+		currentOffset += targetAlphaMax.getHeight() + yGap;
+
+		fadeInMin = new UserInputLine(inputX, currentOffset, halfWidth, lineHeight);
+		fadeInMin.addInputChangedListener(new InputChangeListener()
+		{
+			@Override
+			public void onInputChanged()
+			{
+				if (!fadeInMin.getInput().isEmpty())
+				{
+					wrapper.getEmitter().getFadeInTime().setMinValue(Integer.parseInt(fadeInMin.getInput()));
+					wrapper.getEmitter().setShouldFadeIn(wrapper.getEmitter().getFadeInTime().averageValue() > 0);
+					updateWrapper(wrapper, false);
+				}
+			}
+		});
+
+		fadeInMax = new UserInputLine(inputX + halfWidth, currentOffset, halfWidth, lineHeight);
+		fadeInMax.addInputChangedListener(new InputChangeListener()
+		{
+			@Override
+			public void onInputChanged()
+			{
+				if (!fadeInMax.getInput().isEmpty())
+				{
+					wrapper.getEmitter().getFadeInTime().setMaxValue(Integer.parseInt(fadeInMax.getInput()));
+					wrapper.getEmitter().setShouldFadeIn(wrapper.getEmitter().getFadeInTime().averageValue() > 0);
+					updateWrapper(wrapper, false);
+				}
+			}
+		});
+
+		currentOffset += fadeInMin.getHeight() + yGap;
+
+		fadeOutMin = new UserInputLine(inputX, currentOffset, halfWidth, lineHeight);
+		fadeOutMin.addInputChangedListener(new InputChangeListener()
+		{
+			@Override
+			public void onInputChanged()
+			{
+				if (!fadeOutMin.getInput().isEmpty())
+				{
+					wrapper.getEmitter().getFadeOutTime().setMinValue(Integer.parseInt(fadeOutMin.getInput()));
+					wrapper.getEmitter().setShouldFadeOut(wrapper.getEmitter().getFadeOutTime().averageValue() > 0);
+					updateWrapper(wrapper, true);
+				}
+			}
+		});
+
+		fadeOutMax = new UserInputLine(inputX + halfWidth, currentOffset, halfWidth, lineHeight);
+		fadeOutMax.addInputChangedListener(new InputChangeListener()
+		{
+			@Override
+			public void onInputChanged()
+			{
+				if (!fadeOutMax.getInput().isEmpty())
+				{
+					wrapper.getEmitter().getFadeOutTime().setMaxValue(Integer.parseInt(fadeOutMax.getInput()));
+					wrapper.getEmitter().setShouldFadeOut(wrapper.getEmitter().getFadeOutTime().averageValue() > 0);
+					updateWrapper(wrapper, true);
+				}
+			}
+		});
+
+		currentOffset += fadeOutMax.getHeight() + yGap;
+
+		startColor = new ColorPicker("Emitter Start Color", 1920 / 2 - 400, 1080 / 2 - 200, 0, 0);
+		startColor.addColorPickerListener(new ColorPickerListener()
+		{
+			@Override
+			public void colorChanged(Color newColor)
+			{
+				wrapper.setMainTint(newColor);
+				updateWrapper(wrapper, false);
+				reSelectColors(wrapper);
+			}
+		});
+
+		lineHeight *= 1.5f;
+
+		startColorButton = new Button("", inputX, currentOffset, inputWidth / 2, lineHeight)
+		{
+			@Override
+			public void onClick()
+			{
+				startColor.init(wrapper.getStartEmitterTint());
+				startColor.enable();
+			}
+		};
+
+		endColor = new ColorPicker("Emitter End Color", 1920 / 2, 1080 / 2 - 200, 0, 0);
+		endColor.addColorPickerListener(new ColorPickerListener()
+		{
+			@Override
+			public void colorChanged(Color newColor)
+			{
+				wrapper.setEndTint(newColor);
+				updateWrapper(wrapper, false);
+				reSelectColors(wrapper);
+			}
+		});
+
+		endColorButton = new Button("", inputX + inputWidth / 2, currentOffset, inputWidth / 2, lineHeight)
+		{
+			@Override
+			public void onClick()
+			{
+				endColor.init(wrapper.getEndEmitterTint());
+				endColor.enable();
+			}
+		};
+
+		currentOffset += endColorButton.getHeight() + yGap;
+
+		addColor = new ColorPicker("Emitter Add Color", 1920 / 2, 1080 / 2 - 200, 0, 0);
+		addColor.addColorPickerListener(new ColorPickerListener()
+		{
+			@Override
+			public void colorChanged(Color newColor)
+			{
+				wrapper.setAddTint(newColor);
+				updateWrapper(wrapper, false);
+			}
+		});
+
+		addColorButton = new Button("", inputX, currentOffset, inputWidth, lineHeight)
+		{
+			@Override
+			public void onClick()
+			{
+				addColor.init(wrapper.getAddEmitterTint());
+				addColor.enable();
+			}
+		};
+
+		currentOffset += addColorButton.getHeight() + yGap;
+
+		lineHeight /= 1.5f;
+
+		colorDistrModeButton = new Button("", inputX, currentOffset, inputWidth, lineHeight)
+		{
+			@Override
+			public void onClick()
+			{
+				wrapper.setColorDistributionMode(wrapper.getColorDistributionMode().next());
+				colorDistrModeButton.setText(wrapper.getColorDistributionMode().name());
+
+				reSelectColors(wrapper);
+			}
+		};
+
+		currentOffset += colorDistrModeButton.getHeight() + 15;
+
+		saveAsTemplate = new UserInputLine(inputX, currentOffset, inputWidth, lineHeight);
+		saveAsTemplate.addInputChangedListener(new InputChangeListener()
+		{
+			@Override
+			public void onInputChanged()
+			{
+				if (!saveAsTemplate.getInput().isEmpty())
+				{
+					saveAsTemplate.setInput(saveAsTemplate.getInput().replaceAll("\\s", ""));
+				}
+			}
+		});
+		currentOffset += saveAsTemplate.getHeight();
+
+		this.setHeight(currentOffset);
+	}
+
+	public void updateWrapper(WrapperTexture wrapper, boolean reSimulate)
+	{
+		wrapper.getEmitter().initMirror();
+
+		if (reSimulate)
+		{
+			if (wrapper.getEmitter().hasLimitedLifetime())
+			{
+				wrapper.getEmitter().restart();
+
+				if (wrapper.getEmitter().hasMirror())
+				{
+					wrapper.getEmitter().getMirroredEmitter().restart();
+				}
+			}
+			else
+			{
+				wrapper.getLevel().getParticleSystem().simulateEmitter(wrapper.getEmitter(), 60000, 150);
+
+				if (wrapper.getEmitter().hasMirror())
+				{
+					wrapper.getLevel().getParticleSystem().simulateEmitter(wrapper.getEmitter().getMirroredEmitter(), 60000, 150);
+				}
+			}
+		}
+	}
+
+	public void reSelectColors(WrapperTexture wrapper)
+	{
+		wrapper.getLevel().getParticleSystem().reSelectColors(wrapper.getEmitter());
+
+		if (wrapper.getEmitter().hasMirror())
+		{
+			wrapper.getLevel().getParticleSystem().reSelectColors(wrapper.getEmitter().getMirroredEmitter());
+		}
+	}
+
+	public void init(WrapperTexture wrapper)
+	{
+		this.wrapper = wrapper;
+
+		if (wrapper != null)
+		{
+			ParticleEmitterImpl emitter = wrapper.getEmitter();
+
+			this.title = "Particle Settings";
+
+			limitToWrapper.setActive(true);
+			limitToWrapper.setChecked(emitter.limittedToWrapper());
+
+			circularEmitter.setActive(true);
+			circularEmitter.setChecked(wrapper.getEmitter().isCircularEmitter());
+
+			relativeAccelerations.setActive(true);
+			relativeAccelerations.setChecked(wrapper.getEmitter().isRotateAccelerations());
+
+			limitedLifetime.setActive(true);
+			limitedLifetime.setChecked(wrapper.getEmitter().hasLimitedLifetime());
+
+			scaleWithWidth.setActive(true);
+			scaleWithWidth.setChecked(wrapper.getEmitter().isScaleWithWidth());
+
+			scaleWithHeight.setActive(true);
+			scaleWithHeight.setChecked(wrapper.getEmitter().isScaleWithHeight());
+
+			scissorUp.setActive(true);
+			scissorUp.setChecked(wrapper.getEmitter().shouldScissor(ParticleEmitter.UP));
+
+			scissorDown.setActive(true);
+			scissorDown.setChecked(wrapper.getEmitter().shouldScissor(ParticleEmitter.DOWN));
+
+			scissorLeft.setActive(true);
+			scissorLeft.setChecked(wrapper.getEmitter().shouldScissor(ParticleEmitter.LEFT));
+
+			scissorRight.setActive(true);
+			scissorRight.setChecked(wrapper.getEmitter().shouldScissor(ParticleEmitter.RIGHT));
+
+			maxOutParticles.setActive(true);
+			maxOutParticles.setChecked(wrapper.getEmitter().isMaxOutParticles());
+
+			shouldBounceOutOfArea.setActive(true);
+			shouldBounceOutOfArea.setChecked(emitter.shouldBounceOutOfArea());
+
+			simpleName.setActive(true);
+			simpleName.setInput(wrapper.getSimpleName());
+
+			depth.setActive(true);
+			depth.setInput(wrapper.getDepth() + "");
+
+			parallax.setActive(true);
+			parallax.setInput(wrapper.getEmitterParallax() + "");
+
+			rotation.setActive(true);
+			rotation.setInput(wrapper.getRotation() + "");
+
+			maxParticles.setActive(true);
+			maxParticles.setInput(wrapper.getMaxParticles() + "");
+
+			emitterLifetime.setActive(true);
+			emitterLifetime.setInput(wrapper.getEmitter().getLifeTime() + "");
+
+			spawnIntervalMin.setActive(true);
+			spawnIntervalMin.setInput(emitter.getSpawnInterval().minValue() + "");
+			spawnIntervalMax.setActive(true);
+			spawnIntervalMax.setInput(emitter.getSpawnInterval().maxValue() + "");
+
+			spawnCountMin.setActive(true);
+			spawnCountMin.setInput(emitter.getSpawnCount().minValue() + "");
+			spawnCountMax.setActive(true);
+			spawnCountMax.setInput(emitter.getSpawnCount().maxValue() + "");
+
+			initialLifeMin.setActive(true);
+			initialLifeMin.setInput(emitter.getInitialLife().minValue() + "");
+			initialLifeMax.setActive(true);
+			initialLifeMax.setInput(emitter.getInitialLife().maxValue() + "");
+
+			initialSizeMin.setActive(true);
+			initialSizeMin.setInput(emitter.getInitialSize().minValue() + "");
+			initialSizeMax.setActive(true);
+			initialSizeMax.setInput(emitter.getInitialSize().maxValue() + "");
+
+			xOffsetMin.setActive(true);
+			xOffsetMin.setInput(emitter.getXOffset().minValue() + "");
+			xOffsetMax.setActive(true);
+			xOffsetMax.setInput(emitter.getXOffset().maxValue() + "");
+
+			yOffsetMin.setActive(true);
+			yOffsetMin.setInput(emitter.getYOffset().minValue() + "");
+			yOffsetMax.setActive(true);
+			yOffsetMax.setInput(emitter.getYOffset().maxValue() + "");
+
+			velocityXMin.setActive(true);
+			velocityXMin.setInput(((int) (emitter.getVelocityX().minValue() * FACTOR_SCALE)) + "");
+			velocityXMax.setActive(true);
+			velocityXMax.setInput(((int) (emitter.getVelocityX().maxValue() * FACTOR_SCALE)) + "");
+
+			velocityYMin.setActive(true);
+			velocityYMin.setInput(((int) (emitter.getVelocityY().minValue() * FACTOR_SCALE)) + "");
+			velocityYMax.setActive(true);
+			velocityYMax.setInput(((int) (emitter.getVelocityY().maxValue() * FACTOR_SCALE)) + "");
+
+			fadeInMin.setActive(true);
+			fadeInMin.setInput(emitter.getFadeInTime().minValue() + "");
+			fadeInMax.setActive(true);
+			fadeInMax.setInput(emitter.getFadeInTime().maxValue() + "");
+
+			fadeOutMin.setActive(true);
+			fadeOutMin.setInput(emitter.getFadeOutTime().minValue() + "");
+			fadeOutMax.setActive(true);
+			fadeOutMax.setInput(emitter.getFadeOutTime().maxValue() + "");
+
+			startRotationMin.setActive(true);
+			startRotationMin.setInput(emitter.getStartRotation().minValue() + "");
+			startRotationMax.setActive(true);
+			startRotationMax.setInput(emitter.getStartRotation().maxValue() + "");
+
+			rotationVelocityMin.setActive(true);
+			rotationVelocityMin.setInput(emitter.getRotationVelocity().minValue() + "");
+			rotationVelocityMax.setActive(true);
+			rotationVelocityMax.setInput(emitter.getRotationVelocity().maxValue() + "");
+
+			growthFactorMin.setActive(true);
+			growthFactorMin.setInput(((int) (emitter.getGrowthFactor().minValue() * FACTOR_SCALE)) + "");
+			growthFactorMax.setActive(true);
+			growthFactorMax.setInput(((int) (emitter.getGrowthFactor().maxValue() * FACTOR_SCALE)) + "");
+
+			gravityFactorMin.setActive(true);
+			gravityFactorMin.setInput(((int) (emitter.getGravityFactor().minValue() * (FACTOR_SCALE * 50.0f))) + "");
+			gravityFactorMax.setActive(true);
+			gravityFactorMax.setInput(((int) (emitter.getGravityFactor().maxValue() * (FACTOR_SCALE * 50.0f))) + "");
+
+			windFactorMin.setActive(true);
+			windFactorMin.setInput(((int) (emitter.getWindFactor().minValue() * (FACTOR_SCALE * 50.0f))) + "");
+			windFactorMax.setActive(true);
+			windFactorMax.setInput(((int) (emitter.getWindFactor().maxValue() * (FACTOR_SCALE * 50.0f))) + "");
+
+			targetAlphaMin.setActive(true);
+			targetAlphaMin.setInput(emitter.getStartAlpha().minValue() + "");
+			targetAlphaMax.setActive(true);
+			targetAlphaMax.setInput(emitter.getStartAlpha().maxValue() + "");
+
+			startColor.init(wrapper.getStartEmitterTint());
+			endColor.init(wrapper.getEndEmitterTint());
+			addColor.init(wrapper.getAddEmitterTint());
+			colorDistrModeButton.setText(wrapper.getColorDistributionMode().name());
+
+			saveAsTemplate.setActive(true);
+
+			if (wrapper.getTemplateName() != null && !wrapper.getTemplateName().isEmpty())
+			{
+				saveAsTemplate.setInput(wrapper.getTemplateName());
+			}
+			else
+			{
+				saveAsTemplate.setInput("");
+			}
+
+			setActive(true);
+		}
+		else
+		{
+			setActive(false);
+		}
+	}
+
+	@Override
+	public void customUpdate(int delta)
+	{
+		limitToWrapper.update(delta);
+		circularEmitter.update(delta);
+		relativeAccelerations.update(delta);
+		limitedLifetime.update(delta);
+		shouldBounceOutOfArea.update(delta);
+		scaleWithWidth.update(delta);
+		scaleWithHeight.update(delta);
+		scissorUp.update(delta);
+		scissorDown.update(delta);
+		scissorLeft.update(delta);
+		scissorRight.update(delta);
+		maxOutParticles.update(delta);
+
+		simpleName.update(delta);
+		depth.update(delta);
+		parallax.update(delta);
+		rotation.update(delta);
+		maxParticles.update(delta);
+		emitterLifetime.update(delta);
+
+		spawnIntervalMin.update(delta);
+		spawnIntervalMax.update(delta);
+		spawnCountMin.update(delta);
+		spawnCountMax.update(delta);
+
+		initialLifeMin.update(delta);
+		initialLifeMax.update(delta);
+		initialSizeMin.update(delta);
+		initialSizeMax.update(delta);
+
+		xOffsetMin.update(delta);
+		xOffsetMax.update(delta);
+		yOffsetMin.update(delta);
+		yOffsetMax.update(delta);
+
+		velocityXMin.update(delta);
+		velocityXMax.update(delta);
+		velocityYMin.update(delta);
+		velocityYMax.update(delta);
+
+		fadeInMin.update(delta);
+		fadeInMax.update(delta);
+		fadeOutMin.update(delta);
+		fadeOutMax.update(delta);
+
+		startRotationMin.update(delta);
+		startRotationMax.update(delta);
+
+		rotationVelocityMin.update(delta);
+		rotationVelocityMax.update(delta);
+
+		growthFactorMin.update(delta);
+		growthFactorMax.update(delta);
+
+		gravityFactorMin.update(delta);
+		gravityFactorMax.update(delta);
+
+		windFactorMin.update(delta);
+		windFactorMax.update(delta);
+
+		targetAlphaMin.update(delta);
+		targetAlphaMax.update(delta);
+
+		startColor.update(delta);
+		startColorButton.update(delta);
+
+		Color colorValue = new Color(wrapper.getStartEmitterTint());
+		colorValue.a = 1.0f;
+
+		startColorButton.setFillColor(colorValue);
+		startColorButton.setHoverColor(colorValue);
+
+		endColor.update(delta);
+		endColorButton.update(delta);
+
+		colorValue = new Color(wrapper.getEndEmitterTint());
+		colorValue.a = 1.0f;
+
+		endColorButton.setFillColor(colorValue);
+		endColorButton.setHoverColor(colorValue);
+
+		addColor.update(delta);
+		addColorButton.update(delta);
+
+		addColorButton.setFillColor(wrapper.getAddEmitterTint());
+		addColorButton.setHoverColor(wrapper.getAddEmitterTint());
+
+		colorDistrModeButton.update(delta);
+		saveAsTemplate.update(delta);
+
+		if (Gdx.input.isKeyJustPressed(Input.Keys.ENTER))
+		{
+			if (saveAsTemplate.isFocused())
+			{
+				String name = saveAsTemplate.getInput();
+
+				if (!name.isEmpty())
+				{
+					Debug.log("Saving selected emitter as \"" + name + "\" in \"" + FilePaths.EMITTER_TEMPLATES + "\" ...");
+
+					wrapper.setTemplateName(name);
+					ImportWrapperPanel.addTemplateEmitter(name, wrapper);
+
+					Debug.log("Saved selected emitter as \"" + name + "\" in \"" + FilePaths.EMITTER_TEMPLATES + "\".");
+					MenuHandler.displaySavedMessage("\"" + name + "\"", 500);
+					EmitterType.reloadAllTemplates();
+				}
+			}
+		}
+	}
+
+	@Override
+	public void customRender(float alphaFactor, Batch batch)
+	{
+		float maxedOutIgnoreAlpha = alphaFactor * 0.5f;
+		boolean maxedOut = wrapper.getEmitter().isMaxOutParticles();
+
+		limitToWrapper.render(alphaFactor, batch);
+		circularEmitter.render(alphaFactor, batch);
+		relativeAccelerations.render(alphaFactor, batch);
+		limitedLifetime.render(alphaFactor, batch);
+		shouldBounceOutOfArea.render(alphaFactor, batch);
+		scaleWithWidth.render(alphaFactor, batch);
+		scaleWithHeight.render(alphaFactor, batch);
+		scissorUp.render(alphaFactor, batch);
+		scissorDown.render(alphaFactor, batch);
+		scissorLeft.render(alphaFactor, batch);
+		scissorRight.render(alphaFactor, batch);
+		maxOutParticles.render(alphaFactor, batch);
+
+		simpleName.render(alphaFactor, batch);
+		depth.render(alphaFactor, batch);
+		parallax.render(alphaFactor, batch);
+		rotation.render(alphaFactor, batch);
+		maxParticles.render(alphaFactor, batch);
+		emitterLifetime.render(alphaFactor, batch);
+
+		spawnIntervalMin.render(maxedOut ? maxedOutIgnoreAlpha : alphaFactor, batch);
+		spawnIntervalMax.render(maxedOut ? maxedOutIgnoreAlpha : alphaFactor, batch);
+		spawnCountMin.render(maxedOut ? maxedOutIgnoreAlpha : alphaFactor, batch);
+		spawnCountMax.render(maxedOut ? maxedOutIgnoreAlpha : alphaFactor, batch);
+
+		initialLifeMin.render(alphaFactor, batch);
+		initialLifeMax.render(alphaFactor, batch);
+		initialSizeMin.render(alphaFactor, batch);
+		initialSizeMax.render(alphaFactor, batch);
+
+		xOffsetMin.render(alphaFactor, batch);
+		xOffsetMax.render(alphaFactor, batch);
+		yOffsetMin.render(alphaFactor, batch);
+		yOffsetMax.render(alphaFactor, batch);
+
+		velocityXMin.render(alphaFactor, batch);
+		velocityXMax.render(alphaFactor, batch);
+		velocityYMin.render(alphaFactor, batch);
+		velocityYMax.render(alphaFactor, batch);
+
+		fadeInMin.render(alphaFactor, batch);
+		fadeInMax.render(alphaFactor, batch);
+		fadeOutMin.render(alphaFactor, batch);
+		fadeOutMax.render(alphaFactor, batch);
+
+		startRotationMin.render(alphaFactor, batch);
+		startRotationMax.render(alphaFactor, batch);
+
+		rotationVelocityMin.render(alphaFactor, batch);
+		rotationVelocityMax.render(alphaFactor, batch);
+
+		growthFactorMin.render(alphaFactor, batch);
+		growthFactorMax.render(alphaFactor, batch);
+
+		gravityFactorMin.render(alphaFactor, batch);
+		gravityFactorMax.render(alphaFactor, batch);
+
+		windFactorMin.render(alphaFactor, batch);
+		windFactorMax.render(alphaFactor, batch);
+
+		targetAlphaMin.render(alphaFactor, batch);
+		targetAlphaMax.render(alphaFactor, batch);
+
+		saveAsTemplate.render(alphaFactor, batch);
+
+		ShaderHandler.disableLighting();
+		
+		Renderer.setFont(Fonts.getSmallFont());
+
+		Renderer.drawString("Name", xOffset + 5, simpleName.getCenterY() - Renderer.getLineHeight() / 2, batch);
+		Renderer.drawString("Depth", xOffset + 5, depth.getCenterY() - Renderer.getLineHeight() / 2, batch);
+		Renderer.drawString("Parallax", xOffset + 5, parallax.getCenterY() - Renderer.getLineHeight() / 2, batch);
+		Renderer.drawString("Rotation", xOffset + 5, rotation.getCenterY() - Renderer.getLineHeight() / 2, batch);
+		Renderer.drawString("Particles", xOffset + 5, maxParticles.getCenterY() - Renderer.getLineHeight() / 2, batch);
+		Renderer.drawString("Emitter Lifetime", xOffset + 5, emitterLifetime.getCenterY() - Renderer.getLineHeight() / 2, batch);
+		Renderer.drawString("Limit / Bounce", xOffset + 5, limitToWrapper.getCenterY() - Renderer.getLineHeight() / 2, batch);
+		Renderer.drawString("AutoScale W / H", xOffset + 5, scaleWithHeight.getCenterY() - Renderer.getLineHeight() / 2, batch);
+		Renderer.drawString("Scissor T / B | L | R", xOffset + 5, scissorUp.getCenterY() - Renderer.getLineHeight() / 2, batch);
+		Renderer.drawString("MaxOutParticles", xOffset + 5, maxOutParticles.getCenterY() - Renderer.getLineHeight() / 2, batch);
+		Renderer.drawString("Circular Emitter", xOffset + 5, circularEmitter.getCenterY() - Renderer.getLineHeight() / 2, batch);
+		Renderer.drawString("Relative Accelerations", xOffset + 5, relativeAccelerations.getCenterY() - Renderer.getLineHeight() / 2, batch);
+		Renderer.drawString("Limited Lifetime", xOffset + 5, limitedLifetime.getCenterY() - Renderer.getLineHeight() / 2, batch);
+		Renderer.drawString("Spawn Interval", xOffset + 5, spawnIntervalMin.getCenterY() - Renderer.getLineHeight() / 2, batch);
+		Renderer.drawString("Spawn Count", xOffset + 5, spawnCountMin.getCenterY() - Renderer.getLineHeight() / 2, batch);
+		Renderer.drawString("Particle Lifetime", xOffset + 5, initialLifeMin.getCenterY() - Renderer.getLineHeight() / 2, batch);
+		Renderer.drawString("Particle Size", xOffset + 5, initialSizeMin.getCenterY() - Renderer.getLineHeight() / 2, batch);
+		Renderer.drawString("xOffset", xOffset + 5, xOffsetMin.getCenterY() - Renderer.getLineHeight() / 2, batch);
+		Renderer.drawString("yOffset", xOffset + 5, yOffsetMin.getCenterY() - Renderer.getLineHeight() / 2, batch);
+		Renderer.drawString("Velocity X", xOffset + 5, velocityXMin.getCenterY() - Renderer.getLineHeight() / 2, batch);
+		Renderer.drawString("Velocity Y", xOffset + 5, velocityYMin.getCenterY() - Renderer.getLineHeight() / 2, batch);
+		Renderer.drawString("Fade-In Time", xOffset + 5, fadeInMin.getCenterY() - Renderer.getLineHeight() / 2, batch);
+		Renderer.drawString("Fade-Out Time", xOffset + 5, fadeOutMin.getCenterY() - Renderer.getLineHeight() / 2, batch);
+		Renderer.drawString("Initial Rotation", xOffset + 5, startRotationMin.getCenterY() - Renderer.getLineHeight() / 2, batch);
+		Renderer.drawString("Rotation Speed", xOffset + 5, rotationVelocityMin.getCenterY() - Renderer.getLineHeight() / 2, batch);
+		Renderer.drawString("Growth", xOffset + 5, growthFactorMin.getCenterY() - Renderer.getLineHeight() / 2, batch);
+		Renderer.drawString("Gravity", xOffset + 5, gravityFactorMin.getCenterY() - Renderer.getLineHeight() / 2, batch);
+		Renderer.drawString("Wind", xOffset + 5, windFactorMin.getCenterY() - Renderer.getLineHeight() / 2, batch);
+		Renderer.drawString("Transparency", xOffset + 5, targetAlphaMin.getCenterY() - Renderer.getLineHeight() / 2, batch);
+		Renderer.drawString("Color Range", xOffset + 5, endColorButton.getCenterY() - Renderer.getLineHeight() / 2, batch);
+		Renderer.drawString("Color Distr.", xOffset + 5, colorDistrModeButton.getCenterY() - Renderer.getLineHeight() / 2, batch);
+		Renderer.drawString("Additive Color", xOffset + 5, addColorButton.getCenterY() - Renderer.getLineHeight() / 2, batch);
+		Renderer.drawString("Save template: ", xOffset + 5, saveAsTemplate.getCenterY() - Renderer.getLineHeight() / 2, batch);
+
+		String usageText = wrapper.getMaxParticles() > 0 ? String.format("Used Particles: %5d (%3d%%)", wrapper.getEmitter().getParticleCount(), ((wrapper.getEmitter().getParticleCount() * 100) / wrapper.getEmitter().getMaxParticles())) : null;
+
+		if (usageText != null)
+		{
+			Color usageColor = ColorHelper.buffer;
+
+			float factor = 1.0f - ((float) wrapper.getEmitter().getParticleCount()) / ((float) wrapper.getEmitter().getMaxParticles());
+
+			usageColor.r = (factor) * 2;
+			usageColor.g = (1.0f - factor) * 2;
+			usageColor.b = 0.0f;
+			usageColor.a = 0.5f;
+
+			ShapeRenderer sr = Renderer.useShapeRenderer();
+
+			sr.setColor(usageColor);
+			sr.set(ShapeType.Filled);
+			sr.rect(10, GameLauncher.getHeight() - Renderer.getLineHeight() - 10, Renderer.getWidth(usageText), Renderer.getLineHeight());
+
+			Renderer.useSpriteBatch();
+			batch.setColor(Color.WHITE);
+
+			Renderer.drawString(usageText, Fonts.getBoldDefaultFont(), 10, GameLauncher.getHeight() - Renderer.getLineHeight() - 10, batch);
+		}
+
+		spawnHitbox.set(wrapper.getX() + wrapper.getHitbox().getRawWidth() * wrapper.getEmitter().getXOffset().minValue(), wrapper.getY() + wrapper.getHitbox().getRawHeight() * wrapper.getEmitter().getYOffset().minValue(), wrapper.getHitbox().getRawWidth() * (wrapper.getEmitter().getXOffset().maxValue() - wrapper.getEmitter().getXOffset().minValue()), wrapper.getHitbox().getRawHeight() * (wrapper.getEmitter().getYOffset().maxValue() - wrapper.getEmitter().getYOffset().minValue()));
+		spawnHitbox.setRotation(wrapper.getRotation(), wrapper.getCenterOfRotationX() - spawnHitbox.getX(), wrapper.getCenterOfRotationY() - spawnHitbox.getY());
+
+		ShapeRenderer sr = Renderer.useShapeRenderer();
+
+		sr.setColor(ColorHelper.applyAlphaAndCopy(Color.GRAY, 0.1f));
+
+		sr.set(ShapeType.Filled);
+		sr.polygon(spawnHitbox.getPoints());
+
+		sr.set(ShapeType.Line);
+		sr.setColor(ColorHelper.applyAlphaAndCopy(Color.RED, 0.2f));
+		sr.polygon(spawnHitbox.getPoints());
+
+		startColor.render(1.0f, batch);
+		startColorButton.render(1.0f, batch);
+
+		Renderer.useShapeRenderer();
+		sr.setColor(Color.BLACK);
+		sr.set(ShapeType.Line);
+		sr.rect(startColorButton.getButtonBox().x, startColorButton.getButtonBox().y, startColorButton.getButtonBox().width, startColorButton.getButtonBox().height);
+
+		endColor.render(1.0f, batch);
+		endColorButton.render(1.0f, batch);
+
+		Renderer.useShapeRenderer();
+		sr.setColor(Color.BLACK);
+		sr.set(ShapeType.Line);
+		sr.rect(endColorButton.getButtonBox().x, endColorButton.getButtonBox().y, endColorButton.getButtonBox().width, endColorButton.getButtonBox().height);
+
+		addColor.render(1.0f, batch);
+		addColorButton.render(1.0f, batch);
+
+		Renderer.useShapeRenderer();
+		sr.setColor(Color.BLACK);
+		sr.set(ShapeType.Line);
+		sr.rect(addColorButton.getButtonBox().x, addColorButton.getButtonBox().y, addColorButton.getButtonBox().width, addColorButton.getButtonBox().height);
+
+		colorDistrModeButton.render(alphaFactor, batch);
+		
+		ShaderHandler.enableLighting();
+	}
+
+	@Override
+	public void onPositionUpdate(int xChange, int yChange)
+	{
+		limitToWrapper.adjust(xChange, yChange);
+		shouldBounceOutOfArea.adjust(xChange, yChange);
+		circularEmitter.adjust(xChange, yChange);
+		relativeAccelerations.adjust(xChange, yChange);
+		limitedLifetime.adjust(xChange, yChange);
+		scaleWithWidth.adjust(xChange, yChange);
+		scaleWithHeight.adjust(xChange, yChange);
+		scissorUp.adjust(xChange, yChange);
+		scissorDown.adjust(xChange, yChange);
+		scissorLeft.adjust(xChange, yChange);
+		scissorRight.adjust(xChange, yChange);
+		maxOutParticles.adjust(xChange, yChange);
+
+		simpleName.adjust(xChange, yChange);
+		depth.adjust(xChange, yChange);
+		parallax.adjust(xChange, yChange);
+		rotation.adjust(xChange, yChange);
+		maxParticles.adjust(xChange, yChange);
+		emitterLifetime.adjust(xChange, yChange);
+
+		spawnIntervalMin.adjust(xChange, yChange);
+		spawnIntervalMax.adjust(xChange, yChange);
+		spawnCountMin.adjust(xChange, yChange);
+		spawnCountMax.adjust(xChange, yChange);
+
+		initialLifeMin.adjust(xChange, yChange);
+		initialLifeMax.adjust(xChange, yChange);
+		initialSizeMin.adjust(xChange, yChange);
+		initialSizeMax.adjust(xChange, yChange);
+
+		xOffsetMin.adjust(xChange, yChange);
+		xOffsetMax.adjust(xChange, yChange);
+		yOffsetMin.adjust(xChange, yChange);
+		yOffsetMax.adjust(xChange, yChange);
+
+		velocityXMin.adjust(xChange, yChange);
+		velocityXMax.adjust(xChange, yChange);
+		velocityYMin.adjust(xChange, yChange);
+		velocityYMax.adjust(xChange, yChange);
+
+		fadeInMin.adjust(xChange, yChange);
+		fadeInMax.adjust(xChange, yChange);
+		fadeOutMin.adjust(xChange, yChange);
+		fadeOutMax.adjust(xChange, yChange);
+
+		startRotationMin.adjust(xChange, yChange);
+		startRotationMax.adjust(xChange, yChange);
+
+		rotationVelocityMin.adjust(xChange, yChange);
+		rotationVelocityMax.adjust(xChange, yChange);
+
+		growthFactorMin.adjust(xChange, yChange);
+		growthFactorMax.adjust(xChange, yChange);
+
+		gravityFactorMin.adjust(xChange, yChange);
+		gravityFactorMax.adjust(xChange, yChange);
+
+		windFactorMin.adjust(xChange, yChange);
+		windFactorMax.adjust(xChange, yChange);
+
+		targetAlphaMin.adjust(xChange, yChange);
+		targetAlphaMax.adjust(xChange, yChange);
+
+		startColorButton.adjust(xChange, yChange);
+		endColorButton.adjust(xChange, yChange);
+		addColorButton.adjust(xChange, yChange);
+		colorDistrModeButton.adjust(xChange, yChange);
+		saveAsTemplate.adjust(xChange, yChange);
+	}
+
+	@Override
+	protected void onClose()
+	{
+		super.onClose();
+
+		this.startColor.disable();
+		this.endColor.disable();
+		this.addColor.disable();
+	}
+
+	@Override
+	protected boolean subContains(float mouseX, float mouseY)
+	{
+		return super.subContains(mouseX, mouseY) || this.startColor.contains(mouseX, mouseY) || this.endColor.contains(mouseX, mouseY) || this.addColor.contains(mouseX, mouseY);
+	}
+
+	public boolean shouldLockInput()
+	{
+		return this.startColor.shouldLockInput() || this.endColor.shouldLockInput() || this.addColor.shouldLockInput() || this.simpleName.isFocused() || this.saveAsTemplate.isFocused();
+	}
+
+	public UserInputLine getRotation()
+	{
+		return rotation;
+	}
+
+	public WrapperTexture getWrapper()
+	{
+		return wrapper;
+	}
+}

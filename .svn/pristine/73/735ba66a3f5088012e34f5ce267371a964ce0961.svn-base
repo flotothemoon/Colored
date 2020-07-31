@@ -1,0 +1,18 @@
+package com.unlogical.colored.util;
+
+public enum GameStatus
+{
+	LOADING,
+	MAP_EDITOR,
+	IN_LEVEL,
+	
+	MAIN_MENU,
+	PAUSE_MENU,
+	SETTINGS_MENU,
+	MAP_CREATION_MENU,
+	MAP_EDITOR_MENU,
+	PLAY_MAP_SELECTION, 
+	SAVE_SLOT_MENU,
+	
+	CREDITS;
+}

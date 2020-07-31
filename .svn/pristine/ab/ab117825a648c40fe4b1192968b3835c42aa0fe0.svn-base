@@ -1,0 +1,144 @@
+package com.unlogical.colored.input;
+
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
+import java.util.ArrayList;
+import net.java.games.input.ControllerEnvironment;
+
+import org.lwjgl.input.Controller;
+import org.lwjgl.input.Controllers;
+
+import com.unlogical.colored.debug.Debug;
+
+public class ControllerFetcher extends Thread
+{
+	private static ControllerFetcher instance = new ControllerFetcher();
+	private static Constructor<ControllerEnvironment> environmentConstructor;
+
+	private Controller controller;
+
+	private boolean connected;
+	private static boolean checkConnection = true;
+
+	private ControllerFetcher()
+	{
+		instance = this;
+		this.setName("ctrl-fetch");
+	}
+
+	@Override
+	public synchronized void start()
+	{
+		this.setPriority(Thread.MIN_PRIORITY);
+		super.start();
+	}
+
+	public static synchronized ControllerFetcher get()
+	{
+		return instance;
+	}
+
+	public synchronized void onDisconnect()
+	{
+		connected = false;
+		controller = null;
+	}
+
+	public synchronized static void checkConnection()
+	{
+		checkConnection = true;
+	}
+
+	@SuppressWarnings({ "rawtypes", "unchecked" })
+	@Override
+	public void run()
+	{
+		try
+		{
+			Controllers.create();
+
+			Field defaultField = ControllerEnvironment.class.getDeclaredField("defaultEnvironment");
+			defaultField.setAccessible(true);
+
+			environmentConstructor = (Constructor<ControllerEnvironment>) Class.forName("net.java.games.input.DefaultControllerEnvironment").getDeclaredConstructors()[0];
+			environmentConstructor.setAccessible(true);
+
+			for (int i = 0; i < Controllers.getControllerCount(); i++)
+			{
+				Debug.log("Found \"" + Controllers.getController(i).getName() + "\".");
+
+				if (Controllers.getController(i).getAxisCount() >= 4 && Controllers.getController(i).getButtonCount() >= 7)
+				{
+					controller = Controllers.getController(i);
+					connected = true;
+
+					InputHandler.useController(controller);
+
+					Debug.log("Now using \"" + controller.getName() + "\".");
+				}
+			}
+
+			while (true)
+			{
+				if (connected)
+				{
+					Thread.sleep(200);
+				}
+				else
+				{
+					if (checkConnection)
+					{
+						long beforeTime = System.currentTimeMillis();
+
+						Field ctrlField = Controllers.class.getDeclaredField("controllers");
+						ctrlField.setAccessible(true);
+						((ArrayList) ctrlField.get(null)).clear();
+
+						Field countField = Controllers.class.getDeclaredField("controllerCount");
+						countField.setAccessible(true);
+						countField.set(null, 0);
+
+						Field createdField = Controllers.class.getDeclaredField("created");
+						createdField.setAccessible(true);
+						createdField.set(null, false);
+
+						defaultField.set(null, environmentConstructor.newInstance());
+
+						Controllers.create();
+
+						for (int i = 0; i < Controllers.getControllerCount(); i++)
+						{
+							Debug.log("Found \"" + Controllers.getController(i).getName() + "\".");
+
+							if (Controllers.getController(i).getAxisCount() >= 4 && Controllers.getController(i).getButtonCount() >= 7)
+							{
+								controller = Controllers.getController(i);
+								connected = true;
+
+								InputHandler.useController(controller);
+
+								Debug.log("Now using \"" + controller.getName() + "\".");
+
+								break;
+							}
+						}
+
+						Debug.log("Searched for available controllers, took " + (System.currentTimeMillis() - beforeTime) + "ms.");
+
+						checkConnection = false;
+					}
+
+					if (!connected)
+					{
+						// TODO
+						Thread.sleep(50);
+					}
+				}
+			}
+		}
+		catch (Throwable e)
+		{
+			Debug.log("Error while fetching controllers", e);
+		}
+	}
+}

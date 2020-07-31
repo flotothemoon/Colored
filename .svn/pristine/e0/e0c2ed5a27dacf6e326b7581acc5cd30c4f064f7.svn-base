@@ -1,0 +1,236 @@
+package com.unlogical.linked.terrain.tile;
+
+import org.newdawn.slick.geom.Vector2f;
+
+import com.unlogical.linked.GameLauncher;
+import com.unlogical.linked.entity.player.EntityPlayer;
+import com.unlogical.linked.gui.HintProperties;
+import com.unlogical.linked.level.Level;
+import com.unlogical.linked.levelrendering.LevelRenderer;
+import com.unlogical.linked.resources.image.Images;
+import com.unlogical.linked.resources.image.Images.HintIdentifier;
+import com.unlogical.linked.terrain.TileType;
+import com.unlogical.linked.terrain.property.TileProperty;
+import com.unlogical.linked.terrain.tile.properties.ITileInteractable;
+import com.unlogical.linked.util.Dimension;
+
+public class TileDoor extends Tile implements ITileInteractable
+{
+	private static final int MAX_INTERACTION_DISTANCE = 20;
+	private static int entryDoorID;
+
+	private static boolean findStart;
+	private static boolean opened;
+	private static String openedNextLevelID;
+
+	private boolean levelStart;
+	private boolean levelExit;
+	private int doorID;
+
+	private String nextLevelID;
+	private boolean leadsToStart;
+	private int otherDoorID;
+
+	public TileDoor(TileType type, String metadata, int innerType, float rotation, Vector2f position, Level level, Dimension dimension, TileProperty properties, boolean allowMirrors)
+	{
+		super(type, metadata, innerType, rotation, position, level, dimension, properties, allowMirrors);
+	}
+
+	private void findDoorID()
+	{
+		int maxID = 0;
+
+		for (Tile door : level.getTiles())
+		{
+			if (door.getDimension() == Dimension.LIGHT && door instanceof TileDoor)
+			{
+				if (((TileDoor) door).getDoorID() > maxID)
+				{
+					maxID = ((TileDoor) door).getDoorID();
+				}
+			}
+		}
+
+		this.setDoorID(maxID + 1);
+	}
+
+	@Override
+	public void onCreated()
+	{
+		findDoorID();
+	}
+
+	@Override
+	public void onInteract(EntityPlayer interactor)
+	{
+		findStart = this.leadsToStart;
+		entryDoorID = this.otherDoorID;
+
+		opened = true;
+		openedNextLevelID = this.nextLevelID;
+	}
+
+	public static void postUpdate()
+	{
+		if (opened)
+		{
+			opened = false;
+
+			LevelRenderer.initMap(Level.getMapPathByID(openedNextLevelID), true);
+		}
+	}
+
+	public static TileDoor getStart()
+	{
+		for (Tile tile : GameLauncher.getLevelContext().getTiles())
+		{
+			if (tile.getDimension() == Dimension.LIGHT && tile instanceof TileDoor)
+			{
+				if (findStart)
+				{
+					if (((TileDoor) tile).isLevelStart())
+					{
+						return (TileDoor) tile;
+					}
+				}
+				else if (entryDoorID == ((TileDoor) tile).getDoorID())
+				{
+					return (TileDoor) tile;
+				}
+			}
+		}
+
+		return null;
+	}
+
+	@Override
+	public boolean canInteract(EntityPlayer interactor)
+	{
+		return interactor.getDimension() == level.getForegroundDimension() && levelExit && interactor.isOnGround() && interactor.getHitbox().getMinY() > this.hitbox.getMinY() && this.hitbox.getMinX() - interactor.getHitbox().getMinX() < MAX_INTERACTION_DISTANCE && interactor.getHitbox().getMaxX() - this.hitbox.getMaxX() < MAX_INTERACTION_DISTANCE && (interactor.getHitbox().intersects(this.hitbox) || this.hitbox.contains(interactor.getHitbox()));
+	}
+
+	@Override
+	public void writeMetadata()
+	{
+		this.metadata = this.levelStart + ":" + this.levelExit + ":" + this.doorID + ":" + this.nextLevelID + ":" + this.otherDoorID + ":" + this.leadsToStart;
+	}
+
+	@Override
+	public void readMetadata()
+	{
+		String[] metadata = this.metadata.split(":");
+
+		try
+		{
+			this.levelStart = Boolean.parseBoolean(metadata[0]);
+			this.levelExit = Boolean.parseBoolean(metadata[1]);
+			this.doorID = Integer.parseInt(metadata[2]);
+			this.nextLevelID = metadata[3];
+			this.otherDoorID = Integer.parseInt(metadata[4]);
+			this.leadsToStart = Boolean.parseBoolean(metadata[5]);
+		}
+		catch (Exception e)
+		{
+		}
+	}
+
+	@Override
+	public boolean shouldUpdate()
+	{
+		return false;
+	}
+
+	@Override
+	public boolean renderStatic()
+	{
+		return true;
+	}
+
+	@Override
+	public HintIdentifier getHintIdentifier()
+	{
+		return Images.HintIdentifier.DOOR_HINT;
+	}
+
+	@Override
+	public HintProperties getHintProperties()
+	{
+		return HintProperties.DEFAULT_PROPERTIES;
+	}
+
+	@Override
+	public boolean isReallyChangeable()
+	{
+		return true;
+	}
+
+	public boolean isLevelStart()
+	{
+		return levelStart;
+	}
+
+	public void setLevelStart(boolean levelStart)
+	{
+		this.levelStart = levelStart;
+	}
+
+	public boolean isLevelExit()
+	{
+		return levelExit;
+	}
+
+	public void setLevelExit(boolean levelExit)
+	{
+		this.levelExit = levelExit;
+	}
+
+	public int getDoorID()
+	{
+		return doorID;
+	}
+
+	public void setDoorID(int doorID)
+	{
+		this.doorID = doorID;
+	}
+
+	public String getNextLevelID()
+	{
+		return nextLevelID;
+	}
+
+	public void setNextLevelID(String nextLevelID)
+	{
+		this.nextLevelID = nextLevelID;
+	}
+
+	public boolean isLeadsToStart()
+	{
+		return leadsToStart;
+	}
+
+	public void setLeadsToStart(boolean leadsToStart)
+	{
+		this.leadsToStart = leadsToStart;
+	}
+
+	public int getOtherDoorID()
+	{
+		return otherDoorID;
+	}
+
+	public void setOtherDoorID(int otherDoorID)
+	{
+		this.otherDoorID = otherDoorID;
+	}
+
+	public static boolean shouldFindStart()
+	{
+		return findStart;
+	}
+
+	public static int getEntryDoorID()
+	{
+		return entryDoorID;
+	}
+}

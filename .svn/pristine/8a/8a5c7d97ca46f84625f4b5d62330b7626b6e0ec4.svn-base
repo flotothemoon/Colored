@@ -1,0 +1,202 @@
+package com.unlogical.colored.gui;
+
+import org.newdawn.slick.Color;
+import org.newdawn.slick.Graphics;
+import org.newdawn.slick.Image;
+import org.newdawn.slick.geom.Vector2f;
+
+import com.unlogical.colored.GameLauncher;
+import com.unlogical.colored.util.ColorHelper;
+
+public class ItemOverlay
+{
+	private boolean fadingIn;
+	private boolean fadingOut;
+
+	private int fadeInTime;
+	private int fadeOutTime;
+
+	private float lifeTime;
+	private int displayTime;
+
+	private float alpha;
+
+	private Image image;
+
+	private Vector2f base;
+
+	private float xOffset;
+	private float yOffset;
+
+	public ItemOverlay(Image image, Vector2f base, float xOffset, float yOffset, int displayTime, int fadeInTime, int fadeOutTime, float startAlpha)
+	{
+		init(image, base, xOffset, yOffset, displayTime, fadeInTime, fadeOutTime, startAlpha);
+	}
+
+	public ItemOverlay init(Image image, Vector2f base, float xOffset, float yOffset, int displayTime, int fadeInTime, int fadeOutTime, float startAlpha)
+	{
+		this.image = image;
+		this.fadeInTime = fadeInTime;
+		this.fadeOutTime = fadeOutTime;
+
+		this.base = base;
+
+		this.xOffset = xOffset;
+		this.yOffset = yOffset;
+
+		this.displayTime = displayTime;
+
+		this.alpha = startAlpha;
+		this.fadingIn = true;
+		this.fadingOut = false;
+		this.lifeTime = 0;
+
+		return this;
+	}
+
+	public void update(float delta)
+	{
+		if (fadingIn)
+		{
+			if (alpha < 1.0f)
+			{
+				alpha += ((float) delta) / ((float) fadeInTime);
+			}
+
+			if (lifeTime >= fadeInTime)
+			{
+				fadingIn = false;
+			}
+		}
+		
+		if (!fadingOut && lifeTime >= displayTime - fadeOutTime)
+		{
+			fadingOut = true;
+		}
+
+		if (fadingOut)
+		{
+			alpha -= ((float) delta) / ((float) fadeOutTime);
+		}
+
+		lifeTime += delta;
+	}
+
+	public void draw(Graphics g)
+	{
+		if (image != null)
+		{		
+			g.drawImage(image, base.x + xOffset, base.y + yOffset, ColorHelper.applyAlphaAndCopy(Color.white, alpha * GameLauncher.getLevelContext().getControlAlphaFactor()));
+		}
+	}
+
+	public boolean isFadingIn()
+	{
+		return fadingIn;
+	}
+
+	public void setFadingIn(boolean fadingIn)
+	{
+		this.fadingIn = fadingIn;
+	}
+
+	public boolean isFadingOut()
+	{
+		return fadingOut;
+	}
+
+	public void setFadingOut(boolean fadingOut)
+	{
+		this.fadingOut = fadingOut;
+	}
+
+	public float getLifeTime()
+	{
+		return lifeTime;
+	}
+
+	public void setLifeTime(float lifeTime)
+	{
+		this.lifeTime = lifeTime;
+	}
+
+	public float getAlpha()
+	{
+		return alpha;
+	}
+
+	public void setAlpha(float alpha)
+	{
+		this.alpha = alpha;
+	}
+
+	public Image getImage()
+	{
+		return image;
+	}
+
+	public void setImage(Image image)
+	{
+		this.image = image;
+	}
+
+	public Vector2f getBase()
+	{
+		return base;
+	}
+
+	public void setBase(Vector2f base)
+	{
+		this.base = base;
+	}
+
+	public float getXOffset()
+	{
+		return xOffset;
+	}
+
+	public void setXOffset(float xOffset)
+	{
+		this.xOffset = xOffset;
+	}
+
+	public float getYOffset()
+	{
+		return yOffset;
+	}
+
+	public void setYOffset(float yOffset)
+	{
+		this.yOffset = yOffset;
+	}
+
+	public int getFadeInTime()
+	{
+		return fadeInTime;
+	}
+
+	public void setFadeInTime(int fadeInTime)
+	{
+		this.fadeInTime = fadeInTime;
+	}
+
+	public int getFadeOutTime()
+	{
+		return fadeOutTime;
+	}
+
+	public void setFadeOutTime(int fadeOutTime)
+	{
+		this.fadeOutTime = fadeOutTime;
+	}
+
+	public int getDisplayTime()
+	{
+		return displayTime;
+	}
+
+	public void setDisplayTime(int displayTime)
+	{
+		this.displayTime = displayTime;
+	}
+}

@@ -1,0 +1,30 @@
+package com.unlogical.linked.util;
+
+import org.newdawn.slick.geom.Vector2f;
+
+import com.unlogical.linked.collision.Hitbox;
+import com.unlogical.linked.level.Level;
+import com.unlogical.linked.level.LevelType;
+
+public interface ICopyable<T extends ICopyable<T>>
+{
+	public T copy(Level level);
+	
+	public Hitbox getHitbox();
+	
+	public Vector2f getPosition();
+	
+	public void createMirror(LevelType levelType);
+	
+	public void setLevel(Level level);
+	
+	public void setPosition(float x, float y);
+	
+	public boolean shouldCreateMirror(boolean allowMirrors);
+	
+	public boolean isRotateable();
+	
+	public float getCenterOfRotationX();
+	
+	public float getCenterOfRotationY();
+}

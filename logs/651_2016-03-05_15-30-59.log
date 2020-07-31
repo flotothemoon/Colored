@@ -1,0 +1,89 @@
+ -- General -- 
+Generated on: 2016-03-05_15-30-59
+Build: 651 from 10:00 PM - 03/03/16
+GameState: MAP_EDITOR (previous: IN_LEVEL)
+Target FPS: 60
+Actual FPS: 60
+
+ -- Display -- 
+Target Width / Height: 1920 / 1080
+Actual Width / Height: 1920 / 1017 (windowed)
+
+ -- Environment -- 
+GPU: GeForce GTX 980 Ti/PCIe/SSE2 (NVIDIA Corporation)
+OpenGL Version: 4.5.0 NVIDIA 361.43
+Allocated Memory: 15MB
+Used Memory: 0MB
+"os.name": Windows 10
+"os.version": 10.0
+"os.arch": x86
+"java.version": 1.8.0_66
+"java.vendor": Oracle Corporation
+"sun.arch.data.model": 32
+
+ -- Level --
+ID: 24-01 (internal: 01)
+LevelType: TIME_TRAVEL
+Dimension: LIGHT
+Location: ../worlds/maps/24-01
+
+ -- Stack Trace -- 
+java.lang.ArrayIndexOutOfBoundsException
+java.lang.System.arraycopy(Native Method)
+com.unlogical.colored.util.CustomVerticesSpriteBatch.draw(CustomVerticesSpriteBatch.java:706)
+com.badlogic.gdx.graphics.g2d.BitmapFontCache.draw(BitmapFontCache.java:237)
+com.badlogic.gdx.graphics.g2d.BitmapFont.draw(BitmapFont.java:229)
+com.unlogical.colored.util.Renderer.drawString(Renderer.java:405)
+com.unlogical.colored.resources.font.Fonts.drawFancy(Fonts.java:95)
+com.unlogical.colored.resources.font.Fonts.drawFancy(Fonts.java:68)
+com.unlogical.colored.terrain.tile.TileText.customDraw(TileText.java:42)
+com.unlogical.colored.terrain.TerrainObject.draw(TerrainObject.java:233)
+com.unlogical.colored.mapeditor.MapEditor.drawTile(MapEditor.java:1479)
+com.unlogical.colored.mapeditor.MapEditor.render(MapEditor.java:1223)
+com.unlogical.colored.GameLauncher.render(GameLauncher.java:459)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication.mainLoop(LwjglApplication.java:218)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication$1.run(LwjglApplication.java:123)
+
+ -- Last 20 Log Entries -- 
+@Log: Lights fetched for level "23-04", 5 lights found. (11)
+@Log: Loaded map The Walls They Built (23-04, ../worlds/maps/23-04), took 55ms. (11)
+@Log: Fetching lights for level "23-05" ... (11)
+@Log: Lights fetched for level "23-05", 4 lights found. (11)
+@Log: Loaded map Fragile Motion (23-05, ../worlds/maps/23-05), took 65ms. (11)
+@Log: Fetching lights for level "23-06" ... (11)
+@Log: Lights fetched for level "23-06", 7 lights found. (11)
+@Log: Loaded map Clinging Friend (23-06, ../worlds/maps/23-06), took 87ms. (11)
+@Log: Fetching lights for level "23-07" ... (11)
+@Log: Lights fetched for level "23-07", 5 lights found. (11)
+@Log: Loaded map A Frame in Time (23-07, ../worlds/maps/23-07), took 49ms. (11)
+@Log: Fetching lights for level "23-08" ... (11)
+@Log: Lights fetched for level "23-08", 3 lights found. (11)
+@Log: Loaded map Frosty Confusion (23-08, ../worlds/maps/23-08), took 42ms. (11)
+@Log: Fetching lights for level "23-09" ... (11)
+@Log: Lights fetched for level "23-09", 2 lights found. (11)
+@Log: Loaded map Confused (23-09, ../worlds/maps/23-09), took 5ms. (11)
+@Log: Fetching lights for level "24-01" ... (11)
+@Log: Lights fetched for level "24-01", 1 light found. (11)
+@Log: Loaded map Torn Apart (24-01, ../worlds/maps/24-01), took 5ms. (11)
+
+ -- Last 20 Input Events -- 
+Key up: D (32) (1884ms ago)
+Touch down: 0 (pointer: 0) at x:1172 y: 393 (1517ms ago)
+Touch up: 0 (pointer: 0) at x:1172 y: 393 (1416ms ago)
+Touch down: 1 (pointer: 0) at x:1172 y: 393 (1366ms ago)
+Touch up: 1 (pointer: 0) at x:1172 y: 393 (1251ms ago)
+Touch down: 1 (pointer: 0) at x:1172 y: 393 (1151ms ago)
+Touch up: 1 (pointer: 0) at x:1172 y: 393 (1066ms ago)
+Key down: L-Ctrl (129) (817ms ago)
+Key down: D (32) (751ms ago)
+Key up: D (32) (650ms ago)
+Key down: A (29) (567ms ago)
+Key down: W (51) (517ms ago)
+Key up: L-Ctrl (129) (467ms ago)
+Key up: A (29) (451ms ago)
+Key up: W (51) (434ms ago)
+Touch down: 0 (pointer: 0) at x:1026 y: 552 (300ms ago)
+Touch up: 0 (pointer: 0) at x:1026 y: 552 (233ms ago)
+Touch down: 1 (pointer: 0) at x:1026 y: 552 (184ms ago)
+Touch up: 1 (pointer: 0) at x:1026 y: 552 (101ms ago)
+Touch down: 1 (pointer: 0) at x:1026 y: 552 (34ms ago)

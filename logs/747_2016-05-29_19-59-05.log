@@ -1,0 +1,54 @@
+ -- General -- 
+Generated on: 2016-05-29_19-59-05
+Build: 747 from 06:02 PM - 29/05/16
+GameState: LOADING (previous: null)
+Target FPS: 60
+Actual FPS: 0
+
+ -- Display -- 
+Target Width / Height: 1920 / 1080
+Actual Width / Height: 1920 / 1053 (windowed)
+
+ -- Environment -- 
+GPU: GeForce GTX 980 Ti/PCIe/SSE2 (NVIDIA Corporation)
+OpenGL Version: 4.5.0 NVIDIA 361.43
+Allocated Memory: 123MB
+Used Memory: 19MB
+"os.name": Windows 10
+"os.version": 10.0
+"os.arch": x86
+"java.version": 1.8.0_66
+"java.vendor": Oracle Corporation
+"sun.arch.data.model": 32
+
+ -- Stack Trace -- 
+java.lang.RuntimeException: lol error
+com.unlogical.colored.GameLauncher.render(GameLauncher.java:463)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication.mainLoop(LwjglApplication.java:218)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication$1.run(LwjglApplication.java:123)
+
+ -- Last 20 Log Entries -- 
+@Log    : Location: C:\Users\Flo\Desktop\Java\Colored\desktop\. (tid: 8)
+@Log    : Jar location: /C:/Users/Flo/Desktop/Java/Colored/core/bin/ (tid: 8)
+@Log    : Available memory: 123MB (tid: 8)
+@Log    : System.getProperty("os.name"): Windows 10 (tid: 8)
+@Log    : System.getProperty("os.version"): 10.0 (tid: 8)
+@Log    : System.getProperty("os.arch"): x86 (tid: 8)
+@Log    : System.getProperty("java.version"): 1.8.0_66 (tid: 8)
+@Log    : System.getProperty("java.vendor"): Oracle Corporation (tid: 8)
+@Log    : System.getProperty("sun.arch.data.model"): 32 (tid: 8)
+@Log    : ---- GPU Debug Information ---- (tid: 8)
+@Log    : GPU: GeForce GTX 980 Ti/PCIe/SSE2 (NVIDIA Corporation) (tid: 8)
+@Log    : OpenGL Version: 4.5.0 NVIDIA 361.43 (tid: 8)
+@Log    : Build: 747 from 06:02 PM - 29/05/16 (tid: 8)
+@Log    : Loading settings... (tid: 8)
+@Log    : Settings loaded. (tid: 8)
+@Log    : Logos loaded. (tid: 8)
+@Log    : Loading font "Chelsea.ttf" ... (tid: 8)
+@Log    : TrueTypeFont loaded, took 172ms. (tid: 8)
+@Log    : Calculating transition data... (tid: 8)
+@Log    : Calculated 1000 factors with offset -0.009009009 and factor 1.0229156. (tid: 8)
+
+ -- Last 2 Input Events -- 
+Key down: Numpad 0 (144) (4ms ago)
+Key typed: 0 (charcode: 48) (3ms ago)

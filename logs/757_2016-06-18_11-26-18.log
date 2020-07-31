@@ -1,0 +1,84 @@
+ -- General -- 
+Generated on: 2016-06-18_11-26-18
+Build: 757 from 11:16 PM - 17/06/16
+GameState: IN_LEVEL (previous: LOADING)
+Target FPS: 60
+Actual FPS: 61
+
+ -- Display -- 
+Target Width / Height: 1920 / 1080
+Actual Width / Height: 1920 / 1017 (windowed)
+
+ -- Environment -- 
+GPU: GeForce GTX 980 Ti/PCIe/SSE2 (NVIDIA Corporation)
+OpenGL Version: 4.5.0 NVIDIA 361.43
+Allocated Memory: 123MB
+Used Memory: 19MB
+"os.name": Windows 10
+"os.version": 10.0
+"os.arch": x86
+"java.version": 1.8.0_66
+"java.vendor": Oracle Corporation
+"sun.arch.data.model": 32
+
+ -- Level --
+ID: 22-01 (internal: 01)
+LevelType: TIME_SCALE
+Dimension: COLORED
+Location: ../worlds/maps/22-01
+
+ -- Stack Trace -- 
+java.lang.RuntimeException: Exception while silently getting file dev/notes.txt: java.io.FileNotFoundException: File "dev/notes.txt" is not contained in any of the currently used file packages.
+com.unlogical.colored.filesystem.FileManager.getFileQuietly(FileManager.java:368)
+com.unlogical.colored.util.NotePrinter.printNotes(NotePrinter.java:33)
+com.unlogical.colored.GameLauncher.update(GameLauncher.java:336)
+com.unlogical.colored.GameLauncher.render(GameLauncher.java:460)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication.mainLoop(LwjglApplication.java:218)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication$1.run(LwjglApplication.java:123)
+Caused by: java.io.FileNotFoundException: File "dev/notes.txt" is not contained in any of the currently used file packages.
+com.unlogical.colored.filesystem.FileManager.getFile(FileManager.java:400)
+com.unlogical.colored.filesystem.FileManager.getFile(FileManager.java:374)
+com.unlogical.colored.filesystem.FileManager.getFileQuietly(FileManager.java:364)
+com.unlogical.colored.util.NotePrinter.printNotes(NotePrinter.java:33)
+com.unlogical.colored.GameLauncher.update(GameLauncher.java:336)
+com.unlogical.colored.GameLauncher.render(GameLauncher.java:460)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication.mainLoop(LwjglApplication.java:218)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication$1.run(LwjglApplication.java:123)
+
+ -- Last 20 Log Entries -- 
+@Log    : Found world hub for world 24 at 24-10. (tid: 12)
+@Log    : Initializing map editor... (tid: 12)
+@Log    : Initialising levelrenderer... (tid: 12)
+@Log    : Initializing menus... (tid: 12)
+@Log    : SaveState 1.dat found and read successfully. (tid: 12)
+@Log    : SaveState 2.dat found and read successfully. (tid: 12)
+@Log    : Initializing story handler... (tid: 12)
+@Log    : Initializing credits screen... (tid: 12)
+@Log    : Resizing contents to current window size... (tid: 12)
+@Log    : Finished loading, took 639ms. (tid: 12)
+@Log    : Loading map ../worlds/maps/22-01 ... (tid: 12)
+@Log    : Loading map files took 181ms. (tid: 12)
+@Warning: Tried to load image(s) from path res/gui/icons/22_01, the resolved path res/gui/icons/22_01.png however does not exist. (tid: 12)
+@Warning: Couldn't load level icon for 22-01. (tid: 12)
+@Log    : Fetching lights for level "22-01" ... (tid: 12)
+@Log    : Lights fetched for level "22-01", 4 lights found. (tid: 12)
+@Log    : Pre-simulating particles for 45000.0ms (300 x 150.0ms)... (tid: 12)
+@Log    : Particle pre-simulation complete. Particles are now ahead of time by 45000.0ms. (tid: 12)
+@Log    : Active save was saved to disk. (tid: 12)
+@Log    : Loaded 22-01 (took 245ms). (tid: 12)
+
+ -- Last 14 Input Events -- 
+Touch down: 0 (pointer: 0) at x:426 y: 2 (4602ms ago)
+Touch up: 0 (pointer: 0) at x:426 y: 2 (4601ms ago)
+Touch down: 0 (pointer: 0) at x:425 y: 2 (4578ms ago)
+Touch up: 0 (pointer: 0) at x:425 y: 2 (4511ms ago)
+Touch down: 0 (pointer: 0) at x:583 y: 503 (1749ms ago)
+Touch up: 0 (pointer: 0) at x:585 y: 503 (1694ms ago)
+Key down: SYM (63) (1359ms ago)
+Key up: SYM (63) (1200ms ago)
+Key down: Q (45) (877ms ago)
+Key up: Q (45) (843ms ago)
+Touch down: 0 (pointer: 0) at x:577 y: 656 (393ms ago)
+Touch up: 0 (pointer: 0) at x:577 y: 656 (327ms ago)
+Key down: L-Ctrl (129) (177ms ago)
+Key down: M (41) (9ms ago)

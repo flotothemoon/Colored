@@ -1,0 +1,149 @@
+package com.unlogical.colored.entity.projectile;
+
+import java.util.Map;
+import java.util.Random;
+
+import com.badlogic.gdx.math.Vector2;
+import com.unlogical.colored.entity.Entity;
+import com.unlogical.colored.entity.EntityType;
+import com.unlogical.colored.entity.boss.EntityBoss;
+import com.unlogical.colored.entity.property.EntityProperties;
+import com.unlogical.colored.level.Level;
+import com.unlogical.colored.sound.SoundManager.SoundType;
+import com.unlogical.colored.terrain.tile.Tile;
+import com.unlogical.colored.util.Dimension;
+import com.unlogical.colored.util.LevelObject;
+
+public class EntityShadowBall extends EntityProjectile
+{
+	private boolean gravityAffected;
+
+	public EntityShadowBall(EntityType type, Vector2 position, Level level, Dimension dimension, boolean allowMirrors)
+	{
+		super(type, position, level, dimension, allowMirrors);
+	}
+
+	@Override
+	public LevelObject deepCopy(Map<Object, Object> copiedReferences)
+	{
+		EntityShadowBall copy = (EntityShadowBall) super.deepCopy(copiedReferences);
+
+		copy.gravityAffected = this.gravityAffected;
+
+		return copy;
+	}
+
+	@Override
+	public void onUpdate(float delta, Random rng)
+	{
+		super.onUpdate(delta, rng);
+		
+		// if (gravityAffected)
+		// {
+		// float beforeCenterX = this.getCenterX();
+		// float beforeCenterY = this.getCenterY();
+		//
+		// this.hitbox.setRotation((float) this.velocity.getTheta(),
+		// this.hitbox.getCenterX() - this.hitbox.getMinX(),
+		// this.hitbox.getCenterY() - this.hitbox.getMinY());
+		// this.setRotation((float) this.velocity.getTheta());
+		//
+		// this.hitbox.setCenterX(beforeCenterX);
+		// this.hitbox.setCenterY(beforeCenterY);
+		// }
+	}
+
+	@Override
+	public boolean onCollisionWithEntity(Entity entity, boolean top, boolean bottom, boolean right, boolean left, boolean inversed)
+	{
+		if (entity instanceof EntityShadowBall)
+		{
+			this.onDeath(entity);
+
+			((EntityShadowBall) entity).onDeath(this);
+		}
+
+		return this.alive;
+	}
+
+	@Override
+	public void onCollisionWithTile(Tile tile, boolean top, boolean bottom, boolean right, boolean left, boolean intersect)
+	{
+		if (!intersect)
+		{
+			onCollision(tile);
+		}
+	}
+	
+	protected void onCollision(LevelObject object)
+	{
+		this.onDeath(object);
+	}
+
+	@Override
+	protected void onCloseMoveToBlockAbove(float distance)
+	{
+		onCollision(null);
+	}
+
+	@Override
+	protected void onCloseMoveToBlockBelow(Tile nextTile, float distanceToBlockBelow)
+	{
+		onCollision(nextTile);
+	}
+
+	@Override
+	protected void onCloseMoveToBlockLeft(float distance)
+	{
+		onCollision(null);
+	}
+
+	@Override
+	protected void onCloseMoveToBlockRight(float distance)
+	{
+		onCollision(null);
+	}
+
+	@Override
+	protected void customOnDeath(LevelObject damageSource)
+	{
+		resetVelocities();
+		
+		level.getSoundManager().play(SoundType.BALL_HIT_WALL, false);
+	}
+
+	@Override
+	protected boolean canBeKilled(LevelObject damageSource)
+	{
+		return !frozen || damageSource instanceof EntityBoss;
+	}
+
+	@Override
+	protected boolean shouldRemoveOnDeath()
+	{
+		return true;
+	}
+	
+	@Override
+	protected boolean shouldStopOnEntityCollision()
+	{
+		return false;
+	}
+	
+	@Override
+	protected boolean isGravityAffected()
+	{
+		return gravityAffected;
+	}
+
+	public void setGravityAffected(boolean gravityAffected)
+	{
+		this.gravityAffected = gravityAffected;
+	}
+
+	@Override
+	protected EntityProperties getEntityProperty()
+	{
+		return EntityProperties.SHADOW_BALL;
+	}
+}

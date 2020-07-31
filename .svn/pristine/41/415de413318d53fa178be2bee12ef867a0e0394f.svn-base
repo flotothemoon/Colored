@@ -1,0 +1,69 @@
+package com.unlogical.colored.entity.key;
+
+import org.newdawn.slick.Color;
+
+public enum KeyPort
+{
+	RED(Color.red),
+	YELLOW(Color.yellow),
+	GREEN(Color.green),
+	BLUE(Color.blue),
+	PINK(Color.pink),
+	WHITE(Color.white),
+	BLACK(Color.black);
+	
+	private Color color;
+
+	private KeyPort(Color color)
+	{
+		this.color = color;
+	}
+
+	public static KeyPort getTrigger(int index)
+	{
+		return index >= 0 && index < values().length ? values()[index] : RED;
+	}
+
+	public static Color getColor(int index)
+	{
+		return index >= 0 && index < values().length ? values()[index].getColor() : RED.getColor();
+	}
+
+	public Color getColor()
+	{
+		return color;
+	}
+
+	public KeyPort next()
+	{
+		int index = this.ordinal();
+
+		index++;
+
+		if (index >= values().length)
+		{
+			index = 0;
+		}
+
+		return values()[index];
+	}
+
+	public KeyPort previous()
+	{
+		int index = this.ordinal();
+
+		index--;
+
+		if (index < 0)
+		{
+			index = values().length - 1;
+		}
+
+		return values()[index];
+	}
+
+	public int toPort()
+	{
+		return this.ordinal();
+	}
+}

@@ -1,0 +1,32 @@
+package com.unlogical.linked.saving;
+
+import com.unlogical.linked.level.Level;
+
+public class Checkpoint
+{
+	private Level level;
+	
+	private Checkpoint(Level level)
+	{
+		this.level = level;
+	}
+	
+	public static Checkpoint storeLevel(Level level)
+	{
+		return new Checkpoint(copyLevel(level));		
+	}
+	
+	public static void applyCheckpoint(Checkpoint checkpoint, Level level)
+	{
+		
+	}
+	
+	private static Level copyLevel(Level level)
+	{
+		Level newLevel = new Level();
+		
+		Level.deepCopy(level, newLevel);
+		
+		return newLevel;
+	}
+}

@@ -1,0 +1,186 @@
+package com.unlogical.colored.entity.boss;
+
+import java.util.Map;
+import java.util.Random;
+
+import com.badlogic.gdx.graphics.g2d.Batch;
+import com.badlogic.gdx.math.Vector2;
+import com.unlogical.colored.GameLauncher;
+import com.unlogical.colored.entity.Entity;
+import com.unlogical.colored.entity.EntityType;
+import com.unlogical.colored.entity.projectile.EntityProjectile;
+import com.unlogical.colored.entity.projectile.EntityShadowBall;
+import com.unlogical.colored.entity.property.EntityProperties;
+import com.unlogical.colored.level.Level;
+import com.unlogical.colored.resources.font.Fonts;
+import com.unlogical.colored.util.ColorHelper;
+import com.unlogical.colored.util.Dimension;
+import com.unlogical.colored.util.LevelObject;
+import com.unlogical.colored.util.Renderer;
+
+public class EntityFrozenBoss extends EntityBoss
+{
+	private static final float MAX_ACTIVE_DISTANCE = 350.0f;
+	private static final int SHOOT_WAITING_TIME = 7000;
+	private static final int IN_BETWEEN_SHOOTING_COOLDOWN = 500;
+	private static final int SHOOTING_COUNT = 3;
+
+	private boolean shootingProjectiles;
+
+	private int timeUntilShoot = SHOOT_WAITING_TIME / 2;
+	private int shootingCooldown;
+	private int shotCount;
+
+	public EntityFrozenBoss(EntityType type, Vector2 position, Level level, Dimension dimension, boolean allowMirrors)
+	{
+		super(type, position, level, dimension, allowMirrors);
+	}
+
+	@Override
+	public LevelObject deepCopy(Map<Object, Object> copiedReferences)
+	{
+		EntityFrozenBoss copy = (EntityFrozenBoss) super.deepCopy(copiedReferences);
+
+		copy.active = this.active;
+		copy.timeUntilShoot = this.timeUntilShoot;
+		copy.shootingProjectiles = this.shootingProjectiles;
+		copy.shotCount = this.shotCount;
+		copy.shootingCooldown = this.shootingCooldown;
+
+		return copy;
+	}
+
+	@Override
+	public void init()
+	{
+		super.init();
+
+	}
+
+	@Override
+	public void onUpdate(float delta, Random rng)
+	{
+		super.onUpdate(delta, rng);
+
+		if (!this.active && distanceToPlayer.len() < MAX_ACTIVE_DISTANCE)
+		{
+			this.active = true;
+		}
+
+		if (this.active)
+		{
+			this.setFocused(distanceToPlayer.x > 0);
+
+			float targetDistanceX = distanceToPlayer.x + (level.getControllingPlayer().getCenterX() > GameLauncher.getWidth() / 2.0f ? -1 : 1) * 175;
+
+			timeUntilShoot -= delta;
+
+			if (timeUntilShoot < 0)
+			{
+				shootingProjectiles = true;
+
+				timeUntilShoot = SHOOT_WAITING_TIME;
+			}
+
+			this.velocity.x += this.properties.getAcceleration(delta) * (targetDistanceX > 0.0f ? 1 : -1);
+
+			if (Math.abs(this.velocity.x) > this.properties.getMaxSpeed())
+			{
+				this.velocity.x = this.properties.getMaxSpeed() * Math.signum(this.velocity.x);
+			}
+
+			if (shootingProjectiles)
+			{
+				shootingCooldown -= delta;
+
+				if (shootingCooldown < 0)
+				{
+					if (++shotCount > SHOOTING_COUNT)
+					{
+						shootingProjectiles = false;
+
+						shotCount = 0;
+					}
+					else
+					{
+						shootingCooldown = IN_BETWEEN_SHOOTING_COOLDOWN;
+
+						boolean shared = shotCount != 2;
+
+						EntityShadowBall projectile = (EntityShadowBall) Entity.createEntity(EntityType.SHADOWBALL, new Vector2(this.getCenterX(), this.getCenterY()), level, shared ? Dimension.LIGHT : level.getBackgroundDimension(), false);
+						Vector2 velocity = projectile.getVelocity();
+
+						if (shared)
+						{
+							projectile.setShared(true);
+						}
+
+						projectile.onShoot(this, 0.0f, 1.0f);
+						projectile.setGravityAffected(true);
+
+						velocity.x = projectile.getProperties().getMaxSpeed() * Math.signum(distanceToPlayer.x) * (0.7f + (SHOOTING_COUNT - (float) shotCount) * 0.3f) * 0.7f;
+						velocity.y = -maxGravity * (1.0f + Math.max(Math.abs(distanceToPlayer.y / 2000.0f), 0.0f));
+
+						level.addEntity(projectile);
+					}
+				}
+			}
+		}
+	}
+
+	@Override
+	public void draw(Batch batch)
+	{
+		super.draw(batch);
+		
+		if (alive && active)
+		{			
+			Renderer.setFont(Fonts.getSmallFont());
+
+			String drawString = "";
+
+			for (int i = 0; i < this.properties.getMaxHealth() - this.health; i++)
+			{
+				drawString += "X";
+			}
+
+			for (int i = 0; i < this.health; i++)
+			{
+				drawString += "O";
+			}
+
+			Renderer.drawString(drawString, customModifiyDrawColor(this.getDrawColor(this.dimension, ColorHelper.buffer)), this.getCenterX() - Renderer.getWidth(drawString) / 2.0f, this.getCenterY() - 58, batch);
+		}
+	}
+	
+	@Override
+	public void damagedByEntity(int damage, Entity damageSource)
+	{
+		if (damageSource instanceof EntityShadowBall)
+		{
+			EntityShadowBall projectile = (EntityShadowBall) damageSource;
+			
+			projectile.onDeath(this);
+		}
+	}
+	
+	@Override
+	protected void customOnDeath(LevelObject damageSource)
+	{
+		super.customOnDeath(damageSource);
+
+
+	}
+
+	@Override
+	protected boolean canBeHarmedBy(Entity entity)
+	{
+		return super.canBeHarmedBy(entity) && !(entity instanceof EntityProjectile && ((EntityProjectile) entity).getSource() == this && ((EntityProjectile) entity).isInSource());
+	}
+	
+	@Override
+	protected EntityProperties getEntityProperty()
+	{
+		return EntityProperties.FROZEN_BOSS;
+	}
+}

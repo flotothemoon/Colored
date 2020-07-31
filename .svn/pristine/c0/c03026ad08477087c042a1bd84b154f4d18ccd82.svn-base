@@ -1,0 +1,9 @@
+package com.unlogical.linked.level;
+
+public enum Direction {
+
+	UP, 
+	DOWN,
+	RIGHT,
+	LEFT;
+}

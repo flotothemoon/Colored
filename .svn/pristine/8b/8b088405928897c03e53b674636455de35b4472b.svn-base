@@ -1,0 +1,365 @@
+package com.unlogical.linked.entity.projectile;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Random;
+
+import org.newdawn.slick.GameContainer;
+import org.newdawn.slick.geom.Line;
+import org.newdawn.slick.geom.Vector2f;
+
+import com.unlogical.linked.collision.Hitbox;
+import com.unlogical.linked.entity.Entity;
+import com.unlogical.linked.entity.EntityAction;
+import com.unlogical.linked.entity.EntityLiving;
+import com.unlogical.linked.entity.EntityType;
+import com.unlogical.linked.filesystem.FilePaths;
+import com.unlogical.linked.level.Level;
+import com.unlogical.linked.level.LevelType;
+import com.unlogical.linked.terrain.TerrainObject;
+import com.unlogical.linked.terrain.tile.Tile;
+import com.unlogical.linked.terrain.tile.cannon.ICannonBall;
+import com.unlogical.linked.util.Dimension;
+import com.unlogical.linked.util.LevelObject;
+
+public abstract class EntityProjectile extends EntityLiving implements ICannonBall
+{
+	public static List<Line> lines = new ArrayList<Line>();
+
+	protected boolean inSource;
+	protected boolean reversing;
+
+	protected LevelObject source;
+
+	public EntityProjectile(EntityType type, Vector2f position, Level level, Dimension dimension, boolean allowMirrors)
+	{
+		super(type, position, level, dimension, allowMirrors);
+	}
+
+	@Override
+	public void onUpdate(GameContainer container, float delta, Random rng)
+	{
+		if (reversing)
+		{
+			if (!inSource && source.getHitbox().intersects(this.hitbox))
+			{
+				this.inSource = true;
+			}
+
+			if (inSource && source.getHitbox().contains(this.hitbox))
+			{
+				this.onDeath(null);
+			}
+		}
+
+		if (inSource && !source.getHitbox().intersects(this.hitbox))
+		{
+			this.inSource = false;
+		}
+	}
+
+	@Override
+	public void initMirror(Entity mirroredEntity, LevelType levelType)
+	{
+		if (levelType == LevelType.REVERSAL)
+		{
+			lines.clear();
+
+			Line ownLine = new Line(this.hitbox.getPoints()[0], this.hitbox.getPoints()[1], this.hitbox.getPoints()[2], this.hitbox.getPoints()[3]);
+			Line secOwnLine = new Line(this.hitbox.getPoints()[6], this.hitbox.getPoints()[7], this.hitbox.getPoints()[4], this.hitbox.getPoints()[5]);
+			Line otherLine = new Line(0.0f, 0.0f);
+
+			bufferedVector.set(ownLine.getEnd());
+			bufferedVector.sub(ownLine.getStart());
+			bufferedVector.scale(10000.0f);
+
+			ownLine.set(ownLine.getX1(), ownLine.getY1(), ownLine.getX1() + bufferedVector.x, ownLine.getY1() + bufferedVector.y);
+
+			bufferedVector.set(secOwnLine.getEnd());
+			bufferedVector.sub(secOwnLine.getStart());
+			bufferedVector.scale(10000.0f);
+
+			secOwnLine.set(secOwnLine.getX1(), secOwnLine.getY1(), secOwnLine.getX1() + bufferedVector.x, secOwnLine.getY1() + bufferedVector.y);
+
+			Vector2f intersection = new Vector2f(0.0f, 0.0f);
+			Vector2f closestIntersection = new Vector2f(Float.NaN, Float.NaN);
+
+			Vector2f firstOffset = new Vector2f(this.hitbox.getPoints()[0] - this.position.x, this.hitbox.getPoints()[1] - this.position.y).negate();
+			Vector2f secondOffset = new Vector2f(this.hitbox.getPoints()[6] - this.position.x, this.hitbox.getPoints()[7] - this.position.y).negate();
+
+			float closestDistance = Float.MAX_VALUE;
+
+			this.dimension = Dimension.SHADOW;
+
+			for (Tile tile : level.getTiles())
+			{
+				if (inSameDimension(tile) && (!tile.hasMirror() || !source.hasMirror() || tile != source.getMirror()) && isBlocked(tile, this.velocity))
+				{
+					Hitbox otherHitbox = tile.getHitbox();
+					float[] otherPoints = otherHitbox.getPoints();
+
+					int lastIndex = 3;
+
+					for (int i = 0; i < otherHitbox.getPoints().length / 2; i++)
+					{
+						otherLine.set(otherPoints[lastIndex * 2], otherPoints[lastIndex * 2 + 1], otherPoints[i * 2], otherPoints[i * 2 + 1]);
+
+						if (ownLine.intersect(otherLine, true, intersection))
+						{
+							intersection.x -= this.hitbox.getPoints()[2];
+							intersection.y -= this.hitbox.getPoints()[3];
+
+							if (intersection.length() < closestDistance)
+							{
+								closestIntersection.set(intersection.x + this.hitbox.getPoints()[0] + firstOffset.x, intersection.y + this.hitbox.getPoints()[1] + firstOffset.y);
+								closestDistance = intersection.length();
+							}
+						}
+
+						if (secOwnLine.intersect(otherLine, true, intersection))
+						{
+							intersection.x -= this.hitbox.getPoints()[4];
+							intersection.y -= this.hitbox.getPoints()[5];
+
+							if (intersection.length() < closestDistance)
+							{
+								closestIntersection.set(intersection.x + this.hitbox.getPoints()[6] + secondOffset.x, intersection.y + this.hitbox.getPoints()[7] + secondOffset.y);
+								closestDistance = intersection.length();
+							}
+						}
+
+						lastIndex = i;
+					}
+				}
+			}
+
+			this.dimension = Dimension.LIGHT;
+
+			if (Float.isNaN(closestIntersection.x))
+			{
+				float[] levelLimits = new float[] { level.getAbsLeftLimit().getCenterX(), level.getAbsTopLimit().getCenterY(), level.getAbsRightLimit().getCenterX(), level.getAbsTopLimit().getCenterY(), level.getAbsRightLimit().getCenterX(), level.getAbsBottomLimit().getCenterY(), level.getAbsLeftLimit().getCenterX(), level.getAbsBottomLimit().getCenterY() };
+				int lastIndex = 3;
+				
+				ownLine.set(this.getCenterX(), this.getCenterY(), this.getCenterX() + bufferedVector.x, this.getCenterY() + bufferedVector.y);
+
+				for (int i = 0; i < levelLimits.length / 2; i++)
+				{
+					otherLine.set(levelLimits[lastIndex * 2], levelLimits[lastIndex * 2 + 1], levelLimits[i * 2], levelLimits[i * 2 + 1]);
+
+					if (ownLine.intersect(otherLine, true, intersection))
+					{
+						closestIntersection.set(intersection);
+						
+						break;
+					}
+					
+					lastIndex = i;
+				}
+			}
+
+			Vector2f ownLength = new Vector2f(this.hitbox.getRawWidth(), 0.0f);
+
+			ownLength.setTheta(this.velocity.getTheta());
+
+			closestIntersection.sub(ownLength);
+
+			if (!Float.isNaN(closestIntersection.x))
+			{
+				this.mirroredEntity.setPosition(closestIntersection.x, closestIntersection.y);
+			}
+		}
+	}
+
+	@Override
+	public void onShoot(LevelObject source, float rotation, float shootSpeed)
+	{
+		this.shooting = true;
+		this.inSource = true;
+		this.source = source;
+		
+		this.hitbox.setRotation(rotation - 90, this.hitbox.getCenterX() - this.hitbox.getMinX(), this.hitbox.getCenterY() - this.hitbox.getMinY());
+		this.setRotation(rotation - 90);
+
+		if (this.hasMirror && this.dimension == Dimension.LIGHT && level.getType() == LevelType.REVERSAL)
+		{
+			EntityProjectile mirror = ((EntityProjectile) this.mirroredEntity);
+			Vector2f mirrorVelocity = ((ICannonBall) this.mirroredEntity).getStartVelocity(source, rotation, shootSpeed).copy();
+
+			this.mirroredEntity.setPosition(this.position.x, this.position.y);
+			this.mirroredEntity.setVelocity(mirrorVelocity);
+
+			mirror.source = this.source.getMirror();
+
+			this.initMirror(this.mirroredEntity, level.getLevelType());
+
+			bufferedVector.set(mirror.getCenterX(), mirror.getCenterY());
+			bufferedVector.x -= source.getHitbox().getCenterX();
+			bufferedVector.y -= source.getHitbox().getCenterY();
+
+			mirror.velocity.setTheta(180 + bufferedVector.getTheta());
+
+			mirror.onShoot(source.hasMirror() ? source.getMirror() : source, rotation, shootSpeed);
+			mirror.reversing = true;
+		}
+	}
+
+	@Override
+	public Vector2f getStartPosition(LevelObject source, float cannonRotation)
+	{
+		if (source.getRotation() == cannonRotation)
+		{
+			bufferedVector.x = (source.getHitbox().getPoints()[0] + source.getHitbox().getPoints()[2] - this.hitbox.getWidth()) / 2;
+			bufferedVector.y = (source.getHitbox().getPoints()[1] + source.getHitbox().getPoints()[3] - this.hitbox.getHeight()) / 2;
+		}
+		else
+		{
+			bufferedVector.x = (source.getHitbox().getPoints()[4] + source.getHitbox().getPoints()[6] - this.hitbox.getWidth()) / 2;
+			bufferedVector.y = (source.getHitbox().getPoints()[5] + source.getHitbox().getPoints()[7] - this.hitbox.getHeight()) / 2;
+		}
+
+		return bufferedVector;
+	}
+
+	@Override
+	public Vector2f getStartVelocity(LevelObject source, float rotation, float speedFactor)
+	{
+		bufferedVector.setTheta(0.0f);
+		bufferedVector.x = 0.0f;
+		bufferedVector.y = -speedFactor * properties.getMaxSpeed();
+		bufferedVector.add(rotation);
+
+		return bufferedVector;
+	}
+
+	@Override
+	protected float getAdditionalCheckDistance(Vector2f otherVelocity)
+	{
+		if (this.initialising)
+		{
+			return Math.max(level.getMapWidth(), level.getMapHeight());
+		}
+		else
+		{
+			return (this.velocity.length() + otherVelocity.length()) * 50.0f;
+		}
+	}
+
+	@Override
+	protected boolean canBeHarmedBy(Entity entity)
+	{
+		return false;
+	}
+
+	@Override
+	protected boolean isBlocked(TerrainObject tile, Vector2f myVelocity)
+	{
+		return source != tile && super.isBlocked(tile, myVelocity);
+	}
+	
+	@Override
+	public boolean canPickUpEntities()
+	{
+		return false;
+	}
+
+	@Override
+	protected Vector2f getHandOffset(boolean focused, EntityAction currentAction, int currentImage)
+	{
+		return null;
+	}
+
+	@Override
+	public boolean isBlocked()
+	{
+		return true;
+	}
+
+	@Override
+	protected boolean canWalkSlopes()
+	{
+		return false;
+	}
+
+	@Override
+	public boolean isDead()
+	{
+		return !this.alive;
+	}
+
+	@Override
+	public boolean hasCollided()
+	{
+		return collidedLeft || collidedRight || collidedAbove || collidedBelow;
+	}
+
+	@Override
+	public ICannonBall getMirroredBall()
+	{
+		return (ICannonBall) this.mirroredEntity;
+	}
+
+	@Override
+	protected boolean useAutomaticAnimations()
+	{
+		return false;
+	}
+	
+	@Override
+	protected EntityAction getCustomAction()
+	{
+		return EntityAction.STANDING;
+	}
+	
+	@Override
+	public boolean supportsAction(EntityAction action)
+	{
+		return action == EntityAction.STANDING;
+	}
+
+	@Override
+	public String getTextureDirectory()
+	{
+		return FilePaths.PROJECTILES;
+	}
+
+	@Override
+	protected boolean canInteractWith(Entity entity)
+	{
+		return true;
+	}
+
+	@Override
+	public boolean checkEntityCollisions()
+	{
+		return true;
+	}
+
+	@Override
+	public boolean collidesWithEntities()
+	{
+		return true;
+	}
+
+	@Override
+	public boolean collidesWithTerrain()
+	{
+		return true;
+	}
+
+	@Override
+	protected boolean notifyOnCollisions()
+	{
+		return true;
+	}
+
+	@Override
+	protected boolean shouldRemoveOnDeath()
+	{
+		return true;
+	}
+	
+	public LevelObject getSource()
+	{
+		return source;
+	}
+}

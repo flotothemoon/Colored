@@ -1,0 +1,61 @@
+package com.unlogical.linked.resources.font;
+
+import java.awt.Font;
+
+import org.newdawn.slick.Color;
+import org.newdawn.slick.Graphics;
+import org.newdawn.slick.TrueTypeFont;
+
+import com.unlogical.linked.util.Renderer;
+import com.unlogical.linked.util.ShaderHandler;
+
+public class Fonts
+{
+	private static Font font = new Font("Times", Font.PLAIN, 34);
+	private static Font smallFont = font.deriveFont(24.0f); //typematching is a b1tch sometimes
+	private static Font fontBold = font.deriveFont(Font.BOLD);
+	private static Font smallFontBold = smallFont.deriveFont(Font.BOLD);
+	private static TrueTypeFont gameFont;
+	private static TrueTypeFont smallGameFont;
+	private static TrueTypeFont boldGameFont;
+	private static TrueTypeFont smallBoldGameFont;
+	
+	public static void init()
+	{
+		gameFont = new TrueTypeFont(font, true);
+		smallGameFont = new TrueTypeFont(smallFont, true);
+		boldGameFont = new TrueTypeFont(fontBold, true);
+		smallBoldGameFont = new TrueTypeFont(smallFontBold, true);
+	}
+
+	public static void drawFancy(String text, TrueTypeFont font, Color color, float x, float y, float width, float height, boolean centerVertically, boolean centerHorizontally, Graphics g)
+	{
+		ShaderHandler.disableLighting();
+		
+		g.setFont(font);
+		g.setColor(color);
+		g.drawString(text, x, y);
+	
+		Renderer.bindTexture(null);
+	}
+	
+	public static TrueTypeFont getDefaultFont()
+	{
+		return gameFont;
+	}
+	
+	public static TrueTypeFont getSmallFont()
+	{
+		return smallGameFont;
+	}
+	
+	public static TrueTypeFont getBoldDefaultFont()
+	{
+		return boldGameFont;
+	}
+	
+	public static TrueTypeFont getSmallBoldFont()
+	{
+		return smallBoldGameFont;
+	}
+}

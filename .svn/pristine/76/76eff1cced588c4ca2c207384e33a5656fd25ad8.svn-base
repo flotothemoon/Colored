@@ -1,0 +1,254 @@
+package com.unlogical.colored.entity.boss;
+
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Random;
+import java.util.Set;
+
+import com.badlogic.gdx.graphics.g2d.Batch;
+import com.badlogic.gdx.math.Vector2;
+import com.unlogical.colored.entity.Entity;
+import com.unlogical.colored.entity.EntityType;
+import com.unlogical.colored.entity.key.EntityKeyChain;
+import com.unlogical.colored.entity.projectile.EntityProjectile;
+import com.unlogical.colored.level.Level;
+import com.unlogical.colored.util.Dimension;
+import com.unlogical.colored.util.LevelObject;
+
+public class EntityReversalBoss extends EntityBoss
+{
+	private static final float MAX_TARGET_DISTANCE = 1200.0f;
+	private static final int IN_BETWEEN_SHOOTING_COOLDOWN = 250;
+	private static final int PROJECTILE_COUNT = 5;
+	private static final int SHOOT_COOLDOWN = 5000;
+
+	private boolean shootingProjectiles;
+
+	private Set<EntityProjectile> projectiles = new HashSet<EntityProjectile>();
+	private EntityBossSpikeBoots boots;
+	private EntityKeyChain keyChain;
+	private EntityBossEye leftEye;
+	private EntityBossEye rightEye;
+
+	private int betweenCooldown;
+	private int shotProjectilesCount;
+	private int shootCooldown = SHOOT_COOLDOWN;
+
+	public EntityReversalBoss(EntityType type, Vector2 position, Level level, Dimension dimension, boolean allowMirrors)
+	{
+		super(type, position, level, dimension, allowMirrors);
+	}
+
+	@Override
+	public void init()
+	{
+		super.init();
+
+		this.boots = (EntityBossSpikeBoots) Entity.createEntity(EntityType.BOSS_SPIKE_BOOTS, new Vector2(), this.level, this.dimension, false);
+		this.boots.setPosition(this.updateBootPosition(this.boots, this.position));
+		this.boots.setShared(true);
+		this.boots.setPersistent(false);
+
+		this.level.addEntity(this.boots);
+
+		this.keyChain = (EntityKeyChain) Entity.createEntity(EntityType.KEYCHAIN, new Vector2(), this.level, this.dimension, false);
+		this.keyChain.setPosition(this.updateKeyChainPosition(this.keyChain, this.position));
+		this.keyChain.setShared(true);
+		this.keyChain.setPersistent(false);
+
+		this.level.addEntity(this.keyChain);
+
+		float eyeSize = 8;
+
+		this.leftEye = (EntityBossEye) Entity.createEntity(EntityType.BOSS_EYE, new Vector2(), this.level, this.dimension, false);
+		this.leftEye.eyeSize = eyeSize;
+		this.leftEye.eyeCenterOffsetX = 60;
+		this.leftEye.eyeCenterOffsetY = 80;
+		this.leftEye.setPersistent(false);
+
+		this.level.addEntity(this.leftEye);
+
+		this.rightEye = (EntityBossEye) Entity.createEntity(EntityType.BOSS_EYE, new Vector2(), this.level, this.dimension, false);
+		this.rightEye.eyeSize = eyeSize;
+		this.rightEye.eyeCenterOffsetX = 120;
+		this.rightEye.eyeCenterOffsetY = 80;
+		this.rightEye.setPersistent(false);
+
+		this.level.addEntity(this.rightEye);
+	}
+
+	@Override
+	public LevelObject deepCopy(Map<Object, Object> copiedReferences)
+	{
+		EntityReversalBoss copy = (EntityReversalBoss) super.deepCopy(copiedReferences);
+
+		copy.boots = (EntityBossSpikeBoots) Level.getCopy(this.boots, copiedReferences);
+		copy.keyChain = (EntityKeyChain) Level.getCopy(this.keyChain, copiedReferences);
+		copy.leftEye = (EntityBossEye) Level.getCopy(this.leftEye, copiedReferences);
+		copy.rightEye = (EntityBossEye) Level.getCopy(this.rightEye, copiedReferences);
+
+		return copy;
+	}
+
+	@Override
+	public void onUpdate(float delta, Random rng)
+	{
+		super.onUpdate(delta, rng);
+
+		if (this.dimension == this.level.getForegroundDimension())
+		{
+			if (Math.abs(this.distanceToPlayer.x) < MAX_TARGET_DISTANCE)
+			{
+				if (!this.active)
+				{
+					this.active = true;
+					((EntityBoss) this.mirroredEntity).active = true;
+
+					this.shotProjectilesCount = 0;
+				}
+			}
+			else
+			{
+				this.active = false;
+				((EntityBoss) this.mirroredEntity).active = false;
+
+				this.shootCooldown = SHOOT_COOLDOWN;
+			}
+
+			if (this.active)
+			{
+				this.movingRight = this.distanceToPlayer.x > 0.0f;
+
+				this.velocity.x += this.properties.getAcceleration(delta) * (this.movingRight ? 1 : -1);
+
+				if (Math.abs(this.velocity.x) > this.properties.getMaxSpeed())
+				{
+					this.velocity.x = this.properties.getMaxSpeed() * Math.signum(this.velocity.x);
+				}
+
+				if (!this.shootingProjectiles)
+				{
+					if (this.shootCooldown <= 0)
+					{
+						this.shootingProjectiles = true;
+
+						this.shotProjectilesCount = 0;
+						this.shootCooldown = SHOOT_COOLDOWN;
+						this.betweenCooldown = IN_BETWEEN_SHOOTING_COOLDOWN;
+					}
+					else
+					{
+						this.shootCooldown -= delta;
+					}
+				}
+				else
+				{
+					this.betweenCooldown -= delta;
+
+					if (this.betweenCooldown <= 0)
+					{
+						if (++this.shotProjectilesCount > PROJECTILE_COUNT)
+						{
+							this.shootingProjectiles = false;
+						}
+						else
+						{
+							EntityProjectile projectile = this.shootProjectile(EntityType.SHADOWBALL);
+
+							if (this.hitbox.contains(projectile.getHitbox()) || this.hitbox.intersects(projectile.getHitbox()))
+							{
+								this.projectiles.add(projectile);
+							}
+						}
+
+						this.betweenCooldown = IN_BETWEEN_SHOOTING_COOLDOWN;
+					}
+				}
+			}
+			else
+			{
+				this.velocity.x *= 0.9f;
+			}
+		}
+		else
+		{
+			this.velocity.x = -this.mirroredEntity.getVelocity().x;
+			this.movingRight = !((EntityBoss) this.mirroredEntity).movingRight;
+		}
+
+		this.setFocused(this.movingRight);
+	}
+
+	@Override
+	public void damage(int damage, LevelObject damageSource)
+	{
+		super.damage(damage, damageSource);
+
+		if (damage > 0)
+		{
+			this.keyChain.stage--;
+		}
+	}
+
+	@Override
+	public void draw(Batch batch)
+	{
+		super.draw(batch);
+
+		this.updateBootPosition(this.boots, this.position);
+		this.updateKeyChainPosition(this.keyChain, this.position);
+
+		this.boots.draw(batch);
+		this.keyChain.draw(batch);
+
+		if (this.level.getControllingPlayer() != null)
+		{
+			float focusX = this.level.getControllingPlayer().getPosition().x;
+			float focusY = this.level.getControllingPlayer().getPosition().y;
+
+			this.leftEye.lookAt(focusX, focusY, this);
+			this.rightEye.lookAt(focusX, focusY, this);
+
+			if (this.active)
+			{
+				this.leftEye.draw(batch);
+				this.rightEye.draw(batch);
+			}
+		}
+	}
+
+	private Vector2 updateKeyChainPosition(EntityKeyChain keyChain, Vector2 myPosition)
+	{
+		Vector2 result = keyChain.getPosition();
+
+		result.x = myPosition.x + this.hitbox.getRawWidth() - keyChain.getHitbox().getWidth() - 20;
+		result.y = myPosition.y + this.hitbox.getRawHeight() - keyChain.getHitbox().getHeight() - 10;
+
+		keyChain.setPosition(result.x, result.y);
+
+		return result;
+	}
+
+	private Vector2 updateBootPosition(EntityBossSpikeBoots boots, Vector2 myPosition)
+	{
+		Vector2 result = boots.getPosition();
+
+		result.x = this.getCenterX() - boots.getHitbox().getWidth() / 2;
+		result.y = this.getMaxY() - boots.getHitbox().getHeight();
+
+		boots.setPosition(result.x, result.y);
+
+		return result;
+	}
+
+	@Override
+	protected boolean canBeHarmedBy(Entity entity)
+	{
+		if (!(entity instanceof EntityProjectile) && !(entity instanceof EntityBossSpikeBoots) || entity == this.boots)
+		{
+			return false;
+		}
+
+		return super.canBeHarmedBy(entity) && ((EntityProjectile) entity).getSource() != this && !this.projectiles.contains(entity);
+	}
+}

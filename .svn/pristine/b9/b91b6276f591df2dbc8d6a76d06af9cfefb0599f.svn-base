@@ -1,0 +1,178 @@
+package com.unlogical.colored.gui;
+
+import org.newdawn.slick.Color;
+import org.newdawn.slick.GameContainer;
+import org.newdawn.slick.Graphics;
+import org.newdawn.slick.Input;
+import org.newdawn.slick.KeyListener;
+
+import com.unlogical.colored.GameLauncher;
+import com.unlogical.colored.mapeditor.MapEditor;
+import com.unlogical.colored.resources.font.Fonts;
+
+public class InputField
+{
+	private static final String allowedChars = "ABCDEFGHIJKLMNOPQRSTUVWQXYZabcdefghijklmnopqrstuvwxyz;,.-_=&:!?*#'^|@/()[]{}<>1234567890 ";
+	
+	private boolean active;
+
+	private int width;
+	private int height;
+	private int xOffset;
+	private int yOffset;
+	
+	private int deleteTime;
+	
+	private char pressedChar;
+
+	private Color borderColor = Color.black;
+	private Color fillColor = MapEditor.panelColor;
+
+	private StringBuilder text;
+
+	private InputChangeListener listener;
+
+	public InputField(float x, float y, float width, float height)
+	{
+		this((int) x, (int) y, (int) width, (int) height);
+
+		GameLauncher.getContainer().getInput().addKeyListener(new KeyListener()
+		{
+			@Override
+			public void setInput(Input input)
+			{
+			}
+
+			@Override
+			public boolean isAcceptingInput()
+			{
+				return isActive();
+			}
+
+			@Override
+			public void inputStarted()
+			{
+			}
+
+			@Override
+			public void inputEnded()
+			{
+			}
+
+			@Override
+			public void keyReleased(int key, char c)
+			{
+				onKeyReleased(key, c);
+			}
+
+			@Override
+			public void keyPressed(int key, char c)
+			{
+				onKeyPressed(key, c);
+			}
+		});
+	}
+
+	public InputField(int x, int y, int width, int height)
+	{
+		this.xOffset = x;
+		this.yOffset = y;
+		this.width = width;
+		this.height = height;
+	}
+
+	public void init(String text)
+	{
+		this.text = new StringBuilder(text);
+		this.pressedChar = '"';
+	}
+
+	public void onKeyPressed(int key, char c)
+	{
+		pressedChar = c;
+	}
+
+	public void onKeyReleased(int key, char c)
+	{
+
+	}
+
+	public void update(GameContainer container, int delta)
+	{
+		if (active)
+		{
+			Input input = container.getInput();
+			String prevText = text.toString();
+
+			boolean deletePressed = input.isKeyPressed(Input.KEY_BACK);
+			
+			if (deletePressed || input.isKeyDown(Input.KEY_BACK))
+			{
+				if (input.isKeyDown(Input.KEY_BACK))
+				{
+					deleteTime += delta;
+				}
+								
+				if (!prevText.isEmpty() && (deletePressed || deleteTime >= 800))
+				{
+					text.deleteCharAt(text.length() - 1);
+				}
+			}
+			else if (allowedChars.contains(pressedChar + ""))
+			{
+				text.append(pressedChar + "");
+			}
+			else
+			{
+				deleteTime = 0;
+			}
+	
+			if (listener != null && !prevText.equals(text.toString()))
+			{
+				listener.onInputChanged();
+			}
+			
+			pressedChar = '"';
+		}
+	}
+
+	public void render(GameContainer container, Graphics g)
+	{
+		if (active)
+		{
+			g.setColor(fillColor);
+			g.fillRect(xOffset, yOffset, width, height);
+
+			g.setColor(borderColor);
+			g.drawRect(xOffset, yOffset, width, height);
+
+			Fonts.drawFancy(text.toString() + (System.currentTimeMillis() % 1500 > 750 ? "|" : ""), GameLauncher.getFont(), Color.white, xOffset, yOffset, width, height, false, false, g);
+		}
+	}
+
+	public void adjust(int xChange, int yChange)
+	{
+		this.xOffset += xChange;
+		this.yOffset += yChange;
+	}
+
+	public boolean isActive()
+	{
+		return active;
+	}
+
+	public void setActive(boolean active)
+	{
+		this.active = active;
+	}
+
+	public void addListener(InputChangeListener listener)
+	{
+		this.listener = listener;
+	}
+
+	public String getText()
+	{
+		return text.toString();
+	}
+}

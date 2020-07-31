@@ -1,0 +1,112 @@
+package com.unlogical.linked.resources.image;
+
+import java.io.IOException;
+import java.util.HashMap;
+
+import org.newdawn.slick.Image;
+
+import com.unlogical.linked.filesystem.FilePaths;
+import com.unlogical.linked.resources.ResourceLoader;
+import com.unlogical.linked.util.Dimension;
+import com.unlogical.linked.util.RealImage;
+
+public class Images
+{
+	private static final HashMap<Object, ImageHandler> imageHandlers = new HashMap<Object, ImageHandler>();
+
+	public static ImageHandler registerAndLoad(Object identifier, String path, boolean useDimensions) throws IOException
+	{
+		if (identifier == null)
+		{
+			throw new IllegalArgumentException("identifier cannot be null");
+		}
+
+		if (!imageHandlers.containsKey(identifier))
+		{
+			ImageHandler handler = new ImageHandler(path, useDimensions);
+			handler.loadImages();
+			imageHandlers.put(identifier, handler);
+
+			return handler;
+		}
+
+		return imageHandlers.get(identifier);
+	}
+
+	public static Image getImage(Object identifier)
+	{
+		return getImage(identifier, Dimension.LIGHT);
+	}
+
+	public static Image getImage(Object identifier, Dimension dimension)
+	{
+		return imageHandlers.get(identifier).getImage(dimension);
+	}
+
+	public static Image getImage(Object identifier, Dimension dimension, int innerType)
+	{
+		return imageHandlers.get(identifier).getImage(dimension, innerType);
+	}
+
+	public static ImageHandler getHandler(Object identifier)
+	{
+		return imageHandlers.get(identifier);
+	}
+
+	private static class ImageHandler
+	{
+		private String path;
+		private RealImage[] images;
+		private int imageCount;
+		private boolean useDimensions;
+
+		public ImageHandler(String path, boolean useDimensions)
+		{
+			this.path = path;
+			this.useDimensions = useDimensions;
+		}
+
+		private void loadImages() throws IOException
+		{
+			this.images = ResourceLoader.getImages(path, useDimensions);
+			this.imageCount = images.length;
+		}
+
+		public Image getImage(Dimension dimension)
+		{
+			return images[dimension.code()];
+		}
+
+		public Image getImage(Dimension dimension, int innerType)
+		{
+			int index = dimension.code() + Dimension.count() * innerType;
+
+			if (index >= imageCount)
+			{
+				throw new IllegalArgumentException(index + " is out of range (imageCount: " + imageCount + ")");
+			}
+
+			return images[index];
+		}
+	}
+
+	public enum HintIdentifier
+	{
+		LEVER_HINT_INACTIVE("leverHintInactive"), LEVER_HINT_ACTIVE("leverHintActive"), CAGE_HINT("cageHint"), DOOR_HINT("doorHint"), CANT_TOGGLE("cantToggle");
+
+		private String value;
+
+		private HintIdentifier(String value)
+		{
+			this.value = value;
+		}
+
+		public static void loadAll() throws IOException
+		{
+			for (HintIdentifier identifier : values())
+			{
+				registerAndLoad(identifier, FilePaths.GUI + "/" + identifier.value.toLowerCase() + ".png", true);
+			}
+		}
+	}
+}

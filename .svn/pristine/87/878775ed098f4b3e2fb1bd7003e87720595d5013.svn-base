@@ -1,0 +1,15 @@
+package com.unlogical.linked.entity.key;
+
+import org.newdawn.slick.geom.Vector2f;
+
+import com.unlogical.linked.entity.EntityType;
+import com.unlogical.linked.level.Level;
+import com.unlogical.linked.util.Dimension;
+
+public class EntityStickyKey extends EntityKey
+{
+	public EntityStickyKey(Vector2f position, Level level, Dimension dimension, boolean allowMirrors)
+	{
+		super(EntityType.STICKYKEY, position, level, dimension, allowMirrors);
+	}
+}

@@ -1,0 +1,454 @@
+package com.unlogical.colored.entity.goomba;
+
+import java.util.Map;
+import java.util.Random;
+
+import com.badlogic.gdx.math.Vector2;
+import com.unlogical.colored.audio.AudioManager.SoundType;
+import com.unlogical.colored.entity.Entity;
+import com.unlogical.colored.entity.EntityAction;
+import com.unlogical.colored.entity.EntityLiving;
+import com.unlogical.colored.entity.EntityType;
+import com.unlogical.colored.entity.boss.EntityBoss;
+import com.unlogical.colored.entity.property.EntityProperties;
+import com.unlogical.colored.level.Level;
+import com.unlogical.colored.level.LevelType;
+import com.unlogical.colored.particle.EmitterType;
+import com.unlogical.colored.terrain.TerrainObject;
+import com.unlogical.colored.terrain.tile.cannon.ICannonBall;
+import com.unlogical.colored.terrain.tile.cannon.TileCannon;
+import com.unlogical.colored.util.Dimension;
+import com.unlogical.colored.util.LevelObject;
+import com.unlogical.colored.util.ScheduledEvent;
+
+public class EntityGoomba extends EntityLiving implements ICannonBall
+{
+	private static final String MOVE_RIGHT = "moveRight";
+	private static final String MOVE_LEFT = "moveLeft";
+
+	private static float[] handOffsets = new float[] { 12, 21, 22, 21 };
+
+	private static Vector2 handOffset = new Vector2();
+
+	private LevelObject cannon;
+	protected boolean movingRight = true;
+	private boolean movingRightBefore = this.movingRight;
+	protected boolean turnOnEdges = false;
+	protected float maxSpeed;
+
+	public EntityGoomba(Vector2 position, Level level, Dimension dimension, boolean allowMirrors)
+	{
+		super(EntityType.GOOMBA, position, level, dimension, allowMirrors);
+
+		this.maxSpeed = this.properties.getMaxSpeed();
+	}
+
+	protected EntityGoomba(EntityType type, Vector2 position, Level level, Dimension dimension, boolean allowMirrors)
+	{
+		super(type, position, level, dimension, allowMirrors);
+
+		this.maxSpeed = this.properties.getMaxSpeed();
+	}
+
+	@Override
+	public LevelObject deepCopy(Map<Object, Object> copiedReferences)
+	{
+		EntityGoomba copy = (EntityGoomba) super.deepCopy(copiedReferences);
+
+		copy.cannon = (LevelObject) Level.getCopy(this.cannon, copiedReferences);
+		copy.movingRight = this.movingRight;
+		copy.turnOnEdges = this.turnOnEdges;
+		copy.maxSpeed = this.maxSpeed;
+
+		return copy;
+	}
+
+	@Override
+	public void init()
+	{
+		super.init();
+
+		this.turnOnEdges = this.wasCreatedFromFile;
+	}
+
+	@Override
+	public void onUpdate(float delta, Random generator)
+	{
+		if (this.collidedRight || -this.hitbox.getRightAngle() > 45 && !this.hitbox.isLeftBottom())
+		{
+			if (this.shooting && this.dimension == Dimension.MONOCHROME && this.level.getType() == LevelType.REVERSAL)
+			{
+				this.movingRight = true;
+			}
+			else
+			{
+				this.movingRight = false;
+			}
+		}
+
+		if (this.collidedLeft || this.hitbox.getLeftAngle() > 45 && !this.hitbox.isRightBottom())
+		{
+			if (this.shooting && this.dimension == Dimension.MONOCHROME && this.level.getType() == LevelType.REVERSAL)
+			{
+				this.movingRight = false;
+			}
+			else
+			{
+				this.movingRight = true;
+			}
+		}
+
+		if (this.shooting)
+		{
+			if (this.cannon != null && !this.cannon.getHitbox().intersects(this.hitbox) && !this.cannon.getHitbox().contains(this.hitbox))
+			{
+				this.cannon = null;
+			}
+
+			if (this.velocity.y == 0.0f && this.isOnGround() || !this.alive)
+			{
+				this.shooting = false;
+			}
+		}
+
+		if (this.collidedBelow && !this.shooting)
+		{
+			if (this.movingRight)
+			{
+				this.velocity.x += this.properties.getAcceleration(delta);
+			}
+			else
+			{
+				this.velocity.x -= this.properties.getAcceleration(delta);
+			}
+		}
+
+		if (Math.abs(this.velocity.x) > this.maxSpeed)
+		{
+			if (this.shooting)
+			{
+				this.velocity.x *= 1.0f - 0.002f * delta;
+			}
+			else
+			{
+				this.velocity.x = this.velocity.x > 0 ? this.maxSpeed : -this.maxSpeed;
+			}
+		}
+
+		if (this.turnOnEdges && this.collidedBelow)
+		{
+			if (this.movingRight)
+			{
+				if (this.velocity.x > 0.0f && delta * this.velocity.x >= this.hitbox.getDistanceToRightEnd() - 2 && !this.onRightConnectedTile)
+				{
+					this.reverseDirection();
+				}
+			}
+			else
+			{
+				if (this.velocity.x < 0.0f && delta * -this.velocity.x >= this.hitbox.getDistanceToLeftEnd() - 2 && !this.hitbox.isConnectedLeft() && !this.onLeftConnectedTile)
+				{
+					this.reverseDirection();
+				}
+			}
+		}
+
+		if (this.movingRightBefore != this.movingRight && this.level.getType() == LevelType.TIME_TRAVEL && !this.shared && this.dimension == Dimension.COLORED)
+		{
+			this.scheduleMirroredEvent(new ScheduledEvent(this.movingRight ? MOVE_RIGHT : MOVE_LEFT));
+		}
+
+		this.movingRightBefore = this.movingRight;
+
+		this.setFocused(!this.movingRight);
+	}
+
+	private void reverseDirection()
+	{
+		this.movingRight = !this.movingRight;
+		this.velocity.x *= -0.5f;
+	}
+
+	@Override
+	protected void onScheduledEvent(ScheduledEvent event)
+	{
+		super.onScheduledEvent(event);
+
+		if (event.type == MOVE_RIGHT)
+		{
+			this.movingRight = true;
+		}
+		else if (event.type == MOVE_LEFT)
+		{
+			this.movingRight = false;
+		}
+	}
+
+	@Override
+	protected void customOnDeath(LevelObject damageSource)
+	{
+		this.addEmitter(EmitterType.CREATURE_DEATH_BG, this.dimension);
+		this.addEmitter(EmitterType.CREATURE_DEATH, this.dimension);
+
+		this.enabled = false;
+		this.renderImage = false;
+
+		this.velocity.x /= 3.0f;
+		this.velocity.y /= 3.0f;
+
+		this.resetVelocities();
+	}
+
+	@Override
+	protected void onCloseMoveToBlockLeft(float distance)
+	{
+		this.reverseDirection();
+	}
+
+	@Override
+	protected void onCloseMoveToBlockRight(float distance)
+	{
+		this.reverseDirection();
+	}
+
+	@Override
+	public void onReSimulation()
+	{
+		super.onReSimulation();
+
+		if (!this.shared)
+		{
+			this.movingRight = ((EntityGoomba) this.mirroredEntity).movingRight;
+		}
+	}
+
+	@Override
+	protected Vector2 getHandOffset(boolean focused, EntityAction currentAction, int currentImage)
+	{
+		if (focused)
+		{
+			handOffset.x = handOffsets[0];
+		}
+		else
+		{
+			handOffset.x = handOffsets[2];
+		}
+
+		handOffset.y = handOffsets[1];
+
+		return handOffset;
+	}
+
+	@Override
+	public ICannonBall getMirroredBall()
+	{
+		return (ICannonBall) this.mirroredEntity;
+	}
+
+	@Override
+	public void onShoot(LevelObject cannon, float cannonRotation, float shootSpeed)
+	{
+		this.shooting = true;
+		this.cannon = cannon;
+
+		if (this.cannon.getDimension() != this.dimension)
+		{
+			this.cannon = this.cannon.getMirror();
+		}
+
+		if (this.hasMirror && this.level.getType() == LevelType.REVERSAL && this.dimension == Dimension.COLORED)
+		{
+			this.mirroredEntity.setPosition(((ICannonBall) this.mirroredEntity).getStartPosition(cannon, cannonRotation).cpy());
+			this.mirroredEntity.setVelocity(((ICannonBall) this.mirroredEntity).getStartVelocity(cannon, cannonRotation, shootSpeed).cpy());
+
+			((ICannonBall) this.mirroredEntity).onShoot(cannon, cannonRotation, shootSpeed);
+		}
+
+		this.movingRight = this.velocity.x > 0;
+
+		if (this.level.getType() == LevelType.REVERSAL && this.dimension == Dimension.MONOCHROME)
+		{
+			this.movingRight = !this.movingRight;
+		}
+
+		this.setFocused(!this.movingRight);
+	}
+
+	@Override
+	public boolean collidesWithEntities()
+	{
+		return false;
+	}
+
+	@Override
+	protected boolean shouldBounceOnGround()
+	{
+		return false; // this.alive && (level.getType() != LevelType.TIME_TRAVEL
+						// || this.shared || this.dimension == Dimension.LIGHT);
+	}
+
+	@Override
+	public boolean shouldReSimulate()
+	{
+		return super.shouldReSimulate() && !this.shared;
+	}
+
+	@Override
+	protected boolean isBlocked(TerrainObject tile, Vector2 myVelocity)
+	{
+		return tile != this.cannon && super.isBlocked(tile, myVelocity);
+	}
+
+	@Override
+	public Vector2 getStartVelocity(LevelObject cannon, float cannonRotation, float shootSpeedFactor)
+	{
+		bufferedVector.x = 0.0f;
+		bufferedVector.y = -shootSpeedFactor * this.properties.getMaxSpeed() * 20.0f;
+		bufferedVector.setAngle(bufferedVector.angle() + cannonRotation);
+
+		return bufferedVector;
+	}
+
+	@Override
+	public Vector2 getStartPosition(LevelObject cannon, float cannonRotation)
+	{
+		if (cannon.getRotation() == cannonRotation)
+		{
+			bufferedVector.x = (cannon.getHitbox().getPoints()[0] + cannon.getHitbox().getPoints()[2] - this.hitbox.getWidth()) / 2;
+			bufferedVector.y = (cannon.getHitbox().getPoints()[1] + cannon.getHitbox().getPoints()[3] - this.hitbox.getHeight()) / 2;
+		}
+		else
+		{
+			bufferedVector.x = (cannon.getHitbox().getPoints()[4] + cannon.getHitbox().getPoints()[6] - this.hitbox.getWidth()) / 2;
+			bufferedVector.y = (cannon.getHitbox().getPoints()[5] + cannon.getHitbox().getPoints()[7] - this.hitbox.getHeight()) / 2;
+		}
+
+		return bufferedVector;
+	}
+
+	@Override
+	public boolean isDead()
+	{
+		return !this.alive;
+	}
+
+	@Override
+	public boolean hasCollided()
+	{
+		return this.collidedAbove || this.collidedBelow || this.collidedRight || this.collidedLeft;
+	}
+
+	@Override
+	public boolean supportsAction(EntityAction action)
+	{
+		return action == EntityAction.IDLE_DEFAULT || action == EntityAction.WALKING || action == EntityAction.FALL_START || action == EntityAction.FALLING || action == EntityAction.LANDING || action == EntityAction.DEAD;
+	}
+
+	@Override
+	protected EntityProperties getEntityProperty()
+	{
+		return EntityProperties.GOOMBA;
+	}
+
+	@Override
+	protected boolean canBeHarmedBy(Entity entity)
+	{
+		return this.canInteractWith(entity);
+	}
+
+	@Override
+	protected boolean canInteractWith(Entity entity)
+	{
+		return entity.getType() != this.type && !(entity instanceof EntityBoss);
+	}
+
+	@Override
+	public SoundType getOnShotSound()
+	{
+		return SoundType.CANNON_SHOOT_CREATURE;
+	}
+
+	@Override
+	public EmitterType getPreShootEmitterType()
+	{
+		return EmitterType.CREATURE_PRESHOOT;
+	}
+
+	@Override
+	protected boolean shouldRemoveOnDeath()
+	{
+		return true;
+	}
+
+	@Override
+	public boolean hasDefaultFocus()
+	{
+		return true;
+	}
+
+	@Override
+	protected boolean canWalkSlopes()
+	{
+		return true;
+	}
+
+	@Override
+	protected boolean canBeBouncedOff()
+	{
+		return true;
+	}
+
+	@Override
+	protected boolean shouldUseFittingTextures()
+	{
+		return true;
+	}
+
+	@Override
+	public boolean checkEntityCollisions()
+	{
+		return true;
+	}
+
+	@Override
+	public boolean collidesWithTerrain()
+	{
+		return true;
+	}
+
+	@Override
+	public boolean isBlocked()
+	{
+		return true;
+	}
+
+	public boolean isMovingRight()
+	{
+		return this.movingRight;
+	}
+
+	public void setMovingRight(boolean movingRight)
+	{
+		this.movingRight = movingRight;
+	}
+
+	public boolean isTurnOnEdges()
+	{
+		return this.turnOnEdges;
+	}
+
+	public void setTurnOnEdges(boolean turnOnEdges)
+	{
+		this.turnOnEdges = turnOnEdges;
+	}
+
+	public LevelObject getCannon()
+	{
+		return this.cannon;
+	}
+
+	public void setCannon(TileCannon cannon)
+	{
+		this.cannon = cannon;
+	}
+}

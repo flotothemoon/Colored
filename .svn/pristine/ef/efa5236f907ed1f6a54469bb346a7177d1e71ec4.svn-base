@@ -1,0 +1,62 @@
+package com.unlogical.colored.gui.screen;
+
+import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.g2d.Batch;
+import com.unlogical.colored.GameLauncher;
+import com.unlogical.colored.util.ColorHelper;
+import com.unlogical.colored.util.GameStatus;
+import com.unlogical.colored.util.Renderer;
+import com.unlogical.colored.util.ShaderHandler;
+import com.unlogical.colored.util.Transitions;
+
+public class CreditsScreen
+{	
+	private static final int CREDITS_SHOW_TIME = 10000;
+	private static final int CREDITS_FADE_IN_TIME = 200;
+	
+	private static int creditsShowTime;
+	
+	public static void init()
+	{
+		
+	}
+	
+	public static void show()
+	{
+		GameLauncher.setStatus(GameStatus.CREDITS);
+		
+		creditsShowTime = CREDITS_SHOW_TIME;
+	}
+	
+	public static void update(int delta)
+	{
+		creditsShowTime -= delta;
+	
+		if (creditsShowTime < 0)
+		{
+			GameLauncher.setStatus(GameStatus.MAIN_MENU);
+		}
+	}
+	
+	public static void render(Batch batch)
+	{
+		ShaderHandler.disableLighting();
+				
+		float alpha = Transitions.getFactor((creditsShowTime) / ((float) CREDITS_SHOW_TIME - CREDITS_FADE_IN_TIME));
+		
+		if (creditsShowTime > CREDITS_SHOW_TIME - CREDITS_FADE_IN_TIME)
+		{
+			alpha = 1.0f - ((float) CREDITS_SHOW_TIME - creditsShowTime) / (CREDITS_FADE_IN_TIME);
+		}
+				
+		ColorHelper.applyAlphaAndCopy(Color.WHITE, alpha, batch);
+		
+		//TODo find efficient way to center text
+		
+		Renderer.drawString(" - created by - ", GameLauncher.getWidth() / 2, GameLauncher.getHeight() / 2 - 100, batch);
+		
+		Renderer.drawString("Florian Caesar", GameLauncher.getWidth() / 2, GameLauncher.getHeight() / 2 + 10, batch);
+		
+		ShaderHandler.enableLighting();
+	}
+}

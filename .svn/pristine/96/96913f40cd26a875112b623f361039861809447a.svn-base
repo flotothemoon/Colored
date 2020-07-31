@@ -1,0 +1,50 @@
+package com.unlogical.linked.gui.menu;
+
+import com.unlogical.linked.GameLauncher;
+import com.unlogical.linked.input.ControllerFetcher;
+import com.unlogical.linked.levelrendering.LevelRenderer;
+import com.unlogical.linked.util.GameStatus;
+
+public class PauseMenu extends Menu
+{
+	public PauseMenu(float yOffset, float offset)
+	{
+		super(MenuOptions.PAUSE, 0.0f, yOffset, 0.0f, offset, true);
+	}
+
+	@Override
+	public void setActive(boolean active)
+	{
+		if (!this.isActive() && active)
+		{
+			ControllerFetcher.checkConnection();
+		}
+		
+		super.setActive(active);
+	}
+	
+	@Override
+	public void onSelect(int selection)
+	{
+		switch (selection)
+		{
+			case 0:
+				LevelRenderer.resume();
+				GameLauncher.setStatus(GameStatus.IN_MAP);
+				break;
+			case 1:
+				LevelRenderer.reset();
+				GameLauncher.setStatus(GameStatus.IN_MAP);
+				break;
+			case 2:
+				SettingsMenu.setLastGameStatus(GameStatus.PAUSE_MENU);
+				GameLauncher.setStatus(GameStatus.SETTINGS_MENU);
+				break;
+			case 3:
+				GameLauncher.setStatus(GameStatus.MAIN_MENU);
+				break;
+		}
+
+	}
+
+}

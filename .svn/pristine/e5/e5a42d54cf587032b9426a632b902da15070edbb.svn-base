@@ -1,0 +1,90 @@
+package com.unlogical.colored.terrain.tile;
+
+import java.util.HashSet;
+import java.util.Set;
+
+import org.newdawn.slick.geom.Vector2f;
+
+import com.unlogical.colored.level.Level;
+import com.unlogical.colored.terrain.TileType;
+import com.unlogical.colored.terrain.property.TileProperty;
+import com.unlogical.colored.terrain.tile.properties.ITileMirrorable;
+import com.unlogical.colored.util.Dimension;
+
+public class TileClimbable extends Tile implements ITileMirrorable
+{
+	private Set<TileClimbable> connectedClimbables = new HashSet<TileClimbable>();
+	
+	public TileClimbable(TileType type, String metadata, int innerType, float rotation, Vector2f position, Level level, Dimension dimension, TileProperty properties, boolean allowMirrors)
+	{
+		super(type, metadata, innerType, rotation, position, level, dimension, properties, allowMirrors);
+	}
+
+	@Override
+	public void init()
+	{
+		super.init();
+		
+		updateConnectedClimbables();
+	}
+	
+	private void updateConnectedClimbables()
+	{
+		connectedClimbables.clear();
+		
+		for (Tile tile : level.getTiles())
+		{
+			if (this.inSameDimension(tile) && tile.isClimbable() && this.hitbox.intersects(tile.getHitbox()))
+			{
+				connectedClimbables.add((TileClimbable) tile);
+			}
+		}
+	}
+
+	public boolean contains(float x, float y)
+	{
+		if (this.hitbox.contains(x, y))
+		{
+			return true;
+		}
+		
+		for (TileClimbable tile : connectedClimbables)
+		{
+			if (tile.hitbox.contains(x, y))
+			{
+				return true;
+			}
+		}
+		
+		return false;
+	}
+	
+	@Override
+	public boolean shouldUpdate()
+	{
+		return false;
+	}
+
+	@Override
+	public boolean renderStatic()
+	{
+		return true;
+	}
+
+	@Override
+	public boolean isReallyChangeable()
+	{
+		return false;
+	}
+
+	@Override
+	public boolean shouldCopy()
+	{
+		return false;
+	}
+	
+	public Set<TileClimbable> getConnectedClimbables()
+	{
+		return connectedClimbables;
+	}
+}

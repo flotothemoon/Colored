@@ -1,0 +1,180 @@
+package com.unlogical.linked.particle;
+
+import org.newdawn.slick.Color;
+import org.newdawn.slick.Image;
+
+import com.unlogical.linked.level.Level;
+import com.unlogical.linked.util.Dimension;
+import com.unlogical.linked.util.IDeepCopyable;
+import com.unlogical.linked.util.LevelObject;
+
+public abstract class ParticleEmitter implements IDeepCopyable<ParticleEmitter>
+{
+	public static final int RENDER_IDENTICAL = 0;
+	public static final int RENDER_PARTIAL = 1;
+	
+	protected Image[][] images;
+	
+	protected ParticleSystem system;
+	
+	protected Color color;
+	
+	protected Dimension dimension;
+	
+	protected int particleCount = 0;
+	protected int maxParticles;
+	
+	protected float emitterXOffset;
+	protected float emitterYOffset;
+	
+	protected boolean enabled;
+	protected boolean renderViaSystem = true;
+	
+	public ParticleEmitter(Dimension dimension, ParticleSystem system, Image[][] sprites, int maxParticles)
+	{
+		this.system = system;
+		this.images = sprites;
+		this.maxParticles = maxParticles;
+	}
+	
+	protected abstract ParticleEmitter copy(Level level);
+	
+	public abstract void setImageFor(Particle particle);
+
+	public abstract void updateParticle(Particle particle, float delta);
+	
+	public abstract void update(ParticleSystem system, float delta);
+	
+	public abstract void stop();
+	
+	public abstract void resume();
+	
+	public abstract boolean addAttractor(LevelObject attractor, AttractorConfiguration configuration);
+
+	public abstract void removeAttractor(LevelObject hitbox);
+	
+	public abstract void addParticleEater(LevelObject object);
+	
+	public abstract void pixelifyWrapper(ParticleSystem system, LevelObject wrapper, int pixelSize);
+	
+	public abstract boolean isCompleted();
+	
+	public abstract boolean hasLimitedLength();
+	
+	public abstract boolean isTimeEffected();
+	
+	public abstract boolean isInBackground();
+	
+	public abstract int getDepth();
+	
+	public abstract int getRenderMode();
+	
+	public abstract IEmitterWrapper getWrapper();
+	
+	public abstract EmitterType getType();
+	
+	public Particle getParticle(int lifetime)
+	{
+		return this.system.getParticle(this, lifetime);
+	}
+	
+	public void setSystem(ParticleSystem system)
+	{
+		this.system = system;
+	}
+	
+	public void reset()
+	{
+		if (system != null)
+		{						
+			system.releaseAll(this);	
+		}
+	}
+	
+	public void moveParticles(float xChange, float yChange)
+	{
+		system.moveParticles(this, xChange, yChange);
+	}
+	
+	public abstract void rotate(float angle);
+	
+	public void enable()
+	{
+		this.enabled = true;
+	}
+	
+	public void disable()
+	{
+		this.enabled = false;
+	}
+
+	public boolean isEnabled()
+	{
+		return enabled;
+	}
+	
+	public boolean hasActiveParticles()
+	{
+		return system.hasActiveParticles(this);
+	}
+
+	public ParticleSystem getSystem()
+	{
+		return system;
+	}
+
+	public int getParticleCount()
+	{
+		return particleCount;
+	}
+
+	public int getMaxParticles()
+	{		
+		return maxParticles;
+	}
+
+	public Image[][] getImages()
+	{
+		return images;
+	}
+
+	public boolean renderViaSystem()
+	{
+		return this.renderViaSystem;
+	}
+	
+	public void ensureManualRendering()
+	{
+		this.renderViaSystem = false;
+	}
+
+	public void setColor(Color color)
+	{
+		this.color = color;
+	}
+	
+	public Color getColor()
+	{
+		return color;
+	}
+
+	public Dimension getDimension()
+	{
+		return dimension;
+	}
+
+	public boolean isShared()
+	{
+		return false;
+	}
+	
+	public float getEmitterXOffset()
+	{
+		return emitterXOffset;
+	}
+	
+	public float getEmitterYOffset()
+	{
+		return emitterYOffset;
+	}
+}

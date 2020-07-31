@@ -1,0 +1,122 @@
+package com.unlogical.colored.resources.font;
+
+import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.g2d.Batch;
+import com.badlogic.gdx.graphics.g2d.BitmapFont;
+import com.badlogic.gdx.graphics.g2d.GlyphLayout;
+import com.badlogic.gdx.graphics.g2d.freetype.FreeTypeFontGenerator;
+import com.badlogic.gdx.graphics.g2d.freetype.FreeTypeFontGenerator.FreeTypeFontParameter;
+import com.badlogic.gdx.utils.Align;
+import com.unlogical.colored.debug.Debug;
+import com.unlogical.colored.filesystem.FileManager;
+import com.unlogical.colored.filesystem.FilePaths;
+import com.unlogical.colored.util.Renderer;
+
+public class Fonts
+{
+	private static BitmapFont defaultFont;
+	private static BitmapFont smallFont;
+	private static BitmapFont bigFont;
+	private static BitmapFont veryBigFont;
+	
+	static
+	{
+		loadFont("Chelsea.ttf");
+	}
+
+	private static void loadFont(String fontName)
+	{
+		Debug.log("Loading font \"" + fontName + "\" ...");
+		
+		long beforeTime = System.currentTimeMillis();
+		
+		FreeTypeFontGenerator generator = new FreeTypeFontGenerator(FileManager.getFileQuietly(FileManager.deglobaliseFile(FilePaths.FONTS + "/" + fontName)));
+
+		FreeTypeFontParameter parameter = new FreeTypeFontParameter();
+		
+		parameter.size = 24;
+		parameter.flip = true;
+
+		defaultFont = generator.generateFont(parameter);
+		
+		parameter.size = 18;
+		
+		smallFont = generator.generateFont(parameter);
+		
+		parameter.size = 36;
+		
+		bigFont = generator.generateFont(parameter);
+		
+		parameter.size = 48;
+		
+		veryBigFont = generator.generateFont(parameter);
+		
+		Debug.log("TrueTypeFont loaded, took " + (System.currentTimeMillis() - beforeTime) + "ms.");
+	}
+
+	public static void init()
+	{
+	}
+
+	public static void drawFancy(String text, BitmapFont font, Color color, float x, float y, float width, float height, boolean centerHorizontally, boolean centerVertically, Batch batch)
+	{
+		drawFancy(text, font, color, x, y, width, height, centerHorizontally, centerVertically, false, batch);
+	}
+
+	public static void drawFancy(String text, BitmapFont font, Color color, float x, float y, float width, float height, boolean centerHorizontally, boolean centerVertically, boolean keepWordsTogether, Batch batch)
+	{
+		if (width < 30.0f || height < 0)
+		{
+			return;
+		}
+
+		text = text.replaceAll("\\s+", " "); // clean text
+
+		int align = 0;
+
+		if (!centerHorizontally)
+		{
+			align |= Align.left;
+		}
+
+		if (!centerVertically)
+		{
+			align |= Align.top;
+		}
+
+		GlyphLayout layout = new GlyphLayout(font, text, 0, text.length(), color, width, align, true, null);
+
+		Renderer.useSpriteBatch();
+		Renderer.drawString(text, color, layout, font, x, y, batch);
+	}
+
+	public static BitmapFont getDefaultFont()
+	{
+		return defaultFont;
+	}
+
+	public static BitmapFont getBigGameFont()
+	{
+		return bigFont;
+	}
+
+	public static BitmapFont getVeryBigGameFont()
+	{
+		return veryBigFont;
+	}
+
+	public static BitmapFont getSmallFont()
+	{
+		return smallFont;
+	}
+
+	public static BitmapFont getSmallBoldFont()
+	{
+		return smallFont;
+	}
+
+	public static BitmapFont getBoldDefaultFont()
+	{
+		return defaultFont;
+	}
+}

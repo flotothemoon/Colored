@@ -1,0 +1,67 @@
+package com.unlogical.colored.gui.screen;
+
+import org.newdawn.slick.Color;
+import org.newdawn.slick.GameContainer;
+import org.newdawn.slick.Graphics;
+
+import com.unlogical.colored.GameLauncher;
+import com.unlogical.colored.resources.font.Fonts;
+import com.unlogical.colored.util.ColorHelper;
+import com.unlogical.colored.util.GameStatus;
+import com.unlogical.colored.util.Renderer;
+import com.unlogical.colored.util.ShaderHandler;
+import com.unlogical.colored.util.Transitions;
+
+public class CreditsScreen
+{	
+	private static final int CREDITS_SHOW_TIME = 10000;
+	private static final int CREDITS_FADE_IN_TIME = 200;
+	
+	private static int creditsShowTime;
+	
+	public static void init()
+	{
+		
+	}
+	
+	public static void show()
+	{
+		GameLauncher.setStatus(GameStatus.CREDITS);
+		
+		creditsShowTime = CREDITS_SHOW_TIME;
+	}
+	
+	public static void update(GameContainer container, int delta)
+	{
+		creditsShowTime -= delta;
+	
+		if (creditsShowTime < 0)
+		{
+			GameLauncher.setStatus(GameStatus.MAIN_MENU);
+		}
+	}
+	
+	public static void render(Graphics g)
+	{
+		ShaderHandler.disableLighting();
+		
+		g.resetFont();
+		
+		float alpha = Transitions.getFactor(((float) creditsShowTime) / ((float) CREDITS_SHOW_TIME - CREDITS_FADE_IN_TIME));
+		
+		if (creditsShowTime > CREDITS_SHOW_TIME - CREDITS_FADE_IN_TIME)
+		{
+			alpha = 1.0f - ((float) CREDITS_SHOW_TIME - creditsShowTime) / ((float) CREDITS_FADE_IN_TIME);
+		}
+				
+		ColorHelper.applyAlphaAndCopy(Color.white, alpha, g);
+		
+		g.setFont(Fonts.getBigGameFont());
+		g.drawString(" - created by - ", GameLauncher.getWidth() / 2 - g.getFont().getWidth(" - created by - ") / 2, GameLauncher.getHeight() / 2 - 100);
+		
+		g.setFont(Fonts.getVeryBigGameFont());
+		g.drawString("Florian Caesar", GameLauncher.getWidth() / 2 - g.getFont().getWidth("Florian Caesar") / 2, GameLauncher.getHeight() / 2 + 10);
+		
+		Renderer.clearBind();
+	}
+}

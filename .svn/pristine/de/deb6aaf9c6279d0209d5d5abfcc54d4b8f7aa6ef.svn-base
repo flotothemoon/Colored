@@ -1,0 +1,112 @@
+package com.unlogical.colored.gui.panel;
+
+import org.lwjgl.opengl.Display;
+import org.newdawn.slick.Color;
+import org.newdawn.slick.GameContainer;
+import org.newdawn.slick.Graphics;
+
+import com.unlogical.colored.GameLauncher;
+import com.unlogical.colored.entity.player.EntityPlayer;
+import com.unlogical.colored.level.LevelType;
+import com.unlogical.colored.levelrendering.LevelRenderer;
+import com.unlogical.colored.levelrendering.map.MapRenderer;
+import com.unlogical.colored.mapeditor.MapEditor;
+import com.unlogical.colored.resources.font.Fonts;
+import com.unlogical.colored.util.Renderer;
+import com.unlogical.colored.util.ShaderHandler;
+
+public class DebugPanel extends GUIPanel
+{
+	public DebugPanel(float xOffset, float yOffset, float width, float height)
+	{
+		super("Debug", xOffset, yOffset, width, height);
+
+		this.fillColor = new Color(MapEditor.panelColor);
+		this.setHeight((GameLauncher.getSmallFont().getLineHeight() + 5) * 11);
+	}
+
+	@Override
+	protected void customRender(GameContainer container, float alphaFactor, Graphics g)
+	{
+		int y = (int) (yOffset + 5);
+		int x = (int) (xOffset + 5);
+
+		g.setColor(Color.white);
+		g.setFont(GameLauncher.getSmallFont());
+
+		int offset = g.getFont().getLineHeight() + 5;
+		EntityPlayer player = LevelRenderer.getLevel().getControllingPlayer();
+
+		g.setFont(Fonts.getSmallBoldFont());
+		g.drawString("Level: " + GameLauncher.getLevelContext().getName() + " (" + GameLauncher.getLevelContext().getID() + ")", x, y);
+		y += offset;
+
+		g.setFont(GameLauncher.getSmallFont());
+
+		g.drawString("LevelType: " + player.getLevel().getType(), x, y);
+		y += offset;
+
+		g.drawString("Checkpoint: " + (LevelRenderer.getCurrentCheckpoint() == null ? "Not set" : "Set") + " (total: " + LevelRenderer.getCheckpoints().size() + ")", x, y);
+		y += offset;
+
+		g.drawString("FPS: " + GameLauncher.getFPS() + " (Lock: " + GameLauncher.getTargetFPS() + ", vsync:" + GameLauncher.getContainer().isVSyncRequested() + ")", x, y);
+		y += offset;
+
+		g.drawString("Memory Usage: " + GameLauncher.getUsedMemory() + " (" + ((GameLauncher.getUsedMemory()) * 100) / (GameLauncher.getAllocatedMemory()) + "%) / " + GameLauncher.getAllocatedMemory() + "MB", x, y);
+		y += offset;
+
+		g.drawString("Dimension: " + player.getDimension(), x, y);
+		y += offset;
+
+		if (player.getLevel().getType() == LevelType.TIME_TRAVEL || player.getLevel().getType() == LevelType.FROZEN)
+		{
+			g.drawString("CurrentFrame: " + player.getLevel().timeStepHandler.currentFrameStart + " (" + player.getLevel().timeStepHandler.currentFrameBeforeStart + ") - " + player.getLevel().timeStepHandler.currentFrameEnd, x, y);
+			y += offset;
+		}
+
+		g.drawString((GameLauncher.isFullscreenMode() ? "F" : "W") + ": " + Display.getWidth() + "x" + Display.getHeight() + " (" + ((Math.round((((float) Display.getWidth()) / ((float) Display.getHeight())) * 100)) / 100.0f) + ") - " + GameLauncher.getWidth() + "x" + GameLauncher.getHeight() + " (" + ((Math.round(GameLauncher.TARGET_RATIO * 100)) / 100.0f) + ")", x, y);
+		y += offset;
+
+		if (player.isSuffocating() || (player.hasMirror() && player.getMirroredEntity().isSuffocating()))
+		{
+			if (player.isSuffocating())
+			{
+				g.drawString("Suffocating!", x, y);
+			}
+			else
+			{
+				g.drawString("Can't toggle!", x, y);
+			}
+
+			y += offset;
+		}
+
+		g.drawString("CameraOffset: " + LevelRenderer.getLevel().getCameraOffset().x + " | " + LevelRenderer.getLevel().getCameraOffset().y, x, y);
+		y += offset;
+
+		g.drawString("E: " + LevelRenderer.getEntities().size() + " | T: " + GameLauncher.getLevelContext().getTiles().size() + " | W: " + GameLauncher.getLevelContext().getWrappers().size() + " | E-P: " + LevelRenderer.getLevel().getParticleSystem().getEmitterCount() + " - " + LevelRenderer.getLevel().getParticleSystem().getParticleCount() + " / " + LevelRenderer.getLevel().getParticleSystem().getRealParticleCount(), x, y);
+		y += offset;
+
+		g.drawString("Used Lights: " + ShaderHandler.getUsedLights().size() + " / " + ShaderHandler.getLights().size() + " (" + Math.round((((float) ShaderHandler.getUsedLights().size()) / ((float) ShaderHandler.getLights().size())) * 1000.0f) / 10.0f + "%)",x, y);
+		y += offset;
+		
+		if (LevelRenderer.isTransitioning())
+		{
+			g.drawString("TransitionTime: " + LevelRenderer.getDimensionTransitionTime(), x, y);
+			y += offset;
+		}
+
+		if (MapRenderer.isReSimulating())
+		{
+			g.drawString("ReSimulating?", x, y);
+			y += offset;
+		}
+
+		Renderer.clearBind();
+		
+		if ((y - yOffset + 20) != this.height)
+		{
+			this.setHeight(y - yOffset + 20);
+		}
+	}
+}

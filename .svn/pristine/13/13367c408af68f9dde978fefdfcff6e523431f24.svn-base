@@ -1,0 +1,404 @@
+package com.unlogical.colored.gui.button;
+
+import org.newdawn.slick.Color;
+import org.newdawn.slick.GameContainer;
+import org.newdawn.slick.Graphics;
+import org.newdawn.slick.Input;
+import org.newdawn.slick.geom.Rectangle;
+
+import com.unlogical.colored.GameLauncher;
+import com.unlogical.colored.debug.Debug;
+import com.unlogical.colored.gui.menu.Menu;
+import com.unlogical.colored.sound.Sounds;
+import com.unlogical.colored.util.ColorHelper;
+import com.unlogical.colored.util.Renderer;
+import com.unlogical.colored.util.ShaderHandler;
+
+public abstract class Button
+{
+	private int width;
+	private int height;
+	private int xOffset;
+	private int yOffset;
+	private int labelOffsetX;
+
+	private int labelOffsetY;
+
+	private boolean shown = true;
+	private boolean active = true;
+	private boolean hovered = false;
+	private boolean preferUnicode = false;
+	private boolean showBox = true;
+	private boolean useEventColors;
+
+	private Rectangle buttonBox;
+
+	private String buttonLabel;
+
+	private Color fillColor = new Color(0.3f, 0.3f, 0.4f, 0.5f);
+	private Color textColor = Color.white;
+	private Color notActiveColor = Color.gray;
+	private Color hoverColor = new Color(0.4f, 0.4f, 0.5f, 0.55f);
+	private Color borderColor = Color.white;
+
+	public Button(String label, int xOffset, int yOffset, int width, int height)
+	{
+		this.buttonLabel = label;
+
+		this.width = width;
+		this.height = height;
+		this.xOffset = xOffset;
+		this.yOffset = yOffset;
+
+		updateInterface();
+	}
+
+	public void setProperties(Button other)
+	{
+		this.borderColor = other.borderColor;
+		this.hoverColor = other.hoverColor;
+		this.notActiveColor = other.notActiveColor;
+		this.textColor = other.textColor;
+		this.fillColor = other.fillColor;
+	}
+
+	public void update(GameContainer container, int delta)
+	{
+		if (active && shown)
+		{
+			hovered = false;
+
+			if (buttonBox.contains(container.getInput().getMouseX(), container.getInput().getMouseY()))
+			{
+				if (container.getInput().isMousePressed(Input.MOUSE_LEFT_BUTTON))
+				{
+					Debug.log("Clicked \"" + buttonLabel + "\" and called its onClick().");
+					Sounds.play("click");
+
+					onClick();
+				}
+				else
+				{
+					hovered = true;
+				}
+			}
+		}
+
+		customUpdate(container, delta);
+	}
+
+	public void render(GameContainer container, float alphaFactor, Graphics g)
+	{
+		if (shown)
+		{
+			if (showBox)
+			{
+				ColorHelper.applyAlphaAndCopy(fillColor, alphaFactor, g);
+
+				if (hovered)
+				{
+					ColorHelper.applyAlphaAndCopy(hoverColor, alphaFactor, g);
+				}
+
+				g.fill(buttonBox);
+			}
+
+			if (useEventColors)
+			{
+				if (hovered)
+				{
+					ColorHelper.applyAlphaAndCopy(Menu.SELECTION_COLOR, alphaFactor, g);
+				}
+				else
+				{
+					ColorHelper.applyAlphaAndCopy(Menu.UNSELECTED_COLOR, alphaFactor, g);
+				}
+			}
+			else
+			{
+				ColorHelper.applyAlphaAndCopy(textColor, alphaFactor, g);
+
+				if (!active)
+				{
+					ColorHelper.applyAlphaAndCopy(notActiveColor, alphaFactor, g);
+				}
+			}
+
+			g.setFont(GameLauncher.getFont());
+
+			ShaderHandler.disableLighting();
+			
+			g.drawString(buttonLabel, labelOffsetX, labelOffsetY);
+			
+			Renderer.bindTexture(null);
+		}
+
+		ColorHelper.applyAlphaAndCopy(textColor, alphaFactor, g);
+
+		customRender(container, g);
+	}
+
+	public void setPosition(int x, int y)
+	{
+		this.xOffset = x;
+		this.yOffset = y;
+
+		updateInterface();
+	}
+
+	public void updateInterface()
+	{
+		if (this.buttonBox == null)
+		{
+			this.buttonBox = new Rectangle(xOffset, yOffset, width, height);
+		}
+		else
+		{
+			this.buttonBox.setX(xOffset);
+			this.buttonBox.setY(yOffset);
+			this.buttonBox.setWidth(width);
+			this.buttonBox.setHeight(height);
+		}
+
+		this.labelOffsetX = this.xOffset + (this.width / 2) - GameLauncher.getFont().getWidth(buttonLabel) / 2;
+		this.labelOffsetY = this.yOffset + ((this.height - GameLauncher.getFont().getHeight()) / 2);
+	}
+
+	public boolean contains(int absoluteMouseX, int absoluteMouseY)
+	{
+		return this.buttonBox.contains(absoluteMouseX, absoluteMouseY);
+	}
+
+	public void customUpdate(GameContainer container, int delta)
+	{
+
+	}
+
+	public void customRender(GameContainer container, Graphics g)
+	{
+
+	}
+
+	public abstract void onClick();
+
+	public boolean isUseEventColors()
+	{
+		return useEventColors;
+	}
+
+	public void setUseEventColors(boolean useEventColors)
+	{
+		this.useEventColors = useEventColors;
+	}
+
+	public int getWidth()
+	{
+		return width;
+	}
+
+	public void setWidth(int width)
+	{
+		this.width = width;
+	}
+
+	public int getHeight()
+	{
+		return height;
+	}
+
+	public void setHeight(int height)
+	{
+		this.height = height;
+	}
+
+	public void adjust(int xChange, int yChange)
+	{
+		this.xOffset += xChange;
+		this.yOffset += yChange;
+
+		this.updateInterface();
+	}
+
+	public int getX()
+	{
+		return xOffset;
+	}
+
+	public void setX(int xOffset)
+	{
+		this.xOffset = xOffset;
+	}
+
+	public void adjustX(int xChange)
+	{
+		this.xOffset += xChange;
+		this.updateInterface();
+	}
+
+	public int getCenterY()
+	{
+		return (int) this.buttonBox.getCenterY();
+	}
+
+	public int getY()
+	{
+		return yOffset;
+	}
+
+	public void setY(int yOffset)
+	{
+		this.yOffset = yOffset;
+	}
+
+	public void adjustY(int yChange)
+	{
+		this.yOffset += yChange;
+		this.updateInterface();
+	}
+
+	public int getLabelOffsetX()
+	{
+		return labelOffsetX;
+	}
+
+	public void setLabelOffsetX(int labelOffsetX)
+	{
+		this.labelOffsetX = labelOffsetX;
+	}
+
+	public int getLabelOffsetY()
+	{
+		return labelOffsetY;
+	}
+
+	public void setLabelOffsetY(int labelOffsetY)
+	{
+		this.labelOffsetY = labelOffsetY;
+	}
+
+	public boolean isShown()
+	{
+		return shown;
+	}
+
+	public void setShown(boolean shown)
+	{
+		this.shown = shown;
+	}
+
+	public boolean isActive()
+	{
+		return active;
+	}
+
+	public void setActive(boolean active)
+	{
+		this.active = active;
+	}
+
+	public boolean isHovered()
+	{
+		return hovered;
+	}
+
+	public void setHovered(boolean hovered)
+	{
+		this.hovered = hovered;
+	}
+
+	public String getButtonLabel()
+	{
+		return buttonLabel;
+	}
+
+	public void setText(String buttonLabel)
+	{
+		this.buttonLabel = buttonLabel;
+		updateInterface();
+	}
+
+	public Color getFillColor()
+	{
+		return fillColor;
+	}
+
+	public void setFillColor(Color fillColor)
+	{
+		this.fillColor = fillColor;
+	}
+
+	public Color getTextColor()
+	{
+		return textColor;
+	}
+
+	public void setTextColor(Color textColor)
+	{
+		this.textColor = textColor;
+	}
+
+	public Color getNotActiveColor()
+	{
+		return notActiveColor;
+	}
+
+	public void setNotActiveColor(Color notActiveColor)
+	{
+		this.notActiveColor = notActiveColor;
+	}
+
+	public Color getHoverColor()
+	{
+		return hoverColor;
+	}
+
+	public void setHoverColor(Color hoverColor)
+	{
+		this.hoverColor = hoverColor;
+	}
+
+	public Color getBorderColor()
+	{
+		return borderColor;
+	}
+
+	public void setBorderColor(Color borderColor)
+	{
+		this.borderColor = borderColor;
+	}
+
+	public boolean isPreferUnicode()
+	{
+		return preferUnicode;
+	}
+
+	public void setPreferUnicode(boolean preferUnicode)
+	{
+		this.preferUnicode = preferUnicode;
+	}
+
+	public boolean isShowBox()
+	{
+		return showBox;
+	}
+
+	public void setShowBox(boolean showBox)
+	{
+		this.showBox = showBox;
+	}
+
+	public int getxOffset()
+	{
+		return xOffset;
+	}
+
+	public int getyOffset()
+	{
+		return yOffset;
+	}
+
+	public Rectangle getButtonBox()
+	{
+		return this.buttonBox;
+	}
+}

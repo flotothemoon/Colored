@@ -1,0 +1,101 @@
+package com.unlogical.colored.filesystem.organisation;
+
+import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
+
+import com.unlogical.colored.debug.Debug;
+import com.unlogical.colored.filesystem.MapFiles;
+import com.unlogical.colored.filesystem.files.YAMLConfiguration;
+import com.unlogical.colored.gui.menu.SelectionState;
+
+public class MapOrganisation
+{
+	private File directory;
+
+	public MapOrganisation(String directory)
+	{
+		this.directory = new File(directory);
+
+		if (!this.directory.isDirectory())
+		{
+			throw new IllegalArgumentException("Directory must be a ... wait for it ... directory!");
+		}
+	}
+
+	public SelectionState[] getMaps(boolean recursive)
+	{
+		Debug.log("Requesting available map files...");
+
+		SelectionState[] saveStates;
+		List<File> maps = new ArrayList<File>();
+
+		searchMaps(directory, maps, recursive);
+
+		saveStates = new SelectionState[maps.size()];
+
+		for (int i = 0; i < maps.size(); i++)
+		{
+			saveStates[i] = getSaveState(maps.get(i));
+		}
+
+//		List<SelectionState> sortedLevels = Arrays.asList(saveStates);
+		
+//		Collections.sort(sortedLevels, new Comparator<SelectionState>()
+//		{
+//			@Override
+//			public int compare(SelectionState o1, SelectionState o2)
+//			{
+//				return new Date(o1.getLastPlayed()).compareTo(new Date(o2.getLastPlayed()));
+//			}
+//		});
+
+//		saveStates = (SelectionState[]) sortedLevels.toArray();
+		
+		Debug.log(maps.size() + " found.");
+
+		return saveStates;
+	}
+
+	private void searchMaps(File directory, List<File> maps, boolean searchRecursive)
+	{
+		for (File file : directory.listFiles())
+		{
+			if (isValidMap(file))
+			{
+				maps.add(file);
+			}
+
+			if (searchRecursive && file.isDirectory())
+			{
+				searchMaps(file, maps, searchRecursive);
+			}
+		}
+	}
+
+	public static boolean isValidMap(File mapDirectory)
+	{
+		for (int i = 0; i < MapFiles.files.length; i++)
+		{
+			File file = new File(mapDirectory.getPath() + "/" + MapFiles.files[i]);
+
+			if (!file.exists())
+			{
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	private SelectionState getSaveState(File mapDirectory)
+	{
+		SelectionState ssp = null;
+		YAMLConfiguration cfg = new YAMLConfiguration(new File(mapDirectory.getPath() + "/config.yml"));
+		String lastPlayed = cfg.get("lastPlayed");
+
+		ssp = new SelectionState(cfg.get("name"), cfg.get("ID"), "custom", mapDirectory.getPath().replace('\\', '/'), lastPlayed);
+
+		return ssp;
+	}
+}

@@ -1,0 +1,410 @@
+package com.unlogical.colored.filesystem.files;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+
+import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.g2d.TextureRegion;
+import com.badlogic.gdx.math.Vector2;
+import com.unlogical.colored.filesystem.FileHandle;
+import com.unlogical.colored.filesystem.FileManager;
+import com.unlogical.colored.level.Level;
+import com.unlogical.colored.particle.ColorDistributionMode;
+import com.unlogical.colored.particle.ParticleEmitter;
+import com.unlogical.colored.particle.ParticleEmitterImpl;
+import com.unlogical.colored.resources.ResourceLoader;
+import com.unlogical.colored.util.Dimension;
+import com.unlogical.colored.wrapper.WrapperTexture;
+
+import au.com.bytecode.opencsv.CSVReader;
+import au.com.bytecode.opencsv.CSVWriter;
+
+public class WrapperTextureHandler
+{
+	public static final HashMap<String, TextureRegion[][]> bufferedWrappers = new HashMap<String, TextureRegion[][]>();
+	private FileHandle file;
+
+	public WrapperTextureHandler(FileHandle file)
+	{
+		this.file = file;
+	}
+
+	public static void releaseAll()
+	{
+		bufferedWrappers.clear();
+	}
+
+	public void write(List<WrapperTexture> wrappers) throws IOException
+	{
+		CSVWriter writer = null;
+		String[] buffer = new String[81];
+
+		try
+		{
+			writer = new CSVWriter(new OutputStreamWriter(this.file.createOutputStream()));
+		}
+		catch (IOException e)
+		{
+			throw new RuntimeException("Unable to create file writer for " + this.file + ": " + e, e);
+		}
+
+		for (WrapperTexture wrapper : wrappers)
+		{
+			buffer[0] = FileManager.deglobaliseFile(wrapper.getPath());
+
+			buffer[1] = wrapper.getPosition().x - wrapper.getLevel().getCameraOffset().x * wrapper.getEmitterParallax() + "";
+			buffer[2] = wrapper.getPosition().y - wrapper.getLevel().getCameraOffset().y * wrapper.getEmitterParallax() + "";
+
+			buffer[3] = wrapper.getEmitterParallax() + "";
+			buffer[4] = wrapper.isInBackground() + "";
+			buffer[5] = wrapper.isVisible() + "";
+
+			buffer[6] = wrapper.getRotation() + "";
+			buffer[7] = wrapper.getDepth() + "";
+
+			buffer[8] = wrapper.isAnimated() + "";
+			buffer[9] = wrapper.getTimePerImage() + "";
+
+			buffer[10] = buffer[11] = buffer[12] = "";
+
+			buffer[13] = wrapper.isShouldClip() + "";
+
+			buffer[14] = wrapper.getInnerType() + "";
+			buffer[15] = wrapper.getScale() + "";
+
+			buffer[16] = wrapper.getStartEmitterTint().r + "";
+			buffer[17] = wrapper.getStartEmitterTint().g + "";
+			buffer[18] = wrapper.getStartEmitterTint().b + "";
+			buffer[19] = wrapper.getStartEmitterTint().a + "";
+
+			buffer[20] = wrapper.isDrawSubImages() + "";
+			buffer[21] = buffer[22] = buffer[23] = "";
+			buffer[24] = wrapper.isStretchMode() + "";
+
+			buffer[25] = wrapper.getSimpleName();
+
+			buffer[26] = wrapper.isParticleWrapper() + "";
+
+			buffer[27] = wrapper.isFlippedHorizontally() + "";
+			buffer[28] = wrapper.isFlippedVertically() + "";
+
+			buffer[29] = wrapper.getWidth() + "";
+			buffer[30] = wrapper.getHeight() + "";
+
+			if (wrapper.isParticleWrapper())
+			{
+				ParticleEmitterImpl emitter = wrapper.getEmitter();
+
+				buffer[10] = emitter.isScaleWithWidth() + "";
+				buffer[11] = emitter.isScaleWithHeight() + "";
+				buffer[12] = emitter.isCircularEmitter() + "";
+				buffer[21] = emitter.isRotateAccelerations() + "";
+				buffer[22] = wrapper.getEndEmitterTint().r + ":" + wrapper.getEndEmitterTint().g + ":" + wrapper.getEndEmitterTint().b;
+				buffer[23] = wrapper.getColorDistributionMode().name();
+
+				buffer[31] = emitter.getLifeTime() + "";
+
+				buffer[32] = emitter.getSpawnInterval().minValue() + "";
+				buffer[33] = emitter.getSpawnInterval().maxValue() + "";
+
+				buffer[34] = emitter.getSpawnCount().minValue() + "";
+				buffer[35] = emitter.getSpawnCount().maxValue() + "";
+
+				buffer[36] = emitter.getInitialLife().minValue() + "";
+				buffer[37] = emitter.getInitialLife().maxValue() + "";
+
+				buffer[38] = emitter.getInitialSize().minValue() + "";
+				buffer[39] = emitter.getInitialSize().maxValue() + "";
+
+				buffer[40] = emitter.getXOffset().minValue() + "";
+				buffer[41] = emitter.getXOffset().maxValue() + "";
+
+				buffer[42] = emitter.getYOffset().minValue() + "";
+				buffer[43] = emitter.getYOffset().maxValue() + "";
+
+				buffer[44] = emitter.getStartRotation().minValue() + "";
+				buffer[45] = emitter.getStartRotation().maxValue() + "";
+
+				buffer[46] = emitter.getRotationVelocity().minValue() + "";
+				buffer[47] = emitter.getRotationVelocity().maxValue() + "";
+
+				buffer[48] = emitter.getGrowthFactor().minValue() + "";
+				buffer[49] = emitter.getGrowthFactor().maxValue() + "";
+
+				buffer[50] = emitter.getGravityFactor().minValue() + "";
+				buffer[51] = emitter.getGravityFactor().maxValue() + "";
+
+				buffer[52] = emitter.getWindFactor().minValue() + "";
+				buffer[53] = emitter.getWindFactor().maxValue() + "";
+
+				buffer[54] = emitter.getStartAlpha().minValue() + "";
+				buffer[55] = emitter.getStartAlpha().maxValue() + "";
+
+				buffer[56] = emitter.getFadeOutTime().minValue() + "";
+				buffer[57] = emitter.getFadeOutTime().maxValue() + "";
+
+				buffer[58] = emitter.shouldFadeOut() + "";
+
+				buffer[59] = emitter.limittedToWrapper() + "";
+
+				buffer[60] = emitter.shouldBounceOutOfArea() + "";
+
+				buffer[61] = emitter.hasLimitedLifetime() + "";
+
+				buffer[62] = emitter.getVelocityX().minValue() + "";
+				buffer[63] = emitter.getVelocityX().maxValue() + "";
+
+				buffer[64] = emitter.getVelocityY().minValue() + "";
+				buffer[65] = emitter.getVelocityY().maxValue() + "";
+
+				buffer[66] = emitter.shouldFadeIn() + "";
+
+				buffer[67] = emitter.getFadeInTime().minValue() + "";
+				buffer[68] = emitter.getFadeInTime().maxValue() + "";
+
+				buffer[70] = emitter.getMaxParticles() + "";
+
+				buffer[72] = emitter.isMaxOutParticles() + "";
+
+				buffer[73] = emitter.getScissoredDirections() + "";
+
+				buffer[74] = "";
+
+				buffer[75] = emitter.isTightBounce() + "";
+				buffer[76] = emitter.isAdditive() + "";
+				buffer[77] = emitter.isCircularInversed() + "";
+
+				buffer[78] = emitter.isWobbleMode() + "";
+				buffer[79] = emitter.getWobbleInterval().minValue() + "";
+				buffer[80] = emitter.getWobbleInterval().maxValue() + "";
+			}
+			else
+			{
+				for (int i = 31; i <= 68; i++)
+				{
+					buffer[i] = "";
+				}
+
+				buffer[70] = "";
+				buffer[76] = "";
+				buffer[77] = "";
+				buffer[78] = "";
+				buffer[79] = "";
+				buffer[80] = "";
+			}
+
+			buffer[69] = wrapper.getAddEmitterTint().r + ":" + wrapper.getAddEmitterTint().g + ":" + wrapper.getAddEmitterTint().b;
+			buffer[71] = wrapper.getTemplateName();
+
+			writer.writeNext(buffer);
+		}
+
+		writer.close();
+		this.file.closeOutputStream();
+	}
+
+	public ArrayList<WrapperTexture> read(Level level) throws IOException
+	{
+		ArrayList<WrapperTexture> wrapperImages = new ArrayList<WrapperTexture>();
+		CSVReader reader = null;
+		String[] buffer;
+		InputStream in;
+
+		reader = new CSVReader(new InputStreamReader(in = this.file.createInputStream()));
+
+		while ((buffer = reader.readNext()) != null)
+		{
+			String path = buffer[0];
+
+			float xPos = Float.parseFloat(buffer[1]);
+			float yPos = Float.parseFloat(buffer[2]);
+
+			Vector2 position = new Vector2(xPos, yPos);
+
+			float parallax = Float.parseFloat(buffer[3]);
+
+			float rotation = Float.parseFloat(buffer[6]);
+
+			boolean inBackground = Boolean.parseBoolean(buffer[4]);
+			boolean visible = Boolean.parseBoolean(buffer[5]);
+
+			int depth = Integer.parseInt(buffer[7]);
+
+			int timePerImage = Integer.parseInt(buffer[9]);
+
+			boolean shouldClip = !buffer[13].isEmpty() && Boolean.parseBoolean(buffer[13]);
+
+			boolean isParticleWrapper = Boolean.parseBoolean(buffer[26]);
+
+			boolean flippedHorizontally = Boolean.parseBoolean(buffer[27]);
+			boolean flippedVertically = Boolean.parseBoolean(buffer[28]);
+
+			int width = Integer.parseInt(buffer[29]);
+			int height = Integer.parseInt(buffer[30]);
+
+			String simpleName = buffer[25];
+
+			TextureRegion[][] images;
+
+			if (bufferedWrappers.get(path) == null)
+			{
+				images = ResourceLoader.getAnimatedImages(path);
+
+				bufferedWrappers.put(path, images);
+			}
+			else
+			{
+				images = bufferedWrappers.get(path);
+			}
+
+			int innerType = Integer.parseInt(buffer[14]);
+			float scale = Float.parseFloat(buffer[15]);
+
+			Color tint = new Color(Float.parseFloat(buffer[16]), Float.parseFloat(buffer[17]), Float.parseFloat(buffer[18]), Float.parseFloat(buffer[19]));
+
+			boolean drawSubImages = Boolean.parseBoolean(buffer[20]);
+			boolean stretchMode = !buffer[24].isEmpty() && Boolean.parseBoolean(buffer[24]);
+
+			WrapperTexture wrapper = new WrapperTexture(path, simpleName, position, visible, inBackground, innerType, rotation, scale, tint, depth, parallax, images, timePerImage, level, drawSubImages, shouldClip, stretchMode, flippedVertically, flippedHorizontally, width, height, null);
+
+			if (buffer.length >= 70 && !buffer[69].isEmpty())
+			{
+				String[] parts = buffer[69].split(":");
+
+				wrapper.setAddTint(new Color(Float.parseFloat(parts[0]), Float.parseFloat(parts[1]), Float.parseFloat(parts[2]), 1.0f));
+			}
+
+			if (buffer.length >= 71 && !buffer[70].isEmpty())
+			{
+				wrapper.setMaxParticles(Integer.parseInt(buffer[70]));
+			}
+
+			if (buffer.length >= 72 && !buffer[71].isEmpty())
+			{
+				wrapper.setTemplateName(buffer[71]);
+			}
+
+			if (isParticleWrapper)
+			{
+				ParticleEmitterImpl emitter = new ParticleEmitterImpl(Dimension.COLORED, wrapper);
+
+				emitter.setLifeTime(Integer.parseInt(buffer[31]));
+				emitter.setSpawnInterval(new ParticleEmitterImpl.IntegerRange(Integer.parseInt(buffer[32]), Integer.parseInt(buffer[33])));
+				emitter.setSpawnCount(new ParticleEmitterImpl.IntegerRange(Integer.parseInt(buffer[34]), Integer.parseInt(buffer[35])));
+				emitter.setInitalLife(new ParticleEmitterImpl.IntegerRange(Integer.parseInt(buffer[36]), Integer.parseInt(buffer[37])));
+				emitter.setInitalSize(new ParticleEmitterImpl.IntegerRange(Integer.parseInt(buffer[38]), Integer.parseInt(buffer[39])));
+				emitter.setxOffset(new ParticleEmitterImpl.FloatRange(Float.parseFloat(buffer[40]), Float.parseFloat(buffer[41])));
+				emitter.setyOffset(new ParticleEmitterImpl.FloatRange(Float.parseFloat(buffer[42]), Float.parseFloat(buffer[43])));
+				emitter.setStartRotation(new ParticleEmitterImpl.FloatRange(Float.parseFloat(buffer[44]), Float.parseFloat(buffer[45])));
+				emitter.setRotationVelocity(new ParticleEmitterImpl.FloatRange(Float.parseFloat(buffer[46]), Float.parseFloat(buffer[47])));
+				emitter.setGrowthFactor(new ParticleEmitterImpl.FloatRange(Float.parseFloat(buffer[48]), Float.parseFloat(buffer[49])));
+				emitter.setGravityFactor(new ParticleEmitterImpl.FloatRange(Float.parseFloat(buffer[50]), Float.parseFloat(buffer[51])));
+				emitter.setWindFactor(new ParticleEmitterImpl.FloatRange(Float.parseFloat(buffer[52]), Float.parseFloat(buffer[53])));
+				emitter.setStartAlpha(new ParticleEmitterImpl.IntegerRange(Integer.parseInt(buffer[54]), Integer.parseInt(buffer[55])));
+
+				emitter.setFadeOutTime(new ParticleEmitterImpl.IntegerRange(Integer.parseInt(buffer[56]), Integer.parseInt(buffer[57])));
+				emitter.setFadeInTime(new ParticleEmitterImpl.IntegerRange(Integer.parseInt(buffer[67]), Integer.parseInt(buffer[68])));
+
+				emitter.setShouldFadeIn(Boolean.parseBoolean(buffer[66]));
+				emitter.setShouldFadeOut(Boolean.parseBoolean(buffer[58]));
+				emitter.setLimitToWrapper(Boolean.parseBoolean(buffer[59]));
+				emitter.setShouldBounceOutOfArea(Boolean.parseBoolean(buffer[60]));
+				emitter.setHasLimitedLifetime(Boolean.parseBoolean(buffer[61]));
+				emitter.setRotateAccelerations(Boolean.parseBoolean(buffer[21]));
+				emitter.setCircularEmitter(!buffer[12].isEmpty() && Boolean.parseBoolean(buffer[12]));
+
+				emitter.setScaleWithWidth(Boolean.parseBoolean(buffer[10]));
+				emitter.setScaleWithHeight(Boolean.parseBoolean(buffer[11]));
+
+				emitter.setVelocityX(new ParticleEmitterImpl.FloatRange(Float.parseFloat(buffer[62]), Float.parseFloat(buffer[63])));
+				emitter.setVelocityY(new ParticleEmitterImpl.FloatRange(Float.parseFloat(buffer[64]), Float.parseFloat(buffer[65])));
+
+				if (!buffer[22].isEmpty())
+				{
+					String[] parts = buffer[22].split(":");
+
+					wrapper.setEndTint(new Color(Float.parseFloat(parts[0]), Float.parseFloat(parts[1]), Float.parseFloat(parts[2]), 1.0f));
+				}
+
+				if (!buffer[23].isEmpty())
+				{
+					ColorDistributionMode mode = null;
+
+					for (ColorDistributionMode m : ColorDistributionMode.values())
+					{
+						if (m.name().equalsIgnoreCase(buffer[23]))
+						{
+							mode = m;
+
+							break;
+						}
+					}
+
+					if (mode != null)
+					{
+						wrapper.setColorDistributionMode(mode);
+					}
+				}
+
+				if (buffer.length >= 73 && !buffer[72].isEmpty())
+				{
+					emitter.setMaxOutParticles(Boolean.parseBoolean(buffer[72]));
+				}
+
+				if (buffer.length == 75)
+				{
+					emitter.setShouldScissor(ParticleEmitter.LEFT | ParticleEmitter.RIGHT, Boolean.parseBoolean(buffer[73]));
+					emitter.setShouldScissor(ParticleEmitter.UP | ParticleEmitter.DOWN, Boolean.parseBoolean(buffer[74]));
+				}
+				else if (buffer.length >= 74)
+				{
+					emitter.setScissoredDirections(Integer.parseInt(buffer[73]));
+
+					if (buffer.length >= 76)
+					{
+						emitter.setTightBounce(Boolean.parseBoolean(buffer[75]));
+					}
+
+					if (buffer.length >= 77)
+					{
+						emitter.setAdditive(Boolean.parseBoolean(buffer[76]));
+					}
+
+					if (buffer.length >= 78)
+					{
+						emitter.setCircularInversed(Boolean.parseBoolean(buffer[77]));
+					}
+
+					if (buffer.length >= 79)
+					{
+						emitter.setWobbleMode(Boolean.parseBoolean(buffer[78]));
+					}
+
+					if (buffer.length >= 81)
+					{
+						emitter.setWobbleInterval(new ParticleEmitterImpl.IntegerRange(Integer.parseInt(buffer[79]), Integer.parseInt(buffer[80])));
+					}
+				}
+
+				if (level.shouldCreateMirrors())
+				{
+					emitter.createMirror(level.getLevelType());
+				}
+
+				wrapper.setEmitter(emitter);
+			}
+
+			wrapperImages.add(wrapper);
+		}
+
+		reader.close();
+		in.close();
+
+		return wrapperImages;
+	}
+}

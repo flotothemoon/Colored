@@ -1,0 +1,105 @@
+package com.unlogical.linked.gui.login;
+
+import java.security.InvalidKeyException;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+
+import javax.crypto.BadPaddingException;
+import javax.crypto.Cipher;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
+import javax.crypto.spec.SecretKeySpec;
+
+public class Encryption
+{
+	public static byte[] encryptString(String textToEncrypt, String passphrase)
+	{
+		StringBuilder str = new StringBuilder(textToEncrypt);
+		str.setLength(50);
+		textToEncrypt = str.toString();
+		textToEncrypt = textToEncrypt.replace('\u0000', '&');
+
+		try
+		{
+			MessageDigest digest = MessageDigest.getInstance("SHA");
+			digest.update(passphrase.getBytes());
+			SecretKeySpec key = new SecretKeySpec(digest.digest(), 0, 16, "AES");
+
+			Cipher aes = Cipher.getInstance("AES/ECB/PKCS5Padding");
+			aes.init(Cipher.ENCRYPT_MODE, key);
+			byte[] output = aes.doFinal(textToEncrypt.getBytes());
+			for (int i = 0; i < passphrase.length(); i++)
+				rotateArrayLeft(output);
+
+			return output;
+
+		}
+		catch (InvalidKeyException e)
+		{
+		}
+		catch (IllegalBlockSizeException e)
+		{
+		}
+		catch (BadPaddingException e)
+		{
+		}
+		catch (NoSuchAlgorithmException e)
+		{
+		}
+		catch (NoSuchPaddingException e)
+		{
+		}
+
+		return null;
+	}
+
+	public static String decryptString(byte[] input, String passphrase)
+	{
+		for (int i = 0; i < passphrase.length(); i++)
+			rotateArrayRight(input);
+		try
+		{
+			MessageDigest digest = MessageDigest.getInstance("SHA");
+			digest.update(passphrase.getBytes());
+			SecretKeySpec key = new SecretKeySpec(digest.digest(), 0, 16, "AES");
+			Cipher aes = Cipher.getInstance("AES/ECB/PKCS5Padding");
+			aes.init(Cipher.DECRYPT_MODE, key);
+			return new String(aes.doFinal(input));
+		}
+		catch (InvalidKeyException e)
+		{
+		}
+		catch (IllegalBlockSizeException e)
+		{
+		}
+		catch (BadPaddingException e)
+		{
+		}
+		catch (NoSuchAlgorithmException e)
+		{
+		}
+		catch (NoSuchPaddingException e)
+		{
+		}
+		return null;
+	}
+
+	private static void rotateArrayLeft(byte[] array)
+	{
+		byte a = array[0];
+		for (int i = 0; i < array.length - 1; i++)
+			array[i] = array[i + 1];
+
+		array[array.length - 1] = a;
+	}
+
+	private static void rotateArrayRight(byte[] array)
+	{
+		byte a = array[array.length - 1];
+		for (int i = array.length - 1; i > 0; i--)
+			array[i] = array[i - 1];
+		array[0] = a;
+
+	}
+
+}

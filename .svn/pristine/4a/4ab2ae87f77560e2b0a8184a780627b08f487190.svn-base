@@ -1,0 +1,68 @@
+package com.unlogical.colored.gui.panel;
+
+import org.newdawn.slick.Color;
+import org.newdawn.slick.GameContainer;
+import org.newdawn.slick.Graphics;
+
+import com.unlogical.colored.gui.Slider;
+import com.unlogical.colored.mapeditor.MapEditor;
+import com.unlogical.colored.terrain.tile.TileConveyorBelt;
+
+public class ConveyorBeltPanel extends GUIPanel
+{
+	private static final float SPEED_SCALE_FACTOR = 1.0f;
+	
+	private Slider<TileConveyorBelt> maxSpeed;
+	private TileConveyorBelt conveyorBelt;
+	
+	public ConveyorBeltPanel(String title, float xOffset, float yOffset, float width, float height)
+	{
+		super(title, xOffset, yOffset, width, height);
+		
+		this.fillColor = new Color(MapEditor.panelColor);
+		
+		int lineHeight = 30;
+		int currentOffset = (int) (yOffset + 35);
+		
+		maxSpeed = new Slider<TileConveyorBelt>(xOffset + 5, currentOffset, width - 5, lineHeight, 0.0f, false, conveyorBelt)
+		{
+			@Override
+			protected void onFactorChanged(float selectedRange, TileConveyorBelt reference)
+			{
+				conveyorBelt.setSpeed((selectedRange * 2.0f - 1.0f) * SPEED_SCALE_FACTOR);
+			}
+		};
+		maxSpeed.setActive(true);
+
+		currentOffset += maxSpeed.getHeight() + 5;
+		
+		this.setHeight(currentOffset);
+	}
+	
+	public void init(TileConveyorBelt tile, GameContainer container)
+	{
+		this.conveyorBelt = tile;
+		this.maxSpeed.setSelectedRange((tile.getSpeed() + 1.0f) / (SPEED_SCALE_FACTOR * 2.0f));
+	}
+	
+	@Override
+	protected void customUpdate(GameContainer container, int delta)
+	{
+		this.maxSpeed.update(container, delta);
+	}
+	
+	@Override
+	protected void customRender(GameContainer container, float alphaFactor, Graphics g)
+	{
+		g.setColor(Color.white);
+		g.drawString("Speed: " + Math.round(conveyorBelt.getSpeed() * 100) + "%", xOffset + 5, maxSpeed.getY() - 33);
+
+		this.maxSpeed.render(container, g);
+	}	
+	
+	@Override
+	public void onPositionUpdate(int xChange, int yChange)
+	{
+		this.maxSpeed.adjust(xChange, yChange);
+	}
+}

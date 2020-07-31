@@ -1,0 +1,72 @@
+package com.unlogical.linked.entity.property;
+
+import java.util.HashMap;
+
+import com.unlogical.linked.entity.EntityAction;
+
+public class EntityProperty
+{
+	private HashMap<EntityAction, Integer> durationPerImage = new HashMap<EntityAction, Integer>();
+	private float acceleration;
+	private float maxSpeed;
+	private float maxClimbSpeed;
+	private float gravity;
+	private int damagePerHit;
+	private int maxHealth;
+
+	public EntityProperty(float acceleration, float maxSpeed, float maxClimbSpeed, float gravity, int damagePerHit, int maxHealth, HashMap<EntityAction, Integer> durationPerImage)
+	{
+		this.acceleration = acceleration;
+		this.maxSpeed = maxSpeed;
+		this.maxClimbSpeed = maxClimbSpeed;
+		this.gravity = gravity;
+		this.damagePerHit = damagePerHit;
+		this.maxHealth = maxHealth;
+		this.durationPerImage = durationPerImage;
+	}
+
+	public EntityProperty copy()
+	{
+		return new EntityProperty(acceleration, maxSpeed, maxClimbSpeed, gravity, damagePerHit, maxHealth, durationPerImage);
+	}
+	
+	public float getMaxClimbSpeed()
+	{
+		return this.maxClimbSpeed;
+	}
+
+	public float getAcceleration(float delta)
+	{
+		return acceleration * delta;
+	}
+
+	public float getGravity(float delta)
+	{
+		return gravity * delta;
+	}
+
+	public int getDamagePerHit()
+	{
+		return damagePerHit;
+	}
+
+	public int getMaxHealth()
+	{
+		return maxHealth;
+	}
+	
+	public float getMaxSpeed()
+	{
+		return maxSpeed;
+	}
+
+	public void setMaxSpeed(float maxSpeed)
+	{
+		this.maxSpeed = maxSpeed;
+	}
+
+	public int getImageDuration(EntityAction action)
+	{
+		return durationPerImage.get(action);
+	}
+}

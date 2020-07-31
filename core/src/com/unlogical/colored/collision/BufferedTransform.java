@@ -1,0 +1,91 @@
+package com.unlogical.colored.collision;
+
+import com.badlogic.gdx.math.MathUtils;
+
+public class BufferedTransform extends Transform
+{
+	private static BufferedTransform transform = new BufferedTransform();
+	private static float[] pointBuffer = new float[8];
+
+	public BufferedTransform(float cos, float f, int i, float sin, float cos2, int j)
+	{
+		super(cos, f, i, sin, cos2, j);
+	}
+
+	public BufferedTransform()
+	{
+		super();
+	}
+
+	public static BufferedTransform getRotatedTransform(float angle)
+	{
+		transform.set(MathUtils.cos(angle), -MathUtils.sin(angle), 0, MathUtils.sin(angle), MathUtils.cos(angle), 0);
+
+		return transform;
+	}
+
+	public static BufferedTransform getRotatedTransform(float angle, float centerX, float centerY)
+	{
+		transform = getRotatedTransform(angle);
+
+		float[] matrix = transform.getMatrixPosition();
+
+		float sinAngle = matrix[3];
+		float oneMinusCosAngle = 1.0f - matrix[4];
+		matrix[2] = centerX * oneMinusCosAngle + centerY * sinAngle;
+		matrix[5] = centerY * oneMinusCosAngle - centerX * sinAngle;
+
+		return transform;
+	}
+
+	@Override
+	public void transform(float source[], int sourceOffset, float destination[], int destOffset, int numberOfPoints)
+	{
+		float[] result = pointBuffer;
+		float[] matrixPosition = this.getMatrixPosition();
+
+		for (int i = 0; i < numberOfPoints * 2; i += 2)
+		{
+			for (int j = 0; j < 6; j += 3)
+			{
+				result[i + (j / 3)] = source[i + sourceOffset] * matrixPosition[j] + source[i + sourceOffset + 1] * matrixPosition[j + 1] + 1 * matrixPosition[j + 2];
+			}
+		}
+
+		for (int i = 0; i < numberOfPoints * 2; i += 2)
+		{
+			destination[i + destOffset] = result[i];
+			destination[i + destOffset + 1] = result[i + 1];
+		}
+	}
+
+	public void set(float m0, float m1, float m2, float m3, float m4, float m5)
+	{
+		float[] curMatrix = this.getMatrixPosition();
+
+		curMatrix[0] = m0;
+		curMatrix[1] = m1;
+		curMatrix[2] = m2;
+		curMatrix[3] = m3;
+		curMatrix[4] = m4;
+		curMatrix[5] = m5;
+		curMatrix[6] = 0.0f;
+		curMatrix[7] = 0.0f;
+		curMatrix[8] = 1.0f;
+	}
+
+	public void set(float[] matrix)
+	{
+		float[] curMatrix = this.getMatrixPosition();
+
+		curMatrix[0] = matrix[0];
+		curMatrix[1] = matrix[1];
+		curMatrix[2] = matrix[2];
+		curMatrix[3] = matrix[3];
+		curMatrix[4] = matrix[4];
+		curMatrix[5] = matrix[5];
+		curMatrix[6] = 0.0f;
+		curMatrix[7] = 0.0f;
+		curMatrix[8] = 1.0f;
+	}
+}

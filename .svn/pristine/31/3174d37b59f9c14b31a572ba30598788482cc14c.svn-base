@@ -1,0 +1,5 @@
+package com.unlogical.colored.entity.item;
+
+public class ItemStack {
+
+}

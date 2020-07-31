@@ -1,0 +1,867 @@
+package com.unlogical.linked.levelrendering;
+
+import static com.unlogical.linked.level.Level.BACKGROUND_BRIGHTNESS;
+import static com.unlogical.linked.level.Level.DEFAULT_TIME_FACTOR;
+import static com.unlogical.linked.level.Level.FOREGROUND_BRIGHTNESS;
+import static com.unlogical.linked.level.Level.TIME_SCALE_BACKGROUND_FACTOR;
+import static com.unlogical.linked.level.Level.TIME_SCALE_FOREGROUND_FACTOR;
+
+import java.io.File;
+import java.io.IOException;
+import java.util.ArrayList;
+
+import org.newdawn.slick.Color;
+import org.newdawn.slick.GameContainer;
+import org.newdawn.slick.Graphics;
+import org.newdawn.slick.Input;
+import org.newdawn.slick.geom.Vector2f;
+
+import com.unlogical.linked.GameLauncher;
+import com.unlogical.linked.collision.Hitbox;
+import com.unlogical.linked.debug.Debug;
+import com.unlogical.linked.entity.Entity;
+import com.unlogical.linked.entity.EntityType;
+import com.unlogical.linked.entity.player.EntityPlayer;
+import com.unlogical.linked.filesystem.FilePaths;
+import com.unlogical.linked.filesystem.files.EntityFileHandler;
+import com.unlogical.linked.filesystem.files.TerrainFileHandler;
+import com.unlogical.linked.filesystem.files.WrapperTextureHandler;
+import com.unlogical.linked.filesystem.files.YAMLConfiguration;
+import com.unlogical.linked.gui.HintProperties;
+import com.unlogical.linked.gui.panel.DebugPanel;
+import com.unlogical.linked.gui.panel.FPSPanel;
+import com.unlogical.linked.input.InputAction;
+import com.unlogical.linked.input.InputHandler;
+import com.unlogical.linked.level.Level;
+import com.unlogical.linked.level.LevelType;
+import com.unlogical.linked.levelrendering.entity.EntityRenderer;
+import com.unlogical.linked.levelrendering.gui.GUIRenderer;
+import com.unlogical.linked.levelrendering.map.MapRenderer;
+import com.unlogical.linked.mapeditor.MapEditor;
+import com.unlogical.linked.resources.image.Images;
+import com.unlogical.linked.terrain.TileType;
+import com.unlogical.linked.terrain.tile.Tile;
+import com.unlogical.linked.terrain.tile.TileDoor;
+import com.unlogical.linked.terrain.tile.properties.ITileInteractable;
+import com.unlogical.linked.util.CursorType;
+import com.unlogical.linked.util.Dimension;
+import com.unlogical.linked.util.GameStatus;
+import com.unlogical.linked.util.ShaderHandler;
+import com.unlogical.linked.util.TimeStepHandler;
+import com.unlogical.linked.util.Transitions;
+import com.unlogical.linked.util.ZHandler;
+import com.unlogical.linked.wrapper.WrapperTexture;
+
+public class LevelRenderer
+{
+	private static String mapPath;
+	private static String mapID;
+	private static String fileName;
+
+	public static Level level;
+
+	public static ArrayList<Tile> tiles = new ArrayList<Tile>();
+	public static ArrayList<Tile> interactableTiles = new ArrayList<Tile>();
+	public static ArrayList<Entity> entities = new ArrayList<Entity>();
+	public static ArrayList<WrapperTexture> wrappers = new ArrayList<WrapperTexture>();
+
+	public static EntityPlayer controllingPlayer;
+
+	private static Vector2f spawnpoint;
+	private static Vector2f cameraOffset = new Vector2f(0.0f, 0.0f);
+
+	private static Dimension foregroundDimension;
+	private static Dimension backgroundDimension;
+
+	public static boolean debugMode;
+	private static boolean transitioningDimension;
+	private static boolean fadingIn;
+
+	private static boolean paused;
+	private static boolean renderMap = true;
+	private static boolean frameByFrameDebug;
+	private static boolean forceNormalDelta;
+
+	private static final int DIMENSION_TRANSITION_TIME = 777;
+	private static final int FADE_IN_TIME = 1337 / 3;
+
+	private static int fadeInTime;
+	private static int dimensionTransitionTime;
+
+	private static float foregroundDeltaFactor = DEFAULT_TIME_FACTOR;
+	private static float backgroundDeltaFactor = DEFAULT_TIME_FACTOR;
+	private static float controlAlphaFactor = 1.0f;
+
+	private static DebugPanel debugPanel;
+	private static FPSPanel fpsPanel;
+
+	public static void init() throws IOException
+	{
+		debugPanel = new DebugPanel(10, 30, 480, 0);
+		debugPanel.setActive(GameLauncher.isDeveloperMode());
+
+		fpsPanel = new FPSPanel(GameLauncher.getWidth() / 2 - 150, GameLauncher.getHeight() / 2 - 100, 300, 0);
+
+		Images.registerAndLoad("cantToggle", FilePaths.GUI + "/canttoggle.png", true);
+	}
+
+	public static void initMap(String mapPath, boolean comesFromDoor)
+	{
+		LevelRenderer.mapPath = mapPath;
+
+		Debug.log("Loading map " + mapPath + " ...");
+
+		long beforeTime = System.currentTimeMillis();
+
+		ZHandler.clearDistortions();
+
+		level = new Level();
+		level.setPlayMode(true);
+		level.createParticleSystem();
+		entities = level.getEntities();
+
+		tiles.clear();
+		interactableTiles.clear();
+
+		YAMLConfiguration cfg = new YAMLConfiguration(new File(mapPath + "/config.yml"));
+
+		mapID = cfg.get("ID");
+
+		TerrainFileHandler terrainFile = new TerrainFileHandler(new File(mapPath + "/terrain.map"));
+		EntityFileHandler entityFile = new EntityFileHandler(new File(mapPath + "/entities.map"));
+
+		spawnpoint = new Vector2f(0.0f, 0.0f);
+
+		long beforeReading = System.currentTimeMillis();
+
+		level.setLevelType(LevelType.values()[Integer.parseInt(cfg.get("type"))]);
+
+		try
+		{
+			tiles = terrainFile.read(level);
+			level.transferBuffers();
+
+			MapRenderer.initMap(null, level);
+
+			WrapperTextureHandler wrapperHandler = new WrapperTextureHandler(new File(mapPath + "/wrappers.cfg"));
+			wrappers = wrapperHandler.read(mapPath, level);
+		}
+		catch (Exception e)
+		{
+			throw new RuntimeException("Even more bacon while loading map" + e, e);
+		}
+
+		level.init(mapID, cfg.get("name"), tiles, wrappers, entities, controllingPlayer, cameraOffset.set(0.0f, 0.0f), spawnpoint);
+
+		Debug.log("Loading map files took " + (System.currentTimeMillis() - beforeReading) + "ms.");
+
+		GameLauncher.setLevelContext(level);
+
+		ArrayList<TileDoor> doors = new ArrayList<TileDoor>();
+
+		for (Tile tile : tiles)
+		{
+			tile.init();
+
+			if (tile.getType() == TileType.SPAWNPOINT)
+			{
+				spawnpoint = new Vector2f(tile.getX(), tile.getY());
+			}
+
+			if (tile.getDimension() == Dimension.LIGHT && tile instanceof TileDoor)
+			{
+				doors.add((TileDoor) tile);
+			}
+
+			if (tile instanceof ITileInteractable)
+			{
+				interactableTiles.add(tile);
+			}
+		}
+
+		for (TileDoor door : doors)
+		{
+			if (((!comesFromDoor || TileDoor.shouldFindStart()) && door.isLevelStart()) || (comesFromDoor && TileDoor.getEntryDoorID() == door.getDoorID()))
+			{
+				spawnpoint.x = (door.getCenterX() > level.getCenterX() ? door.getHitbox().getMinX() : door.getHitbox().getMaxX()) - Entity.getMainImage(EntityType.PLAYER).getWidth() / 2;
+				spawnpoint.y = door.getHitbox().getMaxY() - Entity.getMainImage(EntityType.PLAYER).getHeight();
+
+				break;
+			}
+		}
+
+		if (level.getType() == LevelType.TIME_SCALE)
+		{
+			foregroundDeltaFactor = DEFAULT_TIME_FACTOR;
+			backgroundDeltaFactor = TIME_SCALE_BACKGROUND_FACTOR;
+		}
+		else if (level.getType() == LevelType.FROZEN)
+		{
+			foregroundDeltaFactor = 0.0f;
+			backgroundDeltaFactor = DEFAULT_TIME_FACTOR;
+		}
+		else
+		{
+			foregroundDeltaFactor = DEFAULT_TIME_FACTOR;
+			backgroundDeltaFactor = DEFAULT_TIME_FACTOR;
+		}
+
+		transitioningDimension = false;
+
+		entities.add(controllingPlayer = (EntityPlayer) Entity.createEntity(EntityType.PLAYER, spawnpoint.copy(), level, Dimension.LIGHT, true));
+		level.setControllingPlayer(controllingPlayer);
+		controllingPlayer.setFocused(spawnpoint.x > level.getCenterX());
+
+		entityFile.read(level);
+
+		level.transferBuffers();
+
+		for (Entity entity : level.getEntities())
+		{
+			entity.init();
+		}
+
+		GUIRenderer.initMap(level);
+		MapRenderer.initMap(spawnpoint, level);
+		MapRenderer.focusCamera();
+		ShaderHandler.initMap(level);
+		ShaderHandler.enable();
+
+		TimeStepHandler.init(level);
+
+		if (level.getLevelType() == LevelType.TIME_TRAVEL)
+		{
+			for (Entity entity : entities)
+			{
+				if (entity.isShared())
+				{
+					entity.storeReSimulationData();
+				}
+			}
+
+			for (Tile tile : tiles)
+			{
+				if (tile.isShared())
+				{
+					tile.storeReSimulationData();
+				}
+			}
+
+			simulateAll(Level.TIME_TRAVEL_TIME_DIFFERENCE_MILLIS, 50, true, false);
+
+			for (Entity entity : entities)
+			{
+				if (entity.isShared())
+				{
+					entity.restoreReSimulationData();
+				}
+			}
+
+			for (Tile tile : tiles)
+			{
+				if (tile.isShared())
+				{
+					tile.restoreReSimulationData();
+				}
+			}
+		}
+		else if (level.getLevelType() == LevelType.FROZEN)
+		{
+			forceNormalDelta = true;
+
+			simulateAll(1000, 50, false, false);
+
+			forceNormalDelta = false;
+		}
+
+		simulateAll(25000, 200, false, true);
+
+		simulateParticlesAhead(150.0f, 100);
+
+		controlAlphaFactor = 0.0f;
+		fadingIn = true;
+		fadeInTime = FADE_IN_TIME;
+
+		CursorType.useCursor(CursorType.DEFAULT);
+
+		Debug.log("Loaded " + mapID + " (took " + (System.currentTimeMillis() - beforeTime) + "ms).");
+	}
+
+	public static void simulateAll(int milliseconds, int preferredDelta, boolean initialising, boolean onlyCycleObjects)
+	{
+		int simulatedTime = 0;
+		boolean beforePaused = paused;
+		boolean beforeInitialising = false;
+
+		level.setInitialising(initialising);
+		level.setUpdateOnlyCycleObjects(onlyCycleObjects);
+
+		while (simulatedTime < milliseconds)
+		{
+			paused = false;
+
+			update(GameLauncher.getContainer(), simulatedTime < milliseconds - preferredDelta ? preferredDelta : milliseconds - simulatedTime);
+
+			simulatedTime += preferredDelta;
+		}
+
+		paused = beforePaused;
+
+		level.setInitialising(beforeInitialising);
+		level.setUpdateOnlyCycleObjects(false);
+	}
+
+	public static void simulateParticlesAhead(float delta, int count)
+	{
+		Debug.log("Pre-simulating particles for " + delta * count + "ms (" + count + " x " + delta + "ms)...");
+
+		level.setIgnoreTimeEffects(true);
+
+		for (int i = 0; i < count; i++)
+		{
+			level.updateParticleEmitter((int) delta, delta, getBackgroundDelta((int) delta));
+		}
+
+		level.setIgnoreTimeEffects(false);
+
+		Debug.log("Particle pre-simulation complete. Particles are now ahead of time by " + delta * count + "ms.");
+	}
+
+	public static void update(GameContainer container, int delta)
+	{
+		if (InputHandler.isKeyPressed(InputAction.PAUSE, container))
+		{
+			if (paused)
+			{
+				resume();
+				GameLauncher.setStatus(GameStatus.IN_MAP);
+			}
+			else
+			{
+				pause();
+				GameLauncher.setStatus(GameStatus.PAUSE_MENU);
+			}
+		}
+
+		if (GameLauncher.isDeveloperMode())
+		{
+			if (container.getInput().isKeyDown(Input.KEY_LCONTROL) && container.getInput().isKeyPressed(Input.KEY_F))
+			{
+				frameByFrameDebug = !frameByFrameDebug;
+
+				if (!frameByFrameDebug)
+				{
+					paused = false;
+				}
+			}
+
+			if (container.getInput().isKeyPressed(Input.KEY_D))
+			{
+				debugMode = !debugMode;
+
+				debugPanel.setActive(debugMode);
+			}
+
+			if (container.getInput().isKeyPressed(Input.KEY_G))
+			{
+				level.setShowHitboxes(!level.shouldShowHitboxes());
+			}
+
+			if (container.getInput().isKeyPressed(Input.KEY_N))
+			{
+				Hitbox.debugMode = !Hitbox.debugMode;
+			}
+
+			if (level.getLevelType() == LevelType.TIME_TRAVEL && container.getInput().isKeyPressed(Input.KEY_F7))
+			{
+				MapRenderer.reSimulateAll(null);
+			}
+
+			if (container.getInput().isKeyDown(Input.KEY_LCONTROL) && container.getInput().isKeyPressed(Input.KEY_P))
+			{
+				fpsPanel.init();
+				fpsPanel.setActive(true);
+			}
+		}
+
+		if (frameByFrameDebug && (container.getInput().isKeyPressed(Input.KEY_F) || container.getInput().isKeyDown(Input.KEY_R)))
+		{
+			paused = false;
+		}
+
+		if (frameByFrameDebug && !paused)
+		{
+			Debug.log("--- NEW UPDATE FRAME (" + delta + ") ---");
+		}
+
+		if (GameLauncher.isDeveloperMode() && (container.getInput().isKeyPressed(Input.KEY_F11) || container.getInput().isKeyPressed(Input.KEY_F1) || container.getInput().isKeyDown(Input.KEY_LCONTROL) && (container.getInput().isKeyPressed(Input.KEY_M) || container.getInput().isKeyPressed(Input.KEY_E))))
+		{
+			MapEditor.initMap(mapID, mapPath);
+			MapEditor.adjustCameraOffset(null, level.getCameraOffset().x, level.getCameraOffset().y);
+
+			GameLauncher.setStatus(GameStatus.MAP_EDITOR);
+		}
+
+		try
+		{
+			if (!paused)
+			{
+				updateDimensionTransition(container, delta);
+
+				float foregroundDelta = getForegroundDelta(delta);
+				float backgroundDelta = getBackgroundDelta(delta);
+
+				if (level.getForegroundDimension() == Dimension.LIGHT)
+				{
+					level.setLightDelta(foregroundDelta);
+					level.setShadowDelta(backgroundDelta);
+				}
+				else
+				{
+					level.setLightDelta(backgroundDelta);
+					level.setShadowDelta(foregroundDelta);
+				}
+
+				if (Hitbox.debugMode)
+				{
+					Hitbox.cachedLines.clear();
+				}
+
+				EntityPlayer.updateKeyRecords(container);
+
+				level.setPlayer(controllingPlayer);
+
+				foregroundDimension = level.getForegroundDimension();
+				backgroundDimension = level.getBackgroundDimension();
+
+				TimeStepHandler.update(delta);
+
+				updateInteractables(container);
+
+				updateTiles(foregroundDimension, container, delta, foregroundDelta);
+
+				if (!level.isInitialising())
+				{
+					updateTiles(backgroundDimension, container, delta, backgroundDelta);
+				}
+
+				updateEntities(foregroundDimension, container, delta, foregroundDelta);
+
+				if (!level.isInitialising())
+				{
+					updateEntities(backgroundDimension, container, delta, backgroundDelta);
+				}
+
+				level.transferBuffers();
+				level.updateParticleEmitter(delta, level.getLightDelta(), level.getShadowDelta());
+				level.updateTransitions(delta);
+
+				if (fadingIn)
+				{
+					controlAlphaFactor = 1.0f - Transitions.getFactor((int) (((float) fadeInTime) / ((float) FADE_IN_TIME) * 1000));
+
+					fadeInTime -= delta;
+				}
+
+				if (EntityPlayer.requestsRevival())
+				{
+					revive();
+				}
+
+				TileDoor.postUpdate();
+			}
+
+			if (debugMode)
+			{
+				debugPanel.update(container, delta);
+			}
+
+			if (!level.isInitialising())
+			{
+				MapRenderer.update(container, delta);
+				GUIRenderer.update(container, delta);
+			}
+		}
+		catch (Throwable e)
+		{
+			Debug.warn("Error while updating level and physics - jumping back to menu screen.", e);
+
+			GameLauncher.setStatus(GameStatus.CUSTOM_MAP_SELECTION);
+		}
+
+		fpsPanel.update(container, delta);
+
+		if (frameByFrameDebug)
+		{
+			paused = true;
+		}
+	}
+
+	private static void updateInteractables(GameContainer container)
+	{
+		for (Tile tile : interactableTiles)
+		{			
+			if (tile.inSameDimension(controllingPlayer) && ((ITileInteractable) tile).canInteract(controllingPlayer))
+			{				
+				ITileInteractable interactable = (ITileInteractable) tile;
+
+				if (EntityPlayer.tryInteract())
+				{
+					interactable.onInteract(controllingPlayer);
+				}
+
+				HintProperties hintProperties = interactable.getHintProperties();
+
+				controllingPlayer.displayOverlay(Images.getImage(interactable.getHintIdentifier(), controllingPlayer.getDimension()), controllingPlayer.getPosition(), hintProperties, interactable.getHintIdentifier(), hintProperties.shouldForceDisplay());
+			}
+		}
+	}
+
+	private static void updateDimensionTransition(GameContainer container, int delta)
+	{
+		if (InputHandler.isKeyPressed(InputAction.TOGGLE_DIMENSIONS, container))
+		{
+			if (canToggleDimensions())
+			{
+				transitioningDimension = true;
+				dimensionTransitionTime = DIMENSION_TRANSITION_TIME - dimensionTransitionTime;
+				level.setTransitioning(true);
+
+				foregroundDimension = foregroundDimension.getOpposite();
+				backgroundDimension = foregroundDimension.getOpposite();
+				level.setForegroundDimension(foregroundDimension);
+				level.setBackgroundDimension(backgroundDimension);
+
+				if (level.getLevelType() != LevelType.NORMAL)
+				{
+					controllingPlayer = (EntityPlayer) controllingPlayer.getMirroredEntity();
+					level.setControllingPlayer(controllingPlayer);
+	
+					EntityPlayer.onDimensionChanging((EntityPlayer) controllingPlayer.getMirroredEntity(), controllingPlayer, foregroundDimension);
+	
+					if (level.getType() == LevelType.TIME_TRAVEL)
+					{
+						TimeStepHandler.onDimensionToggle(controllingPlayer.getDimension());
+					}
+				}
+			}
+			else
+			{
+				controllingPlayer.displayOverlay(Images.getImage(Images.HintIdentifier.CANT_TOGGLE, controllingPlayer.getDimension()), controllingPlayer.getPosition(), HintProperties.WARNING_PROPERTIES, Images.HintIdentifier.CANT_TOGGLE, true);
+			}
+		}
+
+		if (transitioningDimension)
+		{
+			float foregroundFactor = 1.0f;
+			float backgroundFactor = 0.0f;
+
+			if (dimensionTransitionTime > 0)
+			{
+				backgroundFactor = Transitions.getFactor((int) ((((float) dimensionTransitionTime) / ((float) DIMENSION_TRANSITION_TIME)) * 1000.0f));
+				foregroundFactor = 1.0f - backgroundFactor;
+
+				dimensionTransitionTime -= delta;
+			}
+			else
+			{
+				dimensionTransitionTime = 0;
+				transitioningDimension = false;
+
+				level.setTransitioning(false);
+
+				if (level.getType() != LevelType.NORMAL)
+				{
+					EntityPlayer.onDimensionChanged((EntityPlayer) controllingPlayer.getMirroredEntity(), controllingPlayer, foregroundDimension);
+				}
+			}
+
+			Color foregroundColor = level.getDimensionColor(foregroundDimension);
+			Color backgroundColor = level.getDimensionColor(backgroundDimension);
+
+			foregroundColor.a = BACKGROUND_BRIGHTNESS + (FOREGROUND_BRIGHTNESS - BACKGROUND_BRIGHTNESS) * foregroundFactor;
+			backgroundColor.a = BACKGROUND_BRIGHTNESS + (FOREGROUND_BRIGHTNESS - BACKGROUND_BRIGHTNESS) * backgroundFactor;
+
+			level.setWrapperAlpha(foregroundFactor, foregroundDimension);
+			level.setWrapperAlpha(1.0f, backgroundDimension);
+
+			level.setForegroundFactor(foregroundFactor);
+			level.setBackgroundFactor(backgroundFactor);
+
+			if (level.getType() == LevelType.TIME_SCALE)
+			{
+				if (foregroundDimension == Dimension.LIGHT)
+				{
+					backgroundDeltaFactor = TIME_SCALE_BACKGROUND_FACTOR + (DEFAULT_TIME_FACTOR - TIME_SCALE_BACKGROUND_FACTOR) * backgroundFactor;
+					foregroundDeltaFactor = DEFAULT_TIME_FACTOR + (TIME_SCALE_FOREGROUND_FACTOR - DEFAULT_TIME_FACTOR) * backgroundFactor;
+				}
+				else
+				{
+					foregroundDeltaFactor = TIME_SCALE_BACKGROUND_FACTOR + (DEFAULT_TIME_FACTOR - TIME_SCALE_BACKGROUND_FACTOR) * foregroundFactor;
+					backgroundDeltaFactor = DEFAULT_TIME_FACTOR + (TIME_SCALE_FOREGROUND_FACTOR - DEFAULT_TIME_FACTOR) * foregroundFactor;
+				}
+			}
+			else if (level.getType() == LevelType.FROZEN)
+			{
+				foregroundDeltaFactor = backgroundFactor;
+				backgroundDeltaFactor = foregroundFactor;
+			}
+		}
+	}
+
+	private static boolean canToggleDimensions()
+	{
+		return (!controllingPlayer.hasMirror() || !controllingPlayer.getMirroredEntity().isSuffocating()) && controllingPlayer.canChangeDimensions();
+	}
+
+	private static void updateTiles(Dimension dimension, GameContainer container, int delta, float dimensionDelta)
+	{
+		for (int i = 0; i < tiles.size(); i++)
+		{
+			int beforeCount = tiles.size();
+
+			if (tiles.get(i).getDimension() == dimension && (!level.isUpdatingOnlyCycleObjects() || tiles.get(i).isCycleObject()))
+			{
+				if (tiles.get(i).shouldUpdate())
+				{
+					if (!tiles.get(i).isShared())
+					{
+						tiles.get(i).update(container, dimensionDelta);
+					}
+					else
+					{
+						tiles.get(i).update(container, delta);
+					}
+				}
+
+				if (tiles.size() != beforeCount)
+				{
+					if (tiles.size() < beforeCount)
+					{
+						i -= beforeCount - tiles.size();
+					}
+				}
+			}
+		}
+	}
+
+	private static void updateEntities(Dimension dimension, GameContainer container, int delta, float dimensionDelta)
+	{
+		for (int i = 0; i < entities.size(); i++)
+		{
+			if (entities.get(i).getDimension() == dimension && (!level.isUpdatingOnlyCycleObjects() || entities.get(i).isCycleObject()))
+			{
+				if (entities.get(i).isTimeEffected() && !entities.get(i).isShared() && !(entities.get(i).getHoldingEntity() != null && !entities.get(i).getHoldingEntity().isTimeEffected()))
+				{
+					entities.get(i).update(container, dimensionDelta);
+				}
+				else
+				{
+					entities.get(i).update(container, delta);
+				}
+			}
+		}
+	}
+
+	private static float getBackgroundDelta(int delta)
+	{
+		if (level.getLevelType() == LevelType.FROZEN || level.getType() == LevelType.TIME_SCALE)
+		{
+			if (!controllingPlayer.isRawTimeEffected() || forceNormalDelta)
+			{
+				return delta;
+			}
+		}
+
+		return delta * backgroundDeltaFactor;
+	}
+
+	private static float getForegroundDelta(int delta)
+	{
+		if (level.getLevelType() == LevelType.FROZEN || level.getType() == LevelType.TIME_SCALE)
+		{
+			if (!controllingPlayer.isRawTimeEffected() || forceNormalDelta)
+			{
+				return delta;
+			}
+		}
+
+		return delta * foregroundDeltaFactor;
+	}
+
+	public static void render(GameContainer container, Graphics g)
+	{
+		float beforeLightAlpha = level.getDimensionColor(Dimension.LIGHT).a;
+		float beforeShadowAlpha = level.getDimensionColor(Dimension.SHADOW).a;
+
+		level.getDimensionColor(Dimension.LIGHT).a *= controlAlphaFactor;
+		level.getDimensionColor(Dimension.SHADOW).a *= controlAlphaFactor;
+
+		level.setControlAlpha(controlAlphaFactor);
+
+		if (level.shouldRenderWrappers())
+		{
+			level.renderBackgroundWrappers(g);
+		}
+
+		if (level.shouldShowHitboxes())
+		{
+			MapRenderer.clearDrawnConnections();
+		}
+
+		MapRenderer.renderBehindAllEntities(g, level.shouldRenderAll(), backgroundDimension);
+		MapRenderer.renderBehindAllEntities(g, level.shouldRenderAll(), foregroundDimension);
+
+		EntityRenderer.renderDimension(container, g, backgroundDimension);
+
+		MapRenderer.renderBackground(g, level.shouldRenderAll(), backgroundDimension);
+
+		EntityRenderer.renderDimension(container, g, foregroundDimension);
+
+		MapRenderer.renderForeground(g, level.shouldRenderAll(), foregroundDimension);
+
+		if (level.shouldRenderWrappers())
+		{
+			level.renderForegroundWrappers(g);
+		}
+
+		Hitbox.renderDebug(g);
+
+		GUIRenderer.render(container, g);
+
+		level.getDimensionColor(Dimension.LIGHT).a = beforeLightAlpha;
+		level.getDimensionColor(Dimension.SHADOW).a = beforeShadowAlpha;
+
+		ShaderHandler.disableLighting();
+
+		if (debugMode)
+		{
+			debugPanel.render(container, 1.0f, g);
+		}
+
+		fpsPanel.render(container, 1.0f, g);
+	}
+
+	public static void revive()
+	{
+		GameLauncher.clearRecords();
+		EntityPlayer.clearRecords();
+
+		if (level.hasSafePoint())
+		{
+			// TODO revival system ... maybe? (backup on safe spots, revert on
+			// death)
+		}
+
+		float oldPosX = level.getControllingPlayer().getPosition().x;
+		float oldPosY = level.getControllingPlayer().getPosition().y;
+
+		level.getControllingPlayer().setPosition(spawnpoint.x + level.getCameraOffset().x, spawnpoint.y + level.getCameraOffset().y);
+		level.getControllingPlayer().revive();
+
+		MapRenderer.resetCameras();
+		MapRenderer.findCurrentCameras();
+
+		MapRenderer.transitionFrom(oldPosX, oldPosY, 1000, true);
+	}
+
+	public static void reset()
+	{
+		initMap(mapPath, false);
+
+		GameLauncher.clearRecords();
+		EntityPlayer.clearRecords();
+
+		resume();
+	}
+
+	public static boolean isPaused()
+	{
+		return paused;
+	}
+
+	public static void pause()
+	{
+		paused = true;
+	}
+
+	public static void resume()
+	{
+		paused = false;
+	}
+
+	public static float getXOffset()
+	{
+		return getCameraOffset().getX();
+	}
+
+	public static float getYOffset()
+	{
+		return getCameraOffset().getY();
+	}
+
+	public static EntityPlayer getPlayer()
+	{
+		return controllingPlayer;
+	}
+
+	public static void setPlayer(EntityPlayer player)
+	{
+		LevelRenderer.controllingPlayer = player;
+	}
+
+	public static boolean isDevMode()
+	{
+		return debugMode;
+	}
+
+	public static boolean isRenderMap()
+	{
+		return renderMap;
+	}
+
+	public static void setRenderMap(boolean renderMap)
+	{
+		LevelRenderer.renderMap = renderMap;
+	}
+
+	public static String getMapName()
+	{
+		return mapID;
+	}
+
+	public static String getFileName()
+	{
+		return fileName;
+	}
+
+	public static Level getLevel()
+	{
+		return level;
+	}
+
+	public static ArrayList<Entity> getEntities()
+	{
+		return entities;
+	}
+
+	public static void setPaused(boolean paused)
+	{
+		LevelRenderer.paused = paused;
+	}
+
+	public static boolean isTransitioning()
+	{
+		return transitioningDimension;
+	}
+
+	public static Vector2f getCameraOffset()
+	{
+		return cameraOffset;
+	}
+
+	public static int getDimensionTransitionTime()
+	{
+		return dimensionTransitionTime;
+	}
+}

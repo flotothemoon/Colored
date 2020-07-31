@@ -1,0 +1,58 @@
+package com.unlogical.linked.gui.panel;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import org.newdawn.slick.Color;
+import org.newdawn.slick.GameContainer;
+import org.newdawn.slick.Graphics;
+import org.newdawn.slick.Input;
+
+import com.unlogical.linked.gui.InputField;
+import com.unlogical.linked.mapeditor.MapEditor;
+
+public class CheatPanel extends GUIPanel
+{	
+	private InputField inputField;
+	private List<String> log = new ArrayList<String>();
+
+	public CheatPanel(float xOffset, float yOffset, float width, float height)
+	{
+		super("Command Panel", xOffset, yOffset, width, height);
+
+		this.fillColor = new Color(MapEditor.panelColor);
+		this.inputField = new InputField(xOffset + 5, yOffset + height - 55, width, 50);
+		this.inputField.init("");
+		this.inputField.setActive(true);
+	}
+	
+	@Override
+	protected void customUpdate(GameContainer container, int delta)
+	{
+		inputField.update(container, delta);
+		
+		if (container.getInput().isKeyPressed(Input.KEY_ENTER))
+		{
+			processCommand(inputField.getText());
+			
+			this.inputField.init("");
+		}
+	}
+	
+	private void processCommand(String command)
+	{
+		System.out.println("process " + command);
+	}
+	
+	@Override
+	protected void customRender(GameContainer container, float alphaFactor, Graphics g)
+	{
+		inputField.render(container, g);	
+	}
+	
+	@Override
+	public void onPositionUpdate(int xChange, int yChange)
+	{
+		inputField.adjust(xChange, yChange);
+	}
+}

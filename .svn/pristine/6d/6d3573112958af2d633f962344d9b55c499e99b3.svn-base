@@ -1,0 +1,407 @@
+package com.unlogical.colored.gui.panel;
+
+import org.newdawn.slick.Color;
+import org.newdawn.slick.GameContainer;
+import org.newdawn.slick.Graphics;
+import org.newdawn.slick.geom.Point;
+
+import com.unlogical.colored.collision.Hitbox;
+import com.unlogical.colored.gui.GUICheckbox;
+import com.unlogical.colored.gui.InputChangeListener;
+import com.unlogical.colored.gui.Slider;
+import com.unlogical.colored.gui.UserInputLine;
+import com.unlogical.colored.gui.button.Button;
+import com.unlogical.colored.mapeditor.MapEditor;
+import com.unlogical.colored.terrain.tile.platform.TilePlatform;
+import com.unlogical.colored.terrain.tile.platform.TilePlatformType;
+import com.unlogical.colored.util.ColorHelper;
+import com.unlogical.colored.util.Dimension;
+
+public class PlatformPanel extends GUIPanel
+{
+	private static final float MIN_MAX_SPEED = 0.001f;
+	private static final float MAX_MAX_SPEED = 0.4f;
+
+	private static final float MIN_ROTATION_VELOCITY = 0.01f;
+	private static final float MAX_ROTATION_VELOCITY = 2.0f;
+
+	private static Point point = new Point(0.0f, 0.0f);
+	private static Point other = new Point(0.0f, 0.0f);
+
+	private TilePlatform tile;
+
+	private Button typeButton;
+
+	private GUICheckbox limited;
+
+	private UserInputLine startLimit;
+	private UserInputLine endLimit;
+
+	private GUICheckbox startMoveRight;
+
+	@SuppressWarnings({ "rawtypes" })
+	private Slider maxSpeed;
+
+	private Button rotationAnchor;
+	private Button closeButton;
+
+	private float lastWidth;
+	private float lastHeight;
+
+	@SuppressWarnings({ "unchecked", "rawtypes" })
+	public PlatformPanel(String title, float xOffset, float yOffset, float width, float height)
+	{
+		super(title, xOffset, yOffset, width, height);
+
+		this.fillColor = new Color(MapEditor.panelColor);
+
+		int lineHeight = 30;
+		int inputWidth = (int) (width / 2) + 15;
+		int currentOffset = 40;
+		int inputX = (int) (xOffset + width / 2) - 20;
+
+		typeButton = new Button("Close", (int) xOffset, currentOffset, (int) width, lineHeight)
+		{
+			@Override
+			public void onClick()
+			{
+				tile.setPlatformType(TilePlatformType.values()[tile.getPlatformType().ordinal() + 1 >= TilePlatformType.values().length ? 0 : tile.getPlatformType().ordinal() + 1]);
+				tile.setStartLimit(0);
+				tile.setEndLimit(0);
+
+				PlatformPanel.this.init(tile);
+
+				updateTile();
+			}
+		};
+		typeButton.setActive(true);
+
+		currentOffset += typeButton.getHeight() + 20;
+
+		limited = new GUICheckbox(true, inputX + inputWidth / 2 - lineHeight / 2, currentOffset, lineHeight, lineHeight)
+		{
+			@Override
+			public void onChecked()
+			{
+				update(true);
+			}
+
+			@Override
+			public void onUnchecked()
+			{
+				update(false);
+			}
+
+			private void update(boolean checked)
+			{
+				tile.setLimited(checked);
+
+				startLimit.setAllowUserInput(checked);
+				endLimit.setAllowUserInput(checked);
+
+				updateTile();
+			}
+		};
+		limited.setActive(true);
+
+		currentOffset += limited.getHeight() + 10;
+
+		startLimit = new UserInputLine(inputX, currentOffset, inputWidth, lineHeight);
+		startLimit.addInputChangedListener(new InputChangeListener()
+		{
+			@Override
+			public void onInputChanged()
+			{
+				try
+				{
+					tile.setStartLimit(Integer.parseInt(startLimit.getInput()));
+
+					updateTile();
+				}
+				catch (Exception e)
+				{
+				}
+			}
+		});
+		startLimit.setActive(true);
+		startLimit.setOnlyNumeric(true);
+
+		currentOffset += startLimit.getHeight() + 10;
+
+		endLimit = new UserInputLine(inputX, currentOffset, inputWidth, lineHeight);
+		endLimit.addInputChangedListener(new InputChangeListener()
+		{
+			@Override
+			public void onInputChanged()
+			{
+				try
+				{
+					tile.setEndLimit(Integer.parseInt(endLimit.getInput()));
+
+					updateTile();
+				}
+				catch (Exception e)
+				{
+				}
+			}
+		});
+		endLimit.setActive(true);
+		endLimit.setOnlyNumeric(true);
+
+		currentOffset += endLimit.getHeight() + 20;
+
+		startMoveRight = new GUICheckbox(true, inputX + inputWidth / 2 - lineHeight / 2, currentOffset, lineHeight, lineHeight)
+		{
+			@Override
+			public void onChecked()
+			{
+				tile.setStartMoveRight(true);
+
+				updateTile();
+			}
+
+			@Override
+			public void onUnchecked()
+			{
+				tile.setStartMoveRight(false);
+
+				updateTile();
+			}
+		};
+		startMoveRight.setActive(true);
+
+		currentOffset += startMoveRight.getHeight() + 10;
+
+		rotationAnchor = new Button("", inputX, currentOffset, inputWidth, lineHeight)
+		{
+			@Override
+			public void onClick()
+			{
+				tile.setRotationAnchor(tile.getRotationAnchor() >= 2 ? 0 : tile.getRotationAnchor() + 1);
+				tile.updateAnchor();
+
+				if (tile.hasMirror())
+				{
+					((TilePlatform) tile.getMirroredTile()).setRotationAnchor(tile.getRotationAnchor());
+					((TilePlatform) tile.getMirroredTile()).updateAnchor();
+				}
+
+				tile.updateBorders();
+
+				updateRotationAnchorLabel();
+
+				updateTile();
+			}
+		};
+
+		currentOffset += startMoveRight.getHeight() + lineHeight + 25;
+
+		maxSpeed = new Slider(xOffset + 5, currentOffset, width - 5, lineHeight, 0.0f, true, null)
+		{
+			@Override
+			protected void onFactorChanged(float selectedRange, Object reference)
+			{
+				if (tile.getPlatformType() == TilePlatformType.ROTATING)
+				{
+					tile.setRotationVelocity(MIN_ROTATION_VELOCITY + selectedRange * (MAX_ROTATION_VELOCITY - MIN_ROTATION_VELOCITY));
+				}
+				else
+				{
+					tile.setMaxSpeed(MIN_MAX_SPEED + selectedRange * (MAX_MAX_SPEED - MIN_MAX_SPEED));
+				}
+
+				updateTile();
+			}
+		};
+		maxSpeed.setActive(true);
+
+		currentOffset += maxSpeed.getHeight() + 20;
+
+		closeButton = new Button("Close", (int) xOffset, currentOffset, (int) width, lineHeight)
+		{
+			@Override
+			public void onClick()
+			{
+				PlatformPanel.this.setActive(false);
+			}
+		};
+		closeButton.setActive(true);
+
+		currentOffset += closeButton.getHeight();
+
+		this.setHeight(currentOffset);
+	}
+
+	private void updateTile()
+	{
+		tile.initPlatform();
+		tile.updateBorders();
+
+		if (tile.getDimension() == Dimension.LIGHT && tile.hasMirror())
+		{
+			tile.getMirroredTile().setRotation(0.0f);
+			tile.getMirroredTile().setRotation(tile.getRotation());
+			tile.getMirroredTile().setPosition(tile.getPosition().x, tile.getPosition().y);
+			tile.initMirror(tile.getMirroredTile(), tile.getLevel().getType());
+		}
+	}
+
+	private void updateRotationAnchorLabel()
+	{
+		if (tile.getRotationAnchor() == TilePlatform.ROTATION_LEFT)
+		{
+			rotationAnchor.setText("Left");
+		}
+		else if (tile.getRotationAnchor() == TilePlatform.ROTATION_CENTER)
+		{
+			rotationAnchor.setText("Center");
+		}
+		else if (tile.getRotationAnchor() == TilePlatform.ROTATION_RIGHT)
+		{
+			rotationAnchor.setText("Right");
+		}
+	}
+
+	public void init(TilePlatform tile)
+	{
+		this.tile = tile;
+
+		typeButton.setText("Type: " + tile.getPlatformType().name());
+
+		limited.setChecked(tile.isLimited());
+
+		if (!tile.isLimited())
+		{
+			limited.onUnchecked();
+		}
+
+		startLimit.setInput(tile.getStartLimit() + "");
+		endLimit.setInput(tile.getEndLimit() + "");
+
+		startMoveRight.setChecked(tile.isStartMoveRight());
+
+		if (tile.getPlatformType() == TilePlatformType.HORIZONTAL || tile.getPlatformType() == TilePlatformType.VERTICAL)
+		{
+			maxSpeed.setSelectedRange((tile.getMaxSpeed() - MIN_MAX_SPEED) / (MAX_MAX_SPEED - MIN_MAX_SPEED));
+		}
+		else if (tile.getPlatformType() == TilePlatformType.ROTATING)
+		{
+			maxSpeed.setSelectedRange((tile.getRotationVelocity() - MIN_ROTATION_VELOCITY) / (MAX_ROTATION_VELOCITY - MIN_ROTATION_VELOCITY));
+		}
+
+		updateRotationAnchorLabel();
+
+		setActive(true);
+	}
+
+	@Override
+	protected void customUpdate(GameContainer container, int delta)
+	{
+		if (tile.isRemoved())
+		{
+			tile = null;
+			setActive(false);
+
+			return;
+		}
+
+		if (lastWidth != tile.getWidth() || lastHeight == tile.getHeight())
+		{
+			updateTile();
+		}
+
+		typeButton.update(container, delta);
+		limited.update(container, delta);
+		startLimit.update(container, delta);
+		endLimit.update(container, delta);
+		startMoveRight.update(container, delta);
+		maxSpeed.update(container, delta);
+		closeButton.update(container, delta);
+		rotationAnchor.update(container, delta);
+
+		lastWidth = tile.getWidth();
+		lastHeight = tile.getHeight();
+	}
+
+	@Override
+	protected void customRender(GameContainer container, float alphaFactor, Graphics g)
+	{
+		typeButton.render(container, alphaFactor, g);
+		limited.render(container, alphaFactor, g);
+		startLimit.render(container, alphaFactor, g);
+		endLimit.render(container, alphaFactor, g);
+		startMoveRight.render(container, alphaFactor, g);
+		maxSpeed.render(container, g);
+		closeButton.render(container, alphaFactor, g);
+		rotationAnchor.render(container, alphaFactor, g);
+
+		ColorHelper.applyAlphaAndCopy(Color.white, alphaFactor, g);
+
+		g.drawString("Limited", xOffset + 5, limited.getCenterY() - g.getFont().getLineHeight() / 2);
+		g.drawString("StartLimit", xOffset + 5, startLimit.getCenterY() - g.getFont().getLineHeight() / 2);
+		g.drawString("EndLimit", xOffset + 5, endLimit.getCenterY() - g.getFont().getLineHeight() / 2);
+		g.drawString("Inversed", xOffset + 5, startMoveRight.getCenterY() - g.getFont().getLineHeight() / 2);
+		g.drawString("Anchor", xOffset + 5, rotationAnchor.getCenterY() - g.getFont().getLineHeight() / 2);
+		
+		g.setColor(Color.blue);
+		g.drawString("MaxSpeed", xOffset + 5, maxSpeed.getCenterY() - g.getFont().getLineHeight() / 2);
+
+		if (tile.getPlatformType() == TilePlatformType.ROTATING)
+		{
+			g.setColor(Color.cyan);
+			g.fillOval(tile.getCenterOfRotationX() - 2, tile.getCenterOfRotationY() - 2, 4, 4);
+		}
+
+		if (tile.isLimited())
+		{
+			ColorHelper.applyAlphaAndCopy(Color.red, 0.5f, g);
+
+			if (tile.getPlatformType() == TilePlatformType.HORIZONTAL)
+			{
+				g.drawLine(tile.getHitbox().getMinX() - tile.getStartLimit(), tile.getHitbox().getMinY(), tile.getHitbox().getMinX() - tile.getStartLimit(), tile.getHitbox().getMaxY());
+				g.drawLine(tile.getHitbox().getMaxX() + tile.getEndLimit(), tile.getHitbox().getMinY(), tile.getHitbox().getMaxX() + tile.getEndLimit(), tile.getHitbox().getMaxY());
+			}
+			else if (tile.getPlatformType() == TilePlatformType.VERTICAL)
+			{
+				g.drawLine(tile.getHitbox().getMinX(), tile.getHitbox().getMinY() - tile.getStartLimit(), tile.getHitbox().getMaxX(), tile.getHitbox().getMinY() - tile.getStartLimit());
+				g.drawLine(tile.getHitbox().getMinX(), tile.getHitbox().getMaxY() + tile.getEndLimit(), tile.getHitbox().getMaxX(), tile.getHitbox().getMaxY() + tile.getEndLimit());
+			}
+			else if (tile.getPlatformType() == TilePlatformType.ROTATING)
+			{
+				drawRotatedLine(tile.getPosition().x, tile.getPosition().y, tile.getPosition().x + tile.getHitbox().getRawWidth(), tile.getPosition().y, tile.getRotation() + tile.getStartLimit(), tile.getCenterOfRotationX(), tile.getCenterOfRotationY(), g);
+				drawRotatedLine(tile.getPosition().x, tile.getPosition().y, tile.getPosition().x + tile.getHitbox().getRawWidth(), tile.getPosition().y, tile.getRotation() + tile.getEndLimit(), tile.getCenterOfRotationX(), tile.getCenterOfRotationY(), g);
+			}
+		}
+	}
+
+	private void drawRotatedLine(float startX, float startY, float endX, float endY, float rotation, float centerOfRotationX, float centerOfRotationY, Graphics g)
+	{
+		point.setLocation(startX, startY);
+		other.setLocation(centerOfRotationX, centerOfRotationY);
+
+		Hitbox.rotatePoint(point, other, rotation);
+
+		startX = point.getX();
+		startY = point.getY();
+
+		point.setX(endX);
+		point.setY(endY);
+
+		Hitbox.rotatePoint(point, other, rotation);
+
+		g.drawLine(startX, startY, point.getX(), point.getY());
+	}
+
+	@Override
+	public void onPositionUpdate(int xChange, int yChange)
+	{
+		typeButton.adjust(xChange, yChange);
+		limited.adjust(xChange, yChange);
+		startLimit.adjust(xChange, yChange);
+		endLimit.adjust(xChange, yChange);
+		startMoveRight.adjust(xChange, yChange);
+		maxSpeed.adjust(xChange, yChange);
+		closeButton.adjust(xChange, yChange);
+		rotationAnchor.adjust(xChange, yChange);
+	}
+}

@@ -1,0 +1,178 @@
+package com.unlogical.colored.gui.menu;
+
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Input;
+import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.g2d.Batch;
+import com.unlogical.colored.configuration.Resolutions;
+import com.unlogical.colored.gui.menu.Menu.MenuItem;
+import com.unlogical.colored.gui.menu.MenuHandler.MenuEmitterHandler;
+import com.unlogical.colored.input.InputAction;
+import com.unlogical.colored.input.InputHandler;
+import com.unlogical.colored.particle.EmitterType;
+import com.unlogical.colored.resources.image.Images;
+import com.unlogical.colored.util.Renderer;
+
+public class MenuItemSlider extends MenuItem
+{
+	private boolean movingMode;
+
+	private float padding;
+	private float selectedRange;
+
+	private MenuEmitterHandler selectedSlider;
+	private MenuEmitterHandler fullSlider;
+
+	private IMenuItemSliderListener listener;
+
+	private float sliderWidth;
+	private float sliderHeight;
+
+	public MenuItemSlider(String item)
+	{
+		this(item, Resolutions.SLIDER_WIDTH, Resolutions.SLIDER_HEIGHT, Resolutions.SLIDER_PADDING);
+	}
+
+	public MenuItemSlider(String item, float sliderWidth, float sliderHeight, float padding)
+	{
+		super(item);
+
+		this.padding = padding;
+		this.sliderWidth = sliderWidth;
+		this.sliderHeight = sliderHeight;
+
+		createSlider();
+	}
+
+	private void createSlider()
+	{
+		this.fullSlider = new MenuEmitterHandler(centerX - sliderWidth / 2, centerY - sliderHeight / 2, sliderWidth, sliderHeight, 0, EmitterType.SLIDER_FULL);
+		this.selectedSlider = new MenuEmitterHandler(fullSlider.getX(), fullSlider.getY(), fullSlider.getWidth() * selectedRange, fullSlider.getHeight(), 0, EmitterType.SLIDER_SELECTED);
+	}
+
+	private void updateSliders()
+	{
+		this.fullSlider.setPosition(centerX - sliderWidth / 2, centerY - sliderHeight / 2);
+		this.fullSlider.setWidth(sliderWidth);
+		this.fullSlider.setHeight(sliderHeight);
+
+		this.selectedSlider.setPosition(centerX - sliderWidth / 2, centerY - sliderHeight / 2);
+		this.selectedSlider.setWidth(selectedRange * sliderWidth);
+		this.selectedSlider.setHeight(sliderHeight);
+	}
+
+	@Override
+	public void update(boolean selected, float delta)
+	{
+		if (fullSlider.contains(InputHandler.getCurrentInputX(), InputHandler.getCurrentInputY()))
+		{
+			if (Gdx.input.isButtonPressed(Input.Buttons.LEFT))
+			{
+				movingMode = true;
+			}
+		}
+		else if (!Gdx.input.isButtonPressed(Input.Buttons.LEFT))
+		{
+			movingMode = false;
+		}
+
+		if (!selected)
+		{
+			movingMode = false;
+		}
+
+		float beforeSelectedRange = selectedRange;
+
+		if (movingMode)
+		{
+			if (Gdx.input.isButtonPressed(Input.Buttons.LEFT))
+			{
+				selectedRange = (InputHandler.getCurrentInputX() - fullSlider.getX()) / sliderWidth;
+			}
+		}
+
+		if (selected)
+		{
+			if (InputHandler.isKeyPressed(InputAction.MOVE_LEFT))
+			{
+				selectedRange -= 0.00075f * delta;
+			}
+			else if (InputHandler.isKeyPressed(InputAction.MOVE_RIGHT))
+			{
+				selectedRange += 0.00075f * delta;
+			}
+		}
+
+		if (selectedRange < 0.0f)
+		{
+			selectedRange = 0.0f;
+		}
+		else if (selectedRange > 1.0f)
+		{
+			selectedRange = 1.0f;
+		}
+
+		if (beforeSelectedRange != selectedRange)
+		{
+			onFactorChanged(selectedRange);
+		}
+
+		updateSliders();
+	}
+
+	@Override
+	public void render(Color color, Batch batch)
+	{
+		Renderer.useSpriteBatch();
+
+		Images.draw(item, centerX, centerY - padding - Images.getHandler(item).getImage().getRegionWidth(), scale, 0.0f, color, batch);
+		
+		fullSlider.getWrapper().getAddTint().set(0.0f, 0.0f, 0.0f, 1.0f);
+		fullSlider.getWrapper().draw(batch);
+		
+		selectedSlider.getWrapper().getAddTint().set(0.0f, 0.0f, 0.0f, 1.0f);
+		selectedSlider.getWrapper().draw(batch);
+	}
+
+	public void onFactorChanged(float selectedRange)
+	{
+		if (listener != null)
+		{
+			listener.onFactorChanged(selectedRange);
+		}
+	}
+
+	@Override
+	public float getWidth()
+	{
+		return Math.max(sliderWidth, super.getWidth());
+	}
+
+	@Override
+	public float getHeight()
+	{
+		return super.getHeight() + padding * 2 + sliderHeight;
+	}
+
+	public void setSelectedRange(float selectedRange)
+	{
+		this.selectedRange = selectedRange;
+
+		onFactorChanged(selectedRange);
+	}
+
+	public float getSelectedRange()
+	{
+		return selectedRange;
+	}
+
+	public interface IMenuItemSliderListener
+	{
+		public void onFactorChanged(float selectedRange);
+	}
+
+	public void setListener(IMenuItemSliderListener listener)
+	{
+		this.listener = listener;
+	}
+}

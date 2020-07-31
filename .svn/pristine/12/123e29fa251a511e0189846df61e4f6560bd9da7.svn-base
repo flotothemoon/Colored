@@ -1,0 +1,74 @@
+package com.unlogical.colored.wrapper;
+
+import java.io.File;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+
+import com.unlogical.colored.debug.Debug;
+import com.unlogical.colored.resources.ResourceLoader;
+import com.unlogical.colored.util.RealImage;
+
+public class WrapperTextureFinder
+{
+	private File sourceFolder;
+
+	public WrapperTextureFinder(File sourceFolder)
+	{
+		this.sourceFolder = sourceFolder;
+	}
+
+	public ArrayList<WrapperTexture> getRawWrappers() throws IOException
+	{
+		ArrayList<WrapperTexture> wrappers = new ArrayList<WrapperTexture>();
+
+		getRawWrappers(sourceFolder, wrappers);
+
+		Collections.sort(wrappers, new Comparator<WrapperTexture>()
+		{
+			@Override
+			public int compare(WrapperTexture o1, WrapperTexture o2)
+			{
+				return o1.getGroup().compareTo(o2.getGroup());
+			}
+		});
+
+		return wrappers;
+	}
+
+	private void getRawWrappers(File sourceFolder, ArrayList<WrapperTexture> wrappers) throws IOException
+	{
+		for (File file : sourceFolder.listFiles())
+		{
+			if (file.isDirectory())
+			{
+				getRawWrappers(file, wrappers);
+			}
+			else if (file.getName().endsWith("-1.png") && !Character.isDigit(file.getName().charAt(file.getName().length() - 7)))
+			{
+				try
+				{
+					String path = file.getPath().substring(0, file.getPath().length() - 6).replace('\\', '/');
+					RealImage[][] availableImages = ResourceLoader.getAnimatedImages(path);
+
+					wrappers.add(new WrapperTexture(path, availableImages));
+				}
+				catch (Exception e)
+				{
+					Debug.warn("Couldn't process wrapper " + file + ": " + e, e);
+				}
+			}
+		}
+	}
+
+	public static String getGroup(WrapperTexture wrapper)
+	{
+		if (wrapper.getSimpleName().contains("/"))
+		{
+			return wrapper.getSimpleName().substring(0, wrapper.getSimpleName().lastIndexOf("/"));
+		}
+
+		return "";
+	}
+}

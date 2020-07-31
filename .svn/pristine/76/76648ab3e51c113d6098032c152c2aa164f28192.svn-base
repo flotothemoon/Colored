@@ -1,0 +1,37 @@
+package com.unlogical.colored.sound;
+
+import javax.sound.sampled.Clip;
+
+import com.unlogical.colored.debug.Debug;
+
+public class Sounds
+{
+	private static int soundsVolume = 100;
+	
+	public static void play(Clip clip)
+	{
+
+	}
+
+	public static void play(String type)
+	{
+
+	}
+
+	public static void load()
+	{
+		Debug.log("Loading sounds...");
+
+		Debug.log("Sounds loaded.");
+	}
+
+	public static void setSoundsVolume(int volume)
+	{
+		soundsVolume = volume;
+	}
+
+	public static int getSoundsVolume()
+	{
+		return soundsVolume;
+	}
+}

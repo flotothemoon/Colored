@@ -1,0 +1,207 @@
+package com.unlogical.colored.gui.menu;
+
+import static com.unlogical.colored.util.ColorHelper.set;
+
+import com.badlogic.gdx.Input;
+import com.badlogic.gdx.InputAdapter;
+import com.badlogic.gdx.graphics.g2d.Batch;
+import com.badlogic.gdx.math.Rectangle;
+import com.unlogical.colored.GameLauncher;
+import com.unlogical.colored.configuration.Resolutions;
+import com.unlogical.colored.configuration.Settings;
+import com.unlogical.colored.configuration.SoundVolume;
+import com.unlogical.colored.gui.Slider;
+import com.unlogical.colored.gui.button.Button;
+import com.unlogical.colored.input.InputAction;
+import com.unlogical.colored.input.InputHandler;
+import com.unlogical.colored.input.KeyBindings;
+import com.unlogical.colored.resources.font.Fonts;
+import com.unlogical.colored.util.ColorHelper;
+import com.unlogical.colored.util.GameStatus;
+import com.unlogical.colored.util.Renderer;
+import com.unlogical.colored.util.ShaderHandler;
+
+@SuppressWarnings("rawtypes")
+public class SettingsMenu
+{
+	private static final int CENTER_OFFSET = 100;
+	private static GameStatus lastGameStatus = GameStatus.MAIN_MENU;
+
+	private Rectangle[] soundOptions;
+	private Slider[] soundSliders;
+	private boolean active;
+	private boolean lookForKey;
+	private int selectedOption;
+	private Menu keybindingsMenu;
+	private Button backButton;
+
+	public SettingsMenu(float yOffset, float offset)
+	{
+		this.keybindingsMenu = new Menu(MenuOptions.SETTINGS, GameLauncher.getWidth() / 5, yOffset, GameLauncher.getWidth() / 2 - CENTER_OFFSET - GameLauncher.getWidth() / 5, offset, false)
+		{
+			@Override
+			public void onSelect(int selection)
+			{
+				if (lookForKey)
+				{
+					lookForKey = false;
+					ignoreButtons = false;
+				}
+				else
+				{
+					ignoreButtons = true;
+					lookForKey = true;
+					selectedOption = selection;
+				}
+			}
+
+			@Override
+			protected void customOptionRender(Batch batch, int option, MenuItem box)
+			{
+				ShaderHandler.disableLighting();
+
+				if (!(option == selectedOption && lookForKey))
+				{
+					String keyName = Input.Keys.toString(KeyBindings.getMainKey(InputAction.getAction(option)));
+					Renderer.drawString(keyName, GameLauncher.getWidth() / 2 - CENTER_OFFSET - Renderer.getWidth(keyName, Fonts.getDefaultFont()), box.getCenterY() - Renderer.getLineHeight() / 2, batch);
+				}
+				else
+				{
+					Renderer.drawString(" ... ", GameLauncher.getWidth() / 2 - CENTER_OFFSET - Renderer.getWidth(" ... ", Fonts.getDefaultFont()), box.getCenterY() - Renderer.getLineHeight() / 2, batch);
+				}
+
+				ShaderHandler.enableLighting();
+			}
+
+			@Override
+			public void customUpdate(int delta)
+			{
+
+			}
+		};
+		this.keybindingsMenu.setActive(true);
+
+		this.backButton = new Button("Back", GameLauncher.getWidth() / 2 - Renderer.getWidth("Back", Fonts.getDefaultFont()) / 2, (int) (keybindingsMenu.getY() + keybindingsMenu.getHeight()), Renderer.getWidth("Back", Fonts.getDefaultFont()), Renderer.getLineHeight(Fonts.getDefaultFont()))
+		{
+			@Override
+			public void onClick()
+			{
+				if (lastGameStatus == GameStatus.PAUSE_MENU)
+				{
+					GameLauncher.setStatus(GameStatus.PAUSE_MENU);
+
+					// TODO key record cleanup for time delay tracking mode
+				}
+				else if (lastGameStatus == GameStatus.MAIN_MENU)
+				{
+					GameLauncher.setStatus(GameStatus.MAIN_MENU);
+				}
+				else
+				{
+					throw new IllegalStateException("SettingsMenu is in a bacon state. Because bacon is an invald game status to jump back to. Bacon.");
+				}
+			}
+		};
+		this.backButton.setUseEventColors(true);
+		this.backButton.setShowBox(false);
+
+		soundOptions = new Rectangle[SoundVolume.values().length];
+		soundSliders = new Slider[soundOptions.length];
+
+		for (int i = 0; i < soundOptions.length; i++)
+		{
+			soundOptions[i] = new Rectangle(GameLauncher.getWidth() / 2 + CENTER_OFFSET, keybindingsMenu.getY(i * 2), keybindingsMenu.getWidth(), offset + Resolutions.SELECTION_MENU_SCROLLBAR_WIDTH * 2);
+			soundSliders[i] = new Slider<SoundVolume>(soundOptions[i].getX(), soundOptions[i].getY() + soundOptions[i].height - Resolutions.SELECTION_MENU_SCROLLBAR_WIDTH - 5, soundOptions[i].getWidth(), Resolutions.SELECTION_MENU_SCROLLBAR_WIDTH, (SoundVolume.values()[i].volume()) / 100.0f, SoundVolume.values()[i])
+			{
+				@Override
+				protected void onFactorChanged(float selectedRange, SoundVolume reference)
+				{
+					reference.setVolume((int) (selectedRange * 100));
+
+					Settings.saveSettings();
+				}
+			};
+			soundSliders[i].setActive(true);
+		}
+
+		InputHandler.addInputProcessor(new InputAdapter()
+		{
+			@Override
+			public boolean keyDown(int keycode)
+			{
+				if (lookForKey)
+				{
+					KeyBindings.swapMainKey(InputAction.getAction(selectedOption), keycode);
+
+					Settings.saveSettings();
+
+					lookForKey = false;
+				}
+
+				return true;
+			}
+		});
+	}
+
+	public void update(int delta)
+	{
+		if (active)
+		{
+			keybindingsMenu.update(delta);
+			backButton.update(delta);
+
+			for (int i = 0; i < soundOptions.length; i++)
+			{
+				soundSliders[i].update(delta);
+
+				if (soundOptions[i].contains(InputHandler.getCurrentInputX(), InputHandler.getCurrentInputY()))
+				{
+					set(soundSliders[i].getAdditionalColor(), 0.1f, 0.1f, 0.1f, 0.2f);
+				}
+				else
+				{
+					set(soundSliders[i].getAdditionalColor(), 0.0f, 0.0f, 0.0f, 0.0f);
+				}
+			}
+		}
+	}
+
+	public void render(Batch batch)
+	{
+		if (active)
+		{
+			ShaderHandler.disableLighting();
+
+			keybindingsMenu.render(batch);
+			backButton.render(1.0f, batch);
+
+			for (int i = 0; i < soundOptions.length; i++)
+			{
+				soundSliders[i].render(batch);
+
+				ColorHelper.copyAndAdd(soundSliders[i].getSelectedColor(), ColorHelper.buffer, soundSliders[i].getAdditionalColor());
+
+				Renderer.useSpriteBatch();
+				Renderer.setFont(Fonts.getDefaultFont());
+				Renderer.drawString(SoundVolume.values()[i].name(), ColorHelper.buffer, soundOptions[i].getX() + soundOptions[i].width / 2 - Renderer.getWidth(SoundVolume.values()[i].name()) / 2, soundOptions[i].getY(), batch);
+			}
+
+			ShaderHandler.enableLighting();
+		}
+	}
+
+	public boolean isActive()
+	{
+		return active;
+	}
+
+	public void setActive(boolean active)
+	{
+		this.active = active;
+	}
+
+	public static void setLastGameStatus(GameStatus lastGameStatus)
+	{
+		SettingsMenu.lastGameStatus = lastGameStatus;
+	}
+}

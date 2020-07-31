@@ -1,0 +1,82 @@
+ -- General -- 
+Generated on: 2016-05-09_16-47-37
+Build: 722 from 08:02 PM - 08/05/16
+GameState: MAP_EDITOR (previous: IN_LEVEL)
+Target FPS: 60
+Actual FPS: 61
+
+ -- Display -- 
+Target Width / Height: 1920 / 1080
+Actual Width / Height: 1920 / 1017 (windowed)
+
+ -- Environment -- 
+GPU: GeForce GTX 980 Ti/PCIe/SSE2 (NVIDIA Corporation)
+OpenGL Version: 4.5.0 NVIDIA 361.43
+Allocated Memory: 15MB
+Used Memory: 0MB
+"os.name": Windows 10
+"os.version": 10.0
+"os.arch": x86
+"java.version": 1.8.0_66
+"java.vendor": Oracle Corporation
+"sun.arch.data.model": 32
+
+ -- Level --
+ID: test (internal: unknown)
+LevelType: TIME_SCALE
+Dimension: COLORED
+Location: ../worlds/maps/test
+
+ -- Stack Trace -- 
+java.lang.IllegalArgumentException: Error compiling shader: 0(46) : error C1067: too little data in type constructor
+
+com.unlogical.colored.util.ShaderHandler.createOutlineBlurShader(ShaderHandler.java:459)
+com.unlogical.colored.util.ShaderHandler.updateAndRender(ShaderHandler.java:263)
+com.unlogical.colored.mapeditor.MapEditor.render(MapEditor.java:1409)
+com.unlogical.colored.GameLauncher.render(GameLauncher.java:489)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication.mainLoop(LwjglApplication.java:218)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication$1.run(LwjglApplication.java:123)
+
+ -- Last 20 Log Entries -- 
+@Log: Compiled outline blur shader. (11)
+@Log: Compiled outline blur shader. (11)
+@Log: Compiled outline blur shader. (11)
+@Log: Compiled outline blur shader. (11)
+@Log: Compiled outline blur shader. (11)
+@Log: Compiled outline blur shader. (11)
+@Log: Compiled outline blur shader. (11)
+@Log: Compiled outline blur shader. (11)
+@Log: Compiled outline blur shader. (11)
+@Log: Compiled outline blur shader. (11)
+@Log: Compiled outline blur shader. (11)
+@Log: Compiled outline blur shader. (11)
+@Log: Compiled outline blur shader. (11)
+@Log: Compiled outline blur shader. (11)
+@Log: Compiled outline blur shader. (11)
+@Log: Compiled outline blur shader. (11)
+@Log: Compiled outline blur shader. (11)
+@Log: Compiled outline blur shader. (11)
+@Log: Compiled outline blur shader. (11)
+@Log: Compiled outline blur shader. (11)
+
+ -- Last 20 Input Events -- 
+Touch down: 0 (pointer: 0) at x:949 y: 752 (143608ms ago)
+Touch up: 0 (pointer: 0) at x:949 y: 752 (143517ms ago)
+Touch down: 0 (pointer: 0) at x:1699 y: 606 (91240ms ago)
+Touch up: 0 (pointer: 0) at x:1697 y: 606 (91206ms ago)
+Touch down: 0 (pointer: 0) at x:1220 y: 518 (87523ms ago)
+Touch dragged: pointer: 0 at x:1187 y: 501 (87522ms ago)
+Touch dragged: pointer: 0 at x:1173 y: 497 (87506ms ago)
+Touch dragged: pointer: 0 at x:1170 y: 496 (87489ms ago)
+Touch up: 0 (pointer: 0) at x:1170 y: 496 (87439ms ago)
+Key down: O (43) (87422ms ago)
+Key up: O (43) (87322ms ago)
+Touch down: 0 (pointer: 0) at x:1592 y: 454 (80173ms ago)
+Touch up: 0 (pointer: 0) at x:1592 y: 454 (80139ms ago)
+Key down: Left (21) (79472ms ago)
+Key up: Left (21) (79322ms ago)
+Touch down: 0 (pointer: 0) at x:928 y: 907 (6722ms ago)
+Touch up: 0 (pointer: 0) at x:928 y: 907 (6689ms ago)
+Touch down: 0 (pointer: 0) at x:1694 y: 579 (121ms ago)
+Touch up: 0 (pointer: 0) at x:1694 y: 579 (72ms ago)
+Key down: O (43) (22ms ago)

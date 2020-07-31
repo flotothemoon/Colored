@@ -1,0 +1,107 @@
+package com.unlogical.colored.gui.panel;
+
+import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.g2d.Batch;
+import com.unlogical.colored.GameLauncher;
+import com.unlogical.colored.gui.UserInputLine;
+import com.unlogical.colored.gui.button.Button;
+import com.unlogical.colored.mapeditor.MapEditor;
+import com.unlogical.colored.resources.font.Fonts;
+import com.unlogical.colored.util.Renderer;
+
+public class FPSPanel extends GUIPanel
+{
+	private UserInputLine newFPS;
+
+	private Button applyButton;
+	private Button cancelButton;
+
+	public FPSPanel(float xOffset, float yOffset, float width, float height)
+	{
+		super("Simulate & Lock FPS", xOffset, yOffset, width, height);
+
+		this.fillColor = new Color(MapEditor.panelColor);
+
+		int lineHeight = 30;
+		int inputWidth = (int) (width / 2) + 15;
+		int currentOffset = (int) (yOffset + 10);
+		int inputX = (int) (xOffset + width / 2) - 20;
+
+		newFPS = new UserInputLine(inputX, currentOffset, inputWidth, lineHeight);
+		newFPS.setOnlyNumeric(true);
+
+		currentOffset += newFPS.getHeight() + 20;
+
+		applyButton = new Button("Apply", (int) (xOffset), currentOffset, (int) (width / 2), lineHeight, false)
+		{
+			@Override
+			public void onClick()
+			{
+				try
+				{
+					int targetFPS = Integer.parseInt(newFPS.getInput());
+
+					if (targetFPS > 0)
+					{
+						GameLauncher.lockFPS(targetFPS);
+
+						disable();
+					}
+				}
+				catch (Exception e)
+				{
+				}
+			}
+		};
+
+		cancelButton = new Button("Cancel", (int) (xOffset + width / 2), currentOffset, (int) (width / 2), lineHeight, false)
+		{
+			@Override
+			public void onClick()
+			{
+				disable();
+			}
+		};
+
+		this.setHeight(currentOffset - yOffset + 25 + cancelButton.getHeight());
+	}
+
+	public void init()
+	{
+		newFPS.setInput(GameLauncher.getTargetFPS() + "");
+
+		newFPS.setActive(true);
+		applyButton.setActive(true);
+		cancelButton.setActive(true);
+	}
+
+	@Override
+	protected void customUpdate(int delta)
+	{
+		newFPS.update(delta);
+
+		applyButton.update(delta);
+		cancelButton.update(delta);
+	}
+
+	@Override
+	protected void customRender(float alphaFactor, Batch batch)
+	{
+		newFPS.render(alphaFactor, batch);
+
+		applyButton.render(alphaFactor, batch);
+		cancelButton.render(alphaFactor, batch);
+
+		Renderer.setFont(Fonts.getSmallFont());
+		Renderer.drawString("Target FPS", xOffset + 5, newFPS.getCenterY() - Renderer.getLineHeight() / 2, 1.0f, batch);
+	}
+
+	@Override
+	public void onPositionUpdate(int xChange, int yChange)
+	{
+		newFPS.adjust(xChange, yChange);
+
+		applyButton.adjust(xChange, yChange);
+		cancelButton.adjust(xChange, yChange);
+	}
+}

@@ -1,0 +1,81 @@
+ -- General -- 
+Generated on: 2016-04-06_21-12-45
+Build: 682 from 09:12 PM - 06/04/16
+GameState: IN_LEVEL (previous: LOADING)
+Target FPS: 60
+Actual FPS: 61
+
+ -- Display -- 
+Target Width / Height: 1920 / 1080
+Actual Width / Height: 1539 / 1008 (windowed)
+
+ -- Environment -- 
+GPU: GeForce GTX 980 Ti/PCIe/SSE2 (NVIDIA Corporation)
+OpenGL Version: 4.5.0 NVIDIA 361.43
+Allocated Memory: 15MB
+Used Memory: 5MB
+"os.name": Windows 10
+"os.version": 10.0
+"os.arch": x86
+"java.version": 1.8.0_66
+"java.vendor": Oracle Corporation
+"sun.arch.data.model": 32
+
+ -- Level --
+ID: 20-02 (internal: 02)
+LevelType: NORMAL
+Dimension: LIGHT
+Location: ../worlds/maps/20-02
+
+ -- Stack Trace -- 
+java.lang.IllegalStateException: SpriteBatch.begin must be called before draw.
+com.unlogical.colored.util.CustomVerticesSpriteBatch.draw(CustomVerticesSpriteBatch.java:804)
+com.unlogical.colored.particle.Particle.render(Particle.java:197)
+com.unlogical.colored.particle.ParticleSystem.renderEmitter(ParticleSystem.java:311)
+com.unlogical.colored.wrapper.WrapperTexture.draw(WrapperTexture.java:294)
+com.unlogical.colored.level.Level.renderBackgroundWrapper(Level.java:1004)
+com.unlogical.colored.level.Level.renderBackgroundWrappers(Level.java:989)
+com.unlogical.colored.levelmanaging.LevelManager.render(LevelManager.java:1119)
+com.unlogical.colored.GameLauncher.render(GameLauncher.java:464)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication.mainLoop(LwjglApplication.java:218)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication$1.run(LwjglApplication.java:123)
+
+ -- Last 20 Log Entries -- 
+@Log: Initializing menus... (11)
+@Log: SaveState 1.dat found and read successfully. (11)
+@Log: SaveState 2.dat found and read successfully. (11)
+@Log: Initializing story handler... (11)
+@Log: Initializing credits screen... (11)
+@Log: Resizing contents to current window size... (11)
+@Log: Finished loading, took 346ms. (11)
+@Log: Loading map ../worlds/maps/20-02 ... (11)
+@Log: Loading map files took 218ms. (11)
+@Log: Active save was saved to disk. (11)
+@Log: Level 20-02 cleared. (11)
+@Warning: Tried to load image(s) from path res/gui/icons/20_02, the resolved path res/gui/icons/20_02.png however does not exist. (11)
+@Warning: Couldn't load level icon for 20-02. (11)
+@Log: Fetching lights for level "20-02" ... (11)
+@Log: Lights fetched for level "20-02", 4 lights found. (11)
+@Log: Pre-simulating particles for 45000.0ms (300 x 150.0ms)... (11)
+@Log: Particle pre-simulation complete. Particles are now ahead of time by 45000.0ms. (11)
+@Log: Active save was saved to disk. (11)
+@Log: Loaded 20-02 (took 283ms). (11)
+@Log: Play sound JUMP at volume 0.0 and pitch 1.0 (once). (11)
+
+ -- Last 16 Input Events -- 
+Touch down: 0 (pointer: 0) at x:1638 y: 140 (7408ms ago)
+Touch up: 0 (pointer: 0) at x:1638 y: 140 (7125ms ago)
+Touch down: 0 (pointer: 0) at x:1145 y: 317 (2600ms ago)
+Touch dragged: pointer: 0 at x:1147 y: 318 (2583ms ago)
+Touch dragged: pointer: 0 at x:1148 y: 319 (2567ms ago)
+Touch up: 0 (pointer: 0) at x:1148 y: 319 (2517ms ago)
+Key down: A (29) (2298ms ago)
+Key down: Space (62) (1900ms ago)
+Key up: Space (62) (1767ms ago)
+Key up: A (29) (1683ms ago)
+Key down: D (32) (1566ms ago)
+Key typed: d (charcode: 100) (1150ms ago)
+Key typed: d (charcode: 100) (1033ms ago)
+Key typed: d (charcode: 100) (917ms ago)
+Key typed: d (charcode: 100) (816ms ago)
+Key down: G (35) (17ms ago)

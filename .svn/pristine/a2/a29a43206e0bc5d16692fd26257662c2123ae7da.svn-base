@@ -1,0 +1,29 @@
+package com.unlogical.colored.configuration;
+
+public class DisplayConstant
+{
+	private String name;
+	private float value;
+
+	public DisplayConstant(String name, float value)
+	{
+		this.name = name;
+		this.value = value;
+	}
+
+	public void multiply(float faktor)
+	{
+		this.value *= faktor;
+	}
+
+	public String getName()
+	{
+		return this.name;
+	}
+
+	public float getValue()
+	{
+		return this.value;
+	}
+
+}

@@ -1,0 +1,68 @@
+ -- General -- 
+Generated on: 2016-04-09_16-46-41
+Build: 687 from 07:54 PM - 08/04/16
+GameState: IN_LEVEL (previous: LOADING)
+Target FPS: 60
+Actual FPS: 31
+
+ -- Display -- 
+Target Width / Height: 1920 / 1080
+Actual Width / Height: 1920 / 1053 (windowed)
+
+ -- Environment -- 
+GPU: GeForce GTX 980 Ti/PCIe/SSE2 (NVIDIA Corporation)
+OpenGL Version: 4.5.0 NVIDIA 361.43
+Allocated Memory: 15MB
+Used Memory: 0MB
+"os.name": Windows 10
+"os.version": 10.0
+"os.arch": x86
+"java.version": 1.8.0_66
+"java.vendor": Oracle Corporation
+"sun.arch.data.model": 32
+
+ -- Level --
+ID: 20-01 (internal: 01)
+LevelType: SEPERATED
+Dimension: SHADOW
+Location: ../worlds/maps/20-01
+
+ -- Stack Trace -- 
+java.lang.IllegalArgumentException: image == null!
+javax.imageio.ImageTypeSpecifier.createFromRenderedImage(ImageTypeSpecifier.java:925)
+javax.imageio.ImageIO.getWriter(ImageIO.java:1592)
+javax.imageio.ImageIO.write(ImageIO.java:1578)
+com.unlogical.colored.gui.panel.SanityPanel.customUpdate(SanityPanel.java:153)
+com.unlogical.colored.gui.panel.GUIPanel.update(GUIPanel.java:90)
+com.unlogical.colored.GameLauncher.update(GameLauncher.java:259)
+com.unlogical.colored.GameLauncher.render(GameLauncher.java:430)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication.mainLoop(LwjglApplication.java:218)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication$1.run(LwjglApplication.java:123)
+
+ -- Last 20 Log Entries -- 
+@Log: Fetching lights for level "24-02" ... (8)
+@Log: Lights fetched for level "24-02", 4 lights found. (8)
+@Log: Pre-simulating particles for 45000.0ms (300 x 150.0ms)... (8)
+@Log: Particle pre-simulation complete. Particles are now ahead of time by 45000.0ms. (8)
+@Log: Active save was saved to disk. (8)
+@Log: Loaded 24-02 (took 138ms). (8)
+@Log: Clicked "Snapshot all" and called its onClick(). (8)
+@Log: Play sound MENU_CLICK at volume 0.0 and pitch 1.0 (once). (8)
+@Log: Loading map ../worlds/maps/20-01 ... (8)
+@Log: Loading map files took 23ms. (8)
+@Log: Active save was saved to disk. (8)
+@Log: Level 20-01 cleared. (8)
+@Warning: Tried to load image(s) from path res/gui/icons/20_01, the resolved path res/gui/icons/20_01.png however does not exist. (8)
+@Warning: Couldn't load level icon for 20-01. (8)
+@Log: Fetching lights for level "20-01" ... (8)
+@Log: Lights fetched for level "20-01", 14 lights found. (8)
+@Log: Pre-simulating particles for 45000.0ms (300 x 150.0ms)... (8)
+@Log: Particle pre-simulation complete. Particles are now ahead of time by 45000.0ms. (8)
+@Log: Active save was saved to disk. (8)
+@Log: Loaded 20-01 (took 48ms). (8)
+
+ -- Last 4 Input Events -- 
+Key down: F2 (245) (2457ms ago)
+Key up: F2 (245) (2409ms ago)
+Touch down: 0 (pointer: 0) at x:1024 y: 720 (65ms ago)
+Touch up: 0 (pointer: 0) at x:1024 y: 720 (13ms ago)

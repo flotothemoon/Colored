@@ -1,0 +1,55 @@
+package com.unlogical.linked.terrain.tile.cage;
+
+import org.newdawn.slick.geom.Vector2f;
+
+import com.unlogical.linked.entity.player.EntityPlayer;
+import com.unlogical.linked.gui.HintProperties;
+import com.unlogical.linked.level.Level;
+import com.unlogical.linked.resources.image.Images;
+import com.unlogical.linked.resources.image.Images.HintIdentifier;
+import com.unlogical.linked.terrain.TileType;
+import com.unlogical.linked.terrain.property.TileProperty;
+import com.unlogical.linked.terrain.tile.properties.ITileInteractable;
+import com.unlogical.linked.util.Dimension;
+
+public class TileWoodenCage extends TileCage implements ITileInteractable
+{	
+	public TileWoodenCage(TileType type, String metadata, int innerType, float rotation, Vector2f position, Level level, Dimension dimension, TileProperty properties, boolean allowMirrors)
+	{
+		super(type, metadata, innerType, rotation, position, level, dimension, properties, allowMirrors);
+	}
+
+	@Override
+	public void onInteract(EntityPlayer interactor)
+	{
+		if (!isOpened())
+		{
+			open();
+			interactor.onCageOpened(this);
+		}
+	}
+
+	@Override
+	public boolean entitiesBounceHorizontally()
+	{
+		return isOpened();
+	}
+
+	@Override
+	public boolean canInteract(EntityPlayer interactor)
+	{		
+		return !isOpened() && interactor.isOnGround() && (this.hitbox.contains(interactor.getHitbox()) || this.hitbox.intersects(interactor.getHitbox()));
+	}
+
+	@Override
+	public HintIdentifier getHintIdentifier()
+	{
+		return Images.HintIdentifier.CAGE_HINT;
+	}
+
+	@Override
+	public HintProperties getHintProperties()
+	{
+		return HintProperties.DEFAULT_PROPERTIES;
+	}
+}

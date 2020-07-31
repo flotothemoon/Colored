@@ -1,0 +1,69 @@
+package com.unlogical.linked.terrain;
+
+import org.newdawn.slick.Color;
+
+public enum TriggerPort
+{
+	RED(Color.red),
+	YELLOW(Color.yellow),
+	GREEN(Color.green),
+	BLUE(Color.blue),
+	PINK(Color.pink),
+	WHITE(Color.white),
+	BLACK(Color.black);
+	
+	private Color color;
+
+	private TriggerPort(Color color)
+	{
+		this.color = color;
+	}
+
+	public static TriggerPort getTrigger(int index)
+	{
+		return index >= 0 && index < values().length ? values()[index] : RED;
+	}
+
+	public static Color getColor(int index)
+	{
+		return index >= 0 && index < values().length ? values()[index].getColor() : RED.getColor();
+	}
+
+	public Color getColor()
+	{
+		return color;
+	}
+
+	public TriggerPort next()
+	{
+		int index = this.ordinal();
+
+		index++;
+
+		if (index >= values().length)
+		{
+			index = 0;
+		}
+
+		return values()[index];
+	}
+
+	public TriggerPort previous()
+	{
+		int index = this.ordinal();
+
+		index--;
+
+		if (index < 0)
+		{
+			index = values().length - 1;
+		}
+
+		return values()[index];
+	}
+
+	public int toPort()
+	{
+		return this.ordinal();
+	}
+}

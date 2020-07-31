@@ -1,0 +1,415 @@
+package com.unlogical.colored.gui.menu;
+
+import java.io.IOException;
+
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Input;
+import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.g2d.Batch;
+import com.unlogical.colored.gui.button.Button;
+import com.unlogical.colored.input.InputAction;
+import com.unlogical.colored.input.InputHandler;
+import com.unlogical.colored.resources.font.Fonts;
+import com.unlogical.colored.resources.image.Images;
+import com.unlogical.colored.sound.Sounds;
+import com.unlogical.colored.util.ColorHelper;
+import com.unlogical.colored.util.CursorType;
+import com.unlogical.colored.util.Renderer;
+import com.unlogical.colored.util.ShaderHandler;
+
+public abstract class Menu implements IMenu
+{
+	public static final float UNSELECTED_ALPHA = 0.8f;
+	public static final float SELECTED_ALPHA = 1.0f;
+
+	public static final Color UNSELECTED_COLOR = new Color(0.8f, 0.8f, 0.8f, UNSELECTED_ALPHA);
+	public static final Color SELECTION_COLOR = new Color(1.0f, 1.0f, 1.0f, SELECTED_ALPHA);
+
+	protected final MenuItem[] options;
+
+	private boolean active;
+	private boolean selecting = true;
+	protected boolean ignoreButtons;
+
+	private final int CLICK_COOLDOWN = 500;
+
+	private int selectedOption;
+	private int clickCooldown;
+	private int height;
+
+	protected float width;
+
+	private float xOffset;
+	private float yOffset;
+
+	protected Menu(final MenuItem[] options, float xOffset, float yOffset, float width, float padding, boolean centered)
+	{
+		if (options.length == 0)
+		{
+			throw new IllegalArgumentException("Menu options cannot be empty.");
+		}
+
+		this.xOffset = xOffset;
+		this.yOffset = yOffset;
+
+		this.width = width;
+		this.options = new MenuItem[options.length];
+
+		for (int i = 0; i < options.length; i++)
+		{
+			try
+			{
+				Images.registerAndLoad(Images.toIdentifier(options[i].getItem()));
+			}
+			catch (IOException e)
+			{
+				throw new RuntimeException("Exception while loading icon: " + this.options[i], e);
+			}
+
+			this.options[i] = options[i];
+			this.options[i].centerX = centered ? xOffset + width / 2 : xOffset;
+
+			if (i == 0)
+			{
+				this.options[i].centerY = yOffset;
+			}
+			else
+			{
+				this.options[i].centerY = this.options[i - 1].centerY + this.options[i - 1].getHeight() / 2 + padding + this.options[i].getHeight() / 2;
+			}
+			this.options[i].menu = this;
+		}
+
+		this.height = (int) (this.options[this.options.length - 1].centerY + this.options[this.options.length - 1].getHeight() / 2 - this.options[0].centerY - this.options[0].getHeight() / 2);
+	}
+
+	public Menu(final String[] options, float xOffset, float yOffset, float width, float padding, boolean centered)
+	{
+		this.xOffset = xOffset;
+		this.yOffset = yOffset;
+
+		this.width = width;
+		this.options = new MenuItem[options.length];
+
+		for (int i = 0; i < options.length; i++)
+		{
+			try
+			{
+				Images.registerAndLoad(Images.toIdentifier(options[i]));
+			}
+			catch (IOException e)
+			{
+				throw new RuntimeException("Exception while loading icon: " + this.options[i], e);
+			}
+
+			this.options[i] = new MenuItem(Images.toIdentifier(options[i]), centered ? xOffset + width / 2 : xOffset, 0.0f);
+			this.options[i].centerY = i == 0 ? yOffset : this.options[i - 1].centerY + this.options[i - 1].getHeight() / 2 + padding + this.options[i].getHeight() / 2;
+			this.options[i].menu = this;
+		}
+
+		this.height = (int) (this.options[this.options.length - 1].centerY + this.options[this.options.length - 1].getHeight() / 2 - this.options[0].centerY - this.options[0].getHeight() / 2);
+	}
+
+	public void update(int delta)
+	{
+		clickCooldown -= delta;
+
+		for (int i = 0; i < options.length; i++)
+		{
+			options[i].update(i == selectedOption, delta);
+
+			if (options[i].contains(InputHandler.getCurrentInputX(), InputHandler.getCurrentInputY()) && !ignoreButtons)
+			{
+				selectedOption = i;
+				selecting = true;
+
+				CursorType.useCursor(CursorType.GRAB);
+			}
+		}
+
+		if (!ignoreButtons)
+		{
+			if (InputHandler.isKeyJustPressed(InputAction.MOVE_DOWN))
+			{
+				selectedOption++;
+
+				if (selectedOption == options.length)
+				{
+					onSelectAfterBottom();
+				}
+
+				selecting = true;
+			}
+
+			if (InputHandler.isKeyJustPressed(InputAction.MOVE_UP))
+			{
+				selectedOption--;
+
+				if (selectedOption < 0)
+				{
+					onSelectAboveTop();
+				}
+
+				selecting = true;
+			}
+		}
+
+		if (selectedOption >= 0 && isAvailable(options[selectedOption]))
+		{
+			if (InputHandler.isKeyJustPressed(InputAction.PAUSE) || InputHandler.isKeyJustPressed(InputAction.BACK))
+			{
+				onBack();
+
+				Sounds.play("click");
+			}
+
+			if (((Gdx.input.isKeyJustPressed(Input.Keys.ENTER) || InputHandler.isKeyJustPressed(InputAction.JUMP) || (this.options[selectedOption].contains(InputHandler.getCurrentInputX(), InputHandler.getCurrentInputY()) && Gdx.input.isButtonPressed(Input.Buttons.LEFT) && Gdx.input.justTouched()) && clickCooldown <= 0)) && selecting)
+			{
+				onSelect(options[selectedOption]);
+
+				Sounds.play("click");
+				clickCooldown = CLICK_COOLDOWN;
+			}
+		}
+
+		for (int i = 0; i < options.length; i++)
+		{
+			if (i == selectedOption)
+			{
+				options[i].scale += (isAvailable(options[i]) ? Button.WOBBLE_AVAILABLE_SPEED : Button.WOBBLE_UNAVAILABLE_SPEED) * delta * (options[i].addingScale ? 1.0f : -1.0f);
+
+				if (options[i].scale > (isAvailable(options[i]) ? Button.WOBBLE_AVAILABLE_MAX_SCALE_FACTOR : Button.WOBBLE_UNAVAILABLE_MAX_SCALE_FACTOR))
+				{
+					options[i].addingScale = false;
+				}
+				else if (options[i].scale < (isAvailable(options[i]) ? Button.WOBBLE_AVAILABLE_MIN_SCALE_FACTOR : Button.WOBBLE_UNAVAILABLE_MIN_SCALE_FACTOR))
+				{
+					options[i].addingScale = true;
+				}
+			}
+			else if (options[i].scale != 1.0f)
+			{
+				options[i].scale = (options[i].scale - 1.0f) * (isAvailable(options[i]) ? Button.WOBBLE_AVAILABLE_SLOW_DOWN_FACTOR : Button.WOBBLE_UNAVAILABLE_SLOW_DOWN_FACTOR) + 1.0f;
+			}
+		}
+
+		customUpdate(delta);
+	}
+
+	protected void onSelectAboveTop()
+	{
+		selectedOption = options.length - 1;
+	}
+
+	protected void onSelectAfterBottom()
+	{
+		selectedOption = 0;
+	}
+
+	public void render(float alphaFactor, Batch batch)
+	{
+		ShaderHandler.disableLighting();
+
+		for (int i = 0; i < options.length; i++)
+		{
+			Renderer.setFont(Fonts.getDefaultFont());
+
+			Color color = isAvailable(options[i]) ? Color.WHITE : ColorHelper.multiplyAlphaAndCopy(Color.GRAY, 0.3f);
+			color = selectedOption == i ? color : ColorHelper.multiplyAlphaAndCopy(color, 0.75f);
+			color = ColorHelper.multiplyAlphaAndCopy(color, alphaFactor);
+
+			options[i].render(alphaFactor, color, batch);
+
+			customOptionRender(batch, i, options[i]);
+		}
+
+		customRender(batch);
+
+		ShaderHandler.enableLighting();
+	}
+
+	protected boolean isAvailable(MenuItem item)
+	{
+		return true;
+	}
+
+	protected void customOptionRender(Batch batch, int option, MenuItem box)
+	{
+
+	}
+
+	public int getHeight()
+	{
+		return height;
+	}
+
+	public void onBack()
+	{
+		onSelect(this.options[options.length - 1]);
+	}
+
+	public abstract void onSelect(MenuItem item);
+
+	public boolean isActive()
+	{
+		return this.active;
+	}
+
+	public final void setActive(boolean active)
+	{
+		boolean beforeActive = this.active;
+
+		this.active = active;
+
+		if (!beforeActive && active)
+		{
+			onShow();
+		}
+	}
+
+	protected void onShow()
+	{
+
+	}
+
+	public float getY()
+	{
+		return yOffset;
+	}
+
+	public float getY(int option)
+	{
+		return options[option].centerY;
+	}
+
+	public void setYOffset(float yOffset)
+	{
+		this.yOffset = yOffset;
+	}
+
+	public float getXOffset()
+	{
+		return xOffset;
+	}
+
+	public void customUpdate(int delta)
+	{
+	}
+
+	public void customRender(Batch batch)
+	{
+	}
+
+	public int getSelectedOption()
+	{
+		return selectedOption;
+	}
+
+	public void setSelectedOption(int selectedOption)
+	{
+		this.selectedOption = selectedOption;
+	}
+
+	public float getWidth()
+	{
+		return width;
+	}
+
+	protected static class MenuItem
+	{
+		private Menu menu;
+
+		protected float centerX;
+		protected float centerY;
+
+		protected float scale = 1.0f;
+
+		private boolean addingScale;
+
+		protected String item;
+
+		public MenuItem(String item)
+		{
+			this.item = item;
+		}
+
+		public MenuItem(String item, float centerX, float centerY)
+		{
+			this.item = item;
+			this.centerX = centerX;
+			this.centerY = centerY;
+		}
+
+		public void setItem(String item)
+		{
+			if (!Images.isLoaded(Images.toIdentifier(item)))
+			{
+				try
+				{
+					Images.registerAndLoad(Images.toIdentifier(item));
+				}
+				catch (IOException e)
+				{
+					throw new RuntimeException("Exception while loading \"" + item + "\": " + e, e);
+				}
+			}
+
+			this.item = item;
+		}
+
+		public boolean contains(float x, float y)
+		{
+			float hWidth = getWidth() / 2;
+			float hHeight = getHeight() / 2;
+
+			return x > centerX - hWidth && x < centerX + hWidth && y > centerY - hHeight && y < centerY + hHeight;
+		}
+
+		public void update(boolean selected, float delta)
+		{
+
+		}
+
+		public void render(float alphaFactor, Color color, Batch batch)
+		{
+			Renderer.useSpriteBatch();
+
+			Images.draw(item, centerX, centerY, scale, 0.0f, color, batch);
+		}
+
+		public float getHeight()
+		{
+			return Images.getHandler(item).getImage().getRegionHeight() * scale;
+		}
+
+		public float getWidth()
+		{
+			return Images.getHandler(item).getImage().getRegionWidth() * scale;
+		}
+
+		public float getCenterX()
+		{
+			return centerX;
+		}
+
+		public float getCenterY()
+		{
+			return centerY;
+		}
+
+		public float getScale()
+		{
+			return scale;
+		}
+
+		public String getItem()
+		{
+			return item;
+		}
+
+		public final boolean isParentActive()
+		{
+			return menu.active;
+		}
+	}
+}

@@ -1,0 +1,21 @@
+package com.unlogical.linked.level;
+
+import com.unlogical.linked.util.LevelObject;
+
+public class LevelObjectReference<T extends LevelObject>
+{
+	private long id;
+	private Level level;
+	
+	public LevelObjectReference(T object, Level level)
+	{
+		this.id = object.id;
+		this.level = level;
+	}
+	
+	@SuppressWarnings("unchecked")
+	public T get()
+	{
+		return (T) this.level.getObjectByID(id);
+	}
+}

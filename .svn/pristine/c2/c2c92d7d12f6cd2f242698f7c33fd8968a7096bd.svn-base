@@ -1,0 +1,1070 @@
+package com.unlogical.colored;
+
+/*
+ * TODO
+ *
+ * CODE COMPLETE
+ *
+ * - add story handlers for all story levels
+ *  - story handler decision for first level
+ * - clear cages by opening OR closing
+ * - sound handler / loader
+ *  - use source level object for dimension + current level
+ * - music handler
+ *  - in-editor selection for music at specific points?
+ * - controller support
+ *
+ * CODE FIXES / IMPROVEMENTS
+ * - reduce number of particles / emitters in level & menu drastically (they are very fancy but also very performance intensive)
+ *  - extreme reduced particle mode for very low performance computers?
+ * - improve performance of particle handling
+ *  - using packed variables (like color components) and reducing number of attributes per particle
+ * 	- faster rendering by possible vertex caching
+ * - improve performance of wrapper rendering
+ * - order wrappers by depth and then by texture for optimal batching (maybe that helps a little?)
+ * - improve time travel performance by roughly sampling in preview and then updating during live gameplay
+ * - fix time travel bugs
+ * - fix repeated texture rendering seams
+ * - fix particle emitter particles lower then in-game in beginning
+ * - fix general game bugs (bug testing!)
+ * - fix custom vertices random crash bug (see logs)
+ * - fix checkpoint bugs (not proper restoration / saving)
+ *
+ */
+
+import java.io.File;
+import java.lang.ProcessBuilder.Redirect;
+import java.net.URLDecoder;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Calendar;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+
+import com.badlogic.gdx.Game;
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Graphics.DisplayMode;
+import com.badlogic.gdx.Input;
+import com.badlogic.gdx.graphics.GL20;
+import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.g2d.Batch;
+import com.badlogic.gdx.graphics.g2d.Sprite;
+import com.unlogical.colored.configuration.Settings;
+import com.unlogical.colored.debug.Debug;
+import com.unlogical.colored.debug.ErrorHandler;
+import com.unlogical.colored.entity.Entity;
+import com.unlogical.colored.entity.property.EntityProperties;
+import com.unlogical.colored.filesystem.ConfigFileHandler;
+import com.unlogical.colored.filesystem.FileHandle;
+import com.unlogical.colored.filesystem.FileManager;
+import com.unlogical.colored.filesystem.FilePaths;
+import com.unlogical.colored.filesystem.files.WrapperTextureHandler;
+import com.unlogical.colored.gui.menu.MenuHandler;
+import com.unlogical.colored.gui.panel.CakePanel;
+import com.unlogical.colored.gui.panel.CheatPanel;
+import com.unlogical.colored.gui.panel.DebugPanel;
+import com.unlogical.colored.gui.panel.FPSPanel;
+import com.unlogical.colored.gui.panel.PerformancePanel;
+import com.unlogical.colored.gui.panel.SanityPanel;
+import com.unlogical.colored.gui.screen.CreditsScreen;
+import com.unlogical.colored.input.InputHandler;
+import com.unlogical.colored.level.Level;
+import com.unlogical.colored.levelmanaging.LevelManager;
+import com.unlogical.colored.mapeditor.MapEditor;
+import com.unlogical.colored.particle.EmitterType;
+import com.unlogical.colored.resources.ResourceLoader;
+import com.unlogical.colored.resources.font.Fonts;
+import com.unlogical.colored.saving.SaveHandler;
+import com.unlogical.colored.saving.SaveState;
+import com.unlogical.colored.terrain.TerrainObject;
+import com.unlogical.colored.terrain.tile.TileBase;
+import com.unlogical.colored.terrain.tile.TileDoor;
+import com.unlogical.colored.terrain.tile.TileMarker;
+import com.unlogical.colored.terrain.tile.TileText;
+import com.unlogical.colored.util.CursorType;
+import com.unlogical.colored.util.GameStatus;
+import com.unlogical.colored.util.LoadingHandler;
+import com.unlogical.colored.util.NotePrinter;
+import com.unlogical.colored.util.Renderer;
+import com.unlogical.colored.util.ShaderHandler;
+import com.unlogical.colored.util.ZHandler;
+import com.unlogical.colored.wrapper.WrapperTexture;
+
+public class GameLauncher extends Game
+{
+	public static final int TARGET_WIDTH = 1920;
+	public static final int TARGET_HEIGHT = 1080;
+
+	public static final float TARGET_RATIO = (float) TARGET_WIDTH / (float) TARGET_HEIGHT;
+
+	private static GameLauncher instance;
+
+	private static int targetFPS = 60;
+	private static int delta;
+
+	private static float forgottenDelta;
+
+	private static long lastUpdateAbsNano = System.nanoTime();
+	private static long totalTime;
+	private static long updateTime;
+	private static long renderTime;
+	private static long unspecifiedTime;
+	private static long idleTime;
+	private static long lastControlledTime;
+
+	private static boolean demoMode = false;
+	private static boolean developerMode = true;
+	private static boolean lockFPS = true;
+	private static boolean vSync = true;
+	private static boolean fullscreen = !developerMode;
+	private static boolean continueLastSession = true;
+
+	public static final String GAME_NAME = "Colored" + (demoMode ? " Demo" : "");
+
+	private static BuildInfo buildInfo;
+
+	private static Level levelContext;
+
+	private static Sprite compLogo;
+
+	private static PerformancePanel performancePanel;
+	private static CakePanel cakePanel;
+	private static SanityPanel sanityPanel;
+	private static CheatPanel cheatPanel;
+	private static DebugPanel debugPanel;
+	private static FPSPanel fpsPanel;
+
+	private static GameStatus status;
+	private static GameStatus previousStatus;
+
+	public GameLauncher()
+	{
+		instance = this;
+	}
+
+	@Override
+	public void create()
+	{
+		checkLaunchPermission();
+
+		processArgs();
+
+		Debug.log("\n\n[Started " + GAME_NAME + " " + new SimpleDateFormat("dd/MM/yy HH:mm:ss").format(Calendar.getInstance().getTime()) + "]");
+		Debug.log("Starting launcher...");
+
+		try
+		{
+			printStartupDebug();
+
+			readBuildInfo();
+
+			Debug.log("Build: " + buildInfo.name + " from " + buildInfo.date);
+
+			Settings.loadSettings();
+
+			fullscreen = Settings.isFullscreen();
+
+			if (fullscreen != Gdx.graphics.isFullscreen())
+			{
+				setFullscreenMode(fullscreen);
+			}
+
+			setStatus(GameStatus.LOADING);
+
+			CursorType.useCursor(CursorType.DEFAULT);
+
+			Gdx.graphics.setTitle(GAME_NAME + " (" + (developerMode ? "Developer Mode, " : "") + "Build " + buildInfo.name + ")");
+
+			compLogo = new Sprite(new Texture(FileManager.getFileQuietly(FileManager.globaliseFile("res/compLogo.png"))));
+			compLogo.setFlip(false, true);
+
+			Debug.log("Logos loaded.");
+
+			InputHandler.init();
+			Renderer.init();
+			Fonts.init();
+
+			performancePanel = new PerformancePanel(0, GameLauncher.getHeight() - 250, 600, 250);
+			cakePanel = new CakePanel(GameLauncher.getWidth() - 400, GameLauncher.getHeight() - 400, 400, 400);
+			sanityPanel = new SanityPanel(GameLauncher.getWidth() / 2 - 400, GameLauncher.getHeight() / 2 - 250, 800, 500);
+			cheatPanel = new CheatPanel(GameLauncher.getWidth() / 2 - 400, GameLauncher.getHeight() / 2 - 200, 800, 400);
+			debugPanel = new DebugPanel(10, 30, 480, 0);
+			fpsPanel = new FPSPanel(GameLauncher.getWidth() / 2 - 150, GameLauncher.getHeight() / 2 - 100, 300, 0);
+
+			performancePanel.setActive(developerMode);
+			cakePanel.setActive(developerMode);
+			sanityPanel.setActive(developerMode);
+			cheatPanel.setActive(false);
+
+			performancePanel.setShown(false);
+			cakePanel.setShown(false);
+			sanityPanel.setShown(false);
+			cheatPanel.setShown(false);
+		}
+		catch (Exception e)
+		{
+			if (!ErrorHandler.shouldSwallowError(e))
+			{
+				ErrorHandler.handleError(e);
+
+				throw e;
+			}
+		}
+	}
+
+	public void sleep(int targetFPS)
+	{
+		long targetDelta = 1000 / targetFPS;
+		int lastDelta = delta;
+
+		if (lastDelta < targetDelta)
+		{
+			try
+			{
+				Thread.sleep(targetDelta - lastDelta);
+			}
+			catch (InterruptedException e)
+			{
+				Debug.warn("Thread interrupted while sleeping for stable fps: " + e, e);
+			}
+		}
+	}
+
+	public void update(int delta)
+	{
+		idleTime = System.nanoTime() - lastControlledTime;
+
+		cheatPanel.update(delta);
+
+		long beforeUpdate = System.nanoTime();
+
+		totalTime = System.nanoTime() - lastUpdateAbsNano;
+		lastUpdateAbsNano = System.nanoTime();
+
+		if (lockFPS)
+		{
+			this.sleep(targetFPS);
+		}
+
+		CursorType.useCursor(CursorType.DEFAULT);
+
+		if (developerMode)
+		{
+			boolean lockInput = MapEditor.isLockingInput() || cheatPanel.isActive();
+
+			sanityPanel.update(delta);
+
+			if (Gdx.input.isKeyPressed(Input.Keys.F4))
+			{
+				delta /= 2;
+			}
+			else if (Gdx.input.isKeyPressed(Input.Keys.F6))
+			{
+				delta *= 2;
+			}
+
+			if (!Gdx.input.isKeyPressed(Input.Keys.CONTROL_LEFT) && !lockInput)
+			{
+				if (Gdx.input.isKeyJustPressed(Input.Keys.P))
+				{
+					if (Gdx.input.isKeyPressed(Input.Keys.ALT_LEFT))
+					{
+						cakePanel.setShown(!cakePanel.isShown());
+					}
+					else
+					{
+						performancePanel.setShown(!performancePanel.isShown());
+					}
+				}
+			}
+
+			if (Gdx.input.isKeyJustPressed(Input.Keys.F2))
+			{
+				sanityPanel.setShown(true);
+				sanityPanel.setActive(true);
+			}
+
+			if (Gdx.input.isKeyJustPressed(Input.Keys.F8))
+			{
+				cheatPanel.setShown(true);
+				cheatPanel.setActive(true);
+			}
+
+			if (!lockInput)
+			{
+				if (Gdx.input.isKeyJustPressed(Input.Keys.L))
+				{
+					ShaderHandler.toggleLighting();
+				}
+
+				if (Gdx.input.isKeyJustPressed(Input.Keys.T))
+				{
+					TileText.toggleText();
+				}
+
+				if (Gdx.input.isKeyJustPressed(Input.Keys.O))
+				{
+					TileMarker.toggleMarkers();
+				}
+
+				if (Gdx.input.isKeyJustPressed(Input.Keys.B))
+				{
+					TileBase.toggleBases();
+				}
+
+				if (Gdx.input.isKeyJustPressed(Input.Keys.COMMA))
+				{
+					NotePrinter.printNotes();
+				}
+
+				if (Gdx.input.isKeyJustPressed(Input.Keys.E))
+				{
+					reloadAll();
+				}
+
+				if (Gdx.input.isKeyJustPressed(Input.Keys.F3))
+				{
+					debugPanel.setActive(!debugPanel.isActive());
+				}
+
+				if (Gdx.input.isKeyPressed(Input.Keys.CONTROL_LEFT) && Gdx.input.isKeyJustPressed(Input.Keys.P))
+				{
+					fpsPanel.init();
+					fpsPanel.setActive(true);
+				}
+			}
+		}
+
+		GameLauncher.delta = delta;
+
+		ZHandler.update(delta);
+		InputHandler.update(delta);
+
+		if (status == GameStatus.LOADING)
+		{
+			if (LoadingHandler.hasFinishedLoading())
+			{
+				if (continueLastSession)
+				{
+					setStatus(GameStatus.IN_LEVEL);
+
+					goToLastVisitedLevel();
+				}
+				else
+				{
+					setStatus(GameStatus.MAIN_MENU);
+				}
+			}
+
+			LoadingHandler.update(delta);
+		}
+		else
+		{
+			MenuHandler.update(delta);
+		}
+
+		if (status == GameStatus.MAP_EDITOR)
+		{
+			MapEditor.update(delta);
+		}
+		else if (status == GameStatus.IN_LEVEL || status == GameStatus.PAUSE_MENU)
+		{
+			LevelManager.update(delta);
+		}
+		else if (status == GameStatus.CREDITS)
+		{
+			CreditsScreen.update(delta);
+		}
+
+		if (Gdx.input.isKeyJustPressed(Input.Keys.F10))
+		{
+			setFullscreenMode(!fullscreen);
+		}
+
+		if (levelContext != null && Gdx.input.isKeyJustPressed(Input.Keys.F12))
+		{
+			levelContext.saveToActiveSave();
+			MenuHandler.displaySavedMessage();
+		}
+
+		performancePanel.update(delta);
+		debugPanel.update(delta);
+		fpsPanel.update(delta);
+
+		InputHandler.postUpdate();
+		CursorType.updateCursor();
+
+		clearRecords();
+
+		updateTime = System.nanoTime() - beforeUpdate;
+
+		cakePanel.update(delta);
+	}
+
+	@Override
+	public void render()
+	{
+		try
+		{
+			int delta = (int) ((Gdx.graphics.getDeltaTime() + forgottenDelta) * 1000);
+
+			if (delta <= 0)
+			{
+				forgottenDelta += Gdx.graphics.getDeltaTime();
+			}
+			else
+			{
+				forgottenDelta = 0.0f;
+
+				int targetDelta = 1000 / targetFPS;
+
+				// cap delta for window resizing, actual in-game should never
+				// have such low delta times as that causes
+				// undefined behaviour
+				delta = Math.min(delta, 3 * targetDelta);
+
+				this.update(delta);
+			}
+		}
+		catch (Exception e)
+		{
+			if (ErrorHandler.shouldSwallowError(e))
+			{
+				Debug.warn("Error while updating, trying to continue... " + e, e);
+			}
+			else
+			{
+				ErrorHandler.handleError(e);
+
+				throw e;
+			}
+		}
+
+		try
+		{
+			long beforeRender = System.nanoTime();
+
+			Renderer.initRender();
+			Batch batch = Renderer.useSpriteBatch();
+
+			if (status == GameStatus.LOADING)
+			{
+				batch.draw(compLogo, getWidth() / 2 - compLogo.getWidth() / 2, getHeight() / 2 - compLogo.getHeight() / 2);
+			}
+			else if (status == GameStatus.MAP_EDITOR || previousStatus == GameStatus.MAP_EDITOR && status != GameStatus.IN_LEVEL)
+			{
+				MapEditor.render(batch);
+			}
+			else
+			{
+				LevelManager.render(batch);
+			}
+
+			if (status == GameStatus.CREDITS)
+			{
+				CreditsScreen.render(batch);
+			}
+
+			if (status != GameStatus.LOADING)
+			{
+				MenuHandler.render(batch);
+			}
+
+			if (developerMode && Gdx.input.isKeyJustPressed(Input.Keys.Y))
+			{
+				SanityPanel.takeAndStoreScreenshot();
+			}
+
+			performancePanel.render(1.0f, batch);
+			sanityPanel.render(1.0f, batch);
+			cheatPanel.render(1.0f, batch);
+			debugPanel.render(1.0f, batch);
+			fpsPanel.render(1.0f, batch);
+
+			Renderer.postRender();
+
+			renderTime = System.nanoTime() - beforeRender;
+
+			if (!LoadingHandler.hasFinishedLoading())
+			{
+				LoadingHandler.loadNext();
+			}
+		}
+		catch (Exception e)
+		{
+			if (ErrorHandler.shouldSwallowError(e) || SanityPanel.isRunningCheck())
+			{
+				Debug.warn("Error while " + (status == GameStatus.LOADING ? "loading" : "rendering") + ", trying to continue...", e);
+
+				if (SanityPanel.isRunningCheck())
+				{
+					sanityPanel.onError(e);
+				}
+			}
+			else
+			{
+				ErrorHandler.handleError(e);
+
+				throw e;
+			}
+		}
+
+		unspecifiedTime = totalTime - renderTime - updateTime - idleTime;
+
+		if (GameLauncher.isDeveloperMode())
+		{
+			cakePanel.storeCurrentValues();
+			cakePanel.render(1.0f, Renderer.useSpriteBatch());
+		}
+
+		lastControlledTime = System.nanoTime();
+	}
+
+	private static void reloadAll()
+	{
+		long beforeTime = System.currentTimeMillis();
+
+		if (!Gdx.input.isKeyPressed(Input.Keys.CONTROL_LEFT))
+		{
+			Debug.log("Reloading all resources...");
+
+			List<String> entireCommand = new ArrayList<String>();
+
+			entireCommand.add("java");
+			entireCommand.add("-jar");
+			entireCommand.add("imagePackager.jar");
+
+			if (status != GameStatus.MAP_EDITOR || !MapEditor.getSelectedTiles().isEmpty() || MapEditor.getSelectedObjects().isEmpty())
+			{
+				entireCommand.add(FilePaths.TILE_TEXTURES);
+			}
+
+			if (status != GameStatus.MAP_EDITOR || !MapEditor.getSelectedEntities().isEmpty() || MapEditor.getSelectedObjects().isEmpty())
+			{
+				entireCommand.add(FilePaths.ENTITIES);
+			}
+
+			Set<String> selectedWrappers = new HashSet<String>();
+
+			if (status == GameStatus.MAP_EDITOR)
+			{
+				for (WrapperTexture wrapper : MapEditor.getSelectedWrappers())
+				{
+					selectedWrappers.add(wrapper.getRelativePath().substring(0, wrapper.getRelativePath().lastIndexOf('/')));
+				}
+			}
+
+			if (MapEditor.getSelectedObjects().isEmpty() && selectedWrappers.isEmpty())
+			{
+				entireCommand.add(FilePaths.WRAPPERS);
+				entireCommand.add(FilePaths.PARTICLES);
+			}
+			else
+			{
+				entireCommand.add("flat");
+				entireCommand.addAll(selectedWrappers);
+			}
+
+			Debug.log("Repackaging resources...");
+			Debug.log("Executing command: " + Arrays.toString(entireCommand.toArray(new String[] {})));
+
+			ProcessBuilder builder = new ProcessBuilder(entireCommand);
+
+			builder.redirectError(Redirect.INHERIT);
+			builder.redirectOutput(Redirect.INHERIT);
+
+			try
+			{
+				builder.start().waitFor();
+			}
+			catch (Exception e)
+			{
+				Debug.warn("Exception while re-packing images: " + e, e);
+			}
+
+			Debug.log("Repackaged resources.");
+
+			ResourceLoader.releaseAll();
+			WrapperTextureHandler.releaseAll();
+			Entity.reloadAll();
+			TerrainObject.reloadAll();
+		}
+		else
+		{
+			Debug.log("Reloading config files...");
+		}
+
+		EntityProperties.reloadAll();
+		EmitterType.reloadAllTemplates();
+
+		if (GameLauncher.getStatus() == GameStatus.MAP_EDITOR)
+		{
+			MapEditor.saveItAll();
+			MapEditor.reload();
+		}
+		else if (GameLauncher.getStatus() == GameStatus.IN_LEVEL)
+		{
+			LevelManager.reset();
+		}
+
+		Debug.log("Finished reloading resources (took " + (System.currentTimeMillis() - beforeTime) + "ms).");
+	}
+
+	private static void checkLaunchPermission()
+	{
+		Collection<String> allowedUsers = Arrays.asList("User", "Florian", "Flo", "Reedflower", "Michael", "Benjamin");
+		String username = System.getProperty("user.name");
+
+		if (!demoMode)
+		{
+			boolean matchedUser = false;
+
+			for (String user : allowedUsers)
+			{
+				if (user.equalsIgnoreCase(username))
+				{
+					matchedUser = true;
+
+					break;
+				}
+			}
+
+			if (!matchedUser)
+			{
+				Debug.warn("Insufficient permission to launch game, " + username + " is not authorized.");
+
+				System.exit(0);
+			}
+		}
+	}
+
+	private static void processArgs()
+	{
+		if (!new File(FileManager.globaliseFile(FilePaths.LAUNCH_ARGS)).exists())
+		{
+			Debug.log("Launch args file " + FilePaths.LAUNCH_ARGS + " not found.");
+
+			return;
+		}
+
+		try
+		{
+			@SuppressWarnings("serial")
+			ConfigFileHandler cfg = new ConfigFileHandler(FileManager.getFile(FilePaths.LAUNCH_ARGS), new HashMap<String, String>()
+			{
+				{
+					this.put("vsync", "true");
+					this.put("devmode", "false");
+					this.put("lockfps", "true");
+					this.put("usespritesheets", "true");
+				}
+			});
+
+			vSync = cfg.getBoolean("vsync");
+			Gdx.graphics.setVSync(vSync);
+			Debug.log("VSync is " + (vSync ? "enabled" : "disabled") + ".");
+
+			if (!demoMode)
+			{
+				developerMode = cfg.getBoolean("devmode");
+			}
+
+			Debug.log("Developer Mode is " + (developerMode ? "enabled" : "disabled") + ".");
+
+			lockFPS = cfg.getBoolean("lockfps");
+			Debug.log("FPS are " + (developerMode ? "locked to " + targetFPS : "unlocked") + ".");
+
+			ResourceLoader.LOAD_MODE = cfg.getBoolean("usespritesheets") ? ResourceLoader.LoadMode.SPRITESHEET : ResourceLoader.LoadMode.INDIVIDUAL_FILES;
+			Debug.log("Resource load mode is set to " + ResourceLoader.LOAD_MODE + ".");
+
+			TileBase.readFromConfiguration(cfg);
+			Debug.log("Analysed hidden geometry levels (" + (TileBase.shouldHideAllGeometry() ? "all" : TileBase.getHiddenGeometryLevels()) + ")");
+		}
+		catch (Exception e)
+		{
+			Debug.warn("Exception while processing launch args: " + e, e);
+		}
+	}
+
+	private static void printStartupDebug()
+	{
+		Debug.log("---- Startup Debug Information ----");
+		Debug.log("Location: " + new File(".").toPath().toAbsolutePath());
+
+		try
+		{
+			Debug.log("Jar location: " + URLDecoder.decode(GameLauncher.class.getProtectionDomain().getCodeSource().getLocation().getPath(), "UTF-8"));
+		}
+		catch (Exception e)
+		{
+			Debug.log("Couldn't fetch proper jar location, URLDecoder failed us again: " + e);
+		}
+
+		Runtime runtime = Runtime.getRuntime();
+
+		int availableMemory = (int) (runtime.totalMemory() / 1024 / 1024);
+
+		if (availableMemory < 16)
+		{
+			Debug.warn("Might not be enough memory available...");
+		}
+
+		Debug.log("Available memory: " + availableMemory + "MB");
+
+		for (String property : Arrays.asList("os.name", "os.version", "os.arch", "java.version", "java.vendor", "sun.arch.data.model"))
+		{
+			Debug.log("System.getProperty(\"" + property + "\"): " + System.getProperty(property));
+		}
+
+		Debug.log("---- GPU Debug Information ----");
+		Debug.log("GPU: " + Gdx.gl.glGetString(GL20.GL_RENDERER) + " (" + Gdx.gl.glGetString(GL20.GL_VENDOR) + ")");
+		Debug.log("OpenGL Version: " + Gdx.gl.glGetString(GL20.GL_VERSION));
+	}
+
+	public static void goToLastVisitedLevel()
+	{
+		String lastLevelID = (String) (SaveHandler.getActiveSave().globalInformation.get(SaveState.LAST_VISITED_LEVEL) != null ? SaveHandler.getActiveSave().globalInformation.get(SaveState.LAST_VISITED_LEVEL)[0] : null);
+
+		if (lastLevelID != null)
+		{
+			if (LevelManager.getLevel() == null || !lastLevelID.equals(LevelManager.getLevel().getID()))
+			{
+				boolean shouldUseDoor = Boolean.parseBoolean((String) SaveHandler.getActiveSave().globalInformation.get(Level.LEVEL_SHOULD_USE_DOOR)[0]);
+
+				if (shouldUseDoor)
+				{
+					TileDoor.setFindStart(Boolean.parseBoolean((String) SaveHandler.getActiveSave().globalInformation.get(Level.LEVEL_DOOR_SHOULD_FIND_START)[0]));
+					TileDoor.setEntryDoorID(Integer.parseInt((String) SaveHandler.getActiveSave().globalInformation.get(Level.LEVEL_DOOR_ENTRY_ID)[0]));
+				}
+
+				LevelManager.initLevel(Level.getMapPathByID(lastLevelID), 3000, shouldUseDoor, true);
+			}
+		}
+		else // new game
+		{
+			if (demoMode)
+			{
+				LevelManager.initLevel(Level.getMapPathByID("20-02"), 3000, false, true);
+			}
+			else
+			{
+				LevelManager.initLevel(Level.getMapPathByID("20-01"), 3000, false, true);
+			}
+		}
+	}
+
+	@Override
+	public void resize(int width, int height)
+	{
+		super.resize(width, height);
+
+		Renderer.resize(width, height);
+	}
+
+	@Override
+	public void dispose()
+	{
+		Debug.log("Closing game...");
+
+		if (status == GameStatus.MAP_EDITOR)
+		{
+			Debug.log("Saving last opened level in map editor...");
+
+			MapEditor.saveItAll();
+		}
+
+		Debug.log("Disposing resources...");
+
+		Debug.log("Game closed. See you later :)");
+
+		super.dispose();
+	}
+
+	private static void readBuildInfo()
+	{
+		if (developerMode)
+		{
+			try
+			{
+				File revsFolder = new File(FileManager.globaliseFile("../ColoredSVN/db/revs/0"));
+
+				if (revsFolder.exists())
+				{
+					File latestRevision = null;
+
+					for (File file : revsFolder.listFiles())
+					{
+						if (CheatPanel.isStringNumeric(file.getName()) && (latestRevision == null || Integer.parseInt(file.getName()) > Integer.parseInt(latestRevision.getName())))
+						{
+							latestRevision = file;
+						}
+					}
+
+					if (latestRevision != null)
+					{
+						buildInfo = new BuildInfo(latestRevision.getName(), new SimpleDateFormat("hh:mm a - dd/MM/yy").format(latestRevision.lastModified()));
+
+						FileHandle buildInfoFile = FileManager.getOrCreateFile(FilePaths.BUILD_INFO_FILE);
+
+						ConfigFileHandler cfg = new ConfigFileHandler(buildInfoFile, false);
+
+						cfg.set("name", buildInfo.name);
+						cfg.set("date", buildInfo.date);
+
+						cfg.write();
+					}
+				}
+			}
+			catch (Exception e)
+			{
+				Debug.warn("Couldn't read / write build info: " + e, e);
+			}
+		}
+
+		if (buildInfo == null)
+		{
+			if (!FileManager.existsFile(FilePaths.BUILD_INFO_FILE))
+			{
+				buildInfo = new BuildInfo("unknown", "unknown");
+			}
+			else
+			{
+				ConfigFileHandler reader = new ConfigFileHandler(FileManager.getFileQuietly(FilePaths.BUILD_INFO_FILE));
+
+				buildInfo = new BuildInfo(reader.getString("name"), reader.getString("date"));
+			}
+		}
+	}
+
+	public static void lockFPS(int targetFPS)
+	{
+
+		GameLauncher.targetFPS = targetFPS;
+	}
+
+	public static void clearRecords()
+	{
+
+	}
+
+	public static void exit()
+	{
+		Gdx.app.exit();
+	}
+
+	public static int getFPS()
+	{
+		return Gdx.graphics.getFramesPerSecond();
+	}
+
+	public static boolean isFullscreenMode()
+	{
+		return fullscreen;
+	}
+
+	public static boolean isDeveloperMode()
+	{
+		return developerMode;
+	}
+
+	public static void setFullscreenMode(boolean fullscreenMode)
+	{
+		GameLauncher.fullscreen = fullscreenMode;
+		Settings.setFullscreen(fullscreenMode);
+
+		try
+		{
+
+			if (fullscreenMode)
+			{
+				DisplayMode best = null;
+
+				for (DisplayMode mode : Gdx.graphics.getDisplayModes())
+				{
+					if (best == null || mode.width > best.width && mode.height > best.height)
+					{
+						best = mode;
+					}
+				}
+
+				Gdx.graphics.setFullscreenMode(best);
+			}
+			else
+			{
+				Gdx.graphics.setWindowedMode(TARGET_WIDTH, TARGET_HEIGHT);
+			}
+
+			Debug.log("Game is now running in " + (fullscreen ? "FULLSCREEN" : "WINDOWED (" + Gdx.graphics.getWidth() + " x " + Gdx.graphics.getHeight() + ")") + " mode.");
+		}
+		catch (Exception e)
+		{
+			Debug.warn("Failed to set display mode to " + TARGET_WIDTH + ", " + TARGET_HEIGHT + ", fs=" + fullscreen + ": " + e, e);
+		}
+	}
+
+	public static int getHeight()
+	{
+		return TARGET_HEIGHT;
+	}
+
+	public static int getWidth()
+	{
+		return TARGET_WIDTH;
+	}
+
+	public static void setStatus(GameStatus status)
+	{
+		if (status == GameStatus.IN_LEVEL)
+		{
+			LevelManager.resume();
+		}
+
+		if (status != GameLauncher.status)
+		{
+			previousStatus = GameLauncher.status;
+		}
+
+		GameLauncher.status = status;
+	}
+
+	public static GameStatus getStatus()
+	{
+		return status;
+	}
+
+	public static Level getLevelContext()
+	{
+		return levelContext;
+	}
+
+	public static void setLevelContext(Level levelContext)
+	{
+		GameLauncher.levelContext = levelContext;
+	}
+
+	public static int getTargetFPS()
+	{
+		return targetFPS;
+	}
+
+	public static String getVersion()
+	{
+		return null;
+	}
+
+	public static int getDelta()
+	{
+		return delta;
+	}
+
+	public static int getRealDelta()
+	{
+		return performancePanel.getRealDelta();
+	}
+
+	public static long getTotalTime()
+	{
+		return totalTime;
+	}
+
+	public static long getUpdateTime()
+	{
+		return updateTime;
+	}
+
+	public static long getRenderTime()
+	{
+		return renderTime;
+	}
+
+	public static long getIdleTime()
+	{
+		return idleTime;
+	}
+
+	public static long getUnspecifiedTime()
+	{
+		return unspecifiedTime;
+	}
+
+	public static PerformancePanel getPerformancePanel()
+	{
+		return performancePanel;
+	}
+
+	public static CakePanel getCakePanel()
+	{
+		return cakePanel;
+	}
+
+	public static CheatPanel getCheatPanel()
+	{
+		return cheatPanel;
+	}
+
+	public static long getUsedMemory()
+	{
+		return performancePanel.getUsedMemory();
+	}
+
+	public static long getFreeMemory()
+	{
+		return performancePanel.getFreeMemory();
+	}
+
+	public static long getAllocatedMemory()
+	{
+		return performancePanel.getAllocatedMemory();
+	}
+
+	public static Runtime getRuntime()
+	{
+		return PerformancePanel.getRuntime();
+	}
+
+	public static SanityPanel getSanityPanel()
+	{
+		return sanityPanel;
+	}
+
+	public static boolean isDemoMode()
+	{
+		return demoMode;
+	}
+
+	public static boolean isVSync()
+	{
+		return vSync;
+	}
+
+	public static BuildInfo getBuildInfo()
+	{
+		return buildInfo;
+	}
+
+	public static GameLauncher get()
+	{
+		return instance;
+	}
+
+	public static GameStatus getPreviousStatus()
+	{
+		return previousStatus;
+	}
+
+	public static class BuildInfo
+	{
+		public final String name;
+		public final String date;
+
+		private BuildInfo(String name, String date)
+		{
+			this.name = name;
+			this.date = date;
+		}
+	}
+}

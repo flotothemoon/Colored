@@ -1,0 +1,40 @@
+package com.unlogical.colored.inventory;
+
+import com.unlogical.colored.entity.item.EntityItem;
+
+public class ItemStack {
+
+	private EntityItem item;
+	private int stackSize;
+	
+	public ItemStack(EntityItem item, int stackSize)
+	{
+		this.item = item;
+		this.stackSize = stackSize;
+	}
+
+	public EntityItem getItem()
+	{
+		return item;
+	}
+	
+	public int getStackSize() {
+		return stackSize;
+	}
+
+	public void setStackSize(int stackSize) {
+		this.stackSize = stackSize;
+	}
+	
+	public void add()
+	{
+		if(stackSize<item.getMaxStack())
+			stackSize++;
+	}
+	
+	public void remove()
+	{
+		if(stackSize>0)
+			stackSize--;
+	}
+}

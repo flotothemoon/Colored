@@ -1,0 +1,8 @@
+package com.unlogical.colored.gui.colorpicker;
+
+import org.newdawn.slick.Color;
+
+public interface ColorPickerListener
+{
+	public void colorChanged(Color newColor);
+}

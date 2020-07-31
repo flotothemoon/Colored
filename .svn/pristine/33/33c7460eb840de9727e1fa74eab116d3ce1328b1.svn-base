@@ -1,0 +1,41 @@
+package com.unlogical.linked.terrain.tile;
+
+import org.newdawn.slick.geom.Vector2f;
+
+import com.unlogical.linked.level.Level;
+import com.unlogical.linked.terrain.TileType;
+import com.unlogical.linked.terrain.property.TileProperty;
+import com.unlogical.linked.terrain.tile.properties.ITileMirrorable;
+import com.unlogical.linked.util.Dimension;
+
+public class TileLadder extends Tile implements ITileMirrorable
+{
+	public TileLadder(TileType type, String metadata, int innerType, float rotation, Vector2f position, Level level, Dimension dimension, TileProperty properties, boolean allowMirrors)
+	{
+		super(type, metadata, innerType, rotation, position, level, dimension, properties, allowMirrors);
+	}
+
+	@Override
+	public boolean shouldUpdate()
+	{
+		return false;
+	}
+	
+	@Override
+	public boolean renderStatic()
+	{
+		return true;
+	}
+
+	@Override
+	public boolean isReallyChangeable()
+	{
+		return false;
+	}
+	
+	@Override
+	public boolean shouldCopy()
+	{
+		return false;
+	}
+}

@@ -1,0 +1,828 @@
+package com.unlogical.colored.gui.selection;
+
+import java.awt.Font;
+import java.io.IOException;
+
+import org.newdawn.slick.Color;
+import org.newdawn.slick.GameContainer;
+import org.newdawn.slick.Graphics;
+import org.newdawn.slick.Image;
+import org.newdawn.slick.Input;
+import org.newdawn.slick.SlickException;
+import org.newdawn.slick.geom.Rectangle;
+
+import com.unlogical.colored.GameLauncher;
+import com.unlogical.colored.configuration.Resolutions;
+import com.unlogical.colored.debug.Debug;
+import com.unlogical.colored.filesystem.DataHandler;
+import com.unlogical.colored.filesystem.FilePaths;
+import com.unlogical.colored.gui.button.Button;
+import com.unlogical.colored.gui.menu.Menu;
+import com.unlogical.colored.gui.menu.SelectionState;
+import com.unlogical.colored.input.InputAction;
+import com.unlogical.colored.input.InputHandler;
+import com.unlogical.colored.level.Level;
+import com.unlogical.colored.sound.Sounds;
+import com.unlogical.colored.util.MouseAdapter;
+import com.unlogical.colored.util.ShaderHandler;
+
+public abstract class MapSelectionMenu extends MouseAdapter
+{
+	public static final float SELECTION_ALPHA = 0.6f;
+	public static final float HOVER_ALPHA = 0.45f;
+	public static final float FILL_ALPHA = 0.3f;
+
+	private static Image addNewImage;
+
+	protected SelectionState[] saveStates;
+
+	private int topOption;
+	private int bottomOption;
+
+	private int selectedOption = -1;
+	private int hoveredOption = -1;
+
+	private int xOffset;
+	private int yOffset;
+
+	private int height;
+	private int width;
+
+	private int actualOffset;
+	private int barHeight;
+	private int selectedButton = -1;
+	private int timeSinceLastClicked;
+	private int lastClickedOption = -1;
+	private int totalBoxes;
+
+	private float barOffset = 0.0f;
+
+	private boolean anyOptionHovered = false;
+	private boolean active = false;
+	private boolean wasLoaded = false;
+	private boolean movingMode = false;
+	private boolean showBar = false;
+	private boolean addedListener = false;
+
+	private Rectangle[] boxes;
+	private Rectangle box;
+	private Rectangle scrollbarBorder;
+	private Rectangle moveableScrollbar;
+
+	private Font nameFont;
+	private Font buttonFont;
+	private Font infoFont;
+
+	private Color backgroundColor = new Color(0.1f, 0.1f, 0.15f, 0.4f);
+	private Color infoColor = Color.lightGray;
+	private Color notActiveColor = Color.gray;
+	private Color selectionColor = new Color(0.3f, 0.3f, 0.3f, SELECTION_ALPHA);
+	private Color hoverColor = new Color(0.3f, 0.3f, 0.3f, HOVER_ALPHA);
+	private Color fillColor = new Color(0.2f, 0.2f, 0.2f, FILL_ALPHA);
+	private Color barColor = new Color(0.4f, 0.4f, 0.4f, 0.3f);
+	private Color bufferColor = new Color(0);
+
+	private Button backButton;
+	private Button deleteHoveredButton;
+
+	public MapSelectionMenu(SelectionState[] saveStates, int yOffset, int width, int height)
+	{
+		this.wasLoaded = true;
+		this.saveStates = saveStates;
+		this.height = height;
+		this.width = width;
+
+		this.xOffset = GameLauncher.TARGET_WIDTH / 2 - width / 2;
+		this.yOffset = yOffset;
+
+		this.deleteHoveredButton = new Button("Delete", 0, 0, width / 8, Resolutions.SELECTION_MENU_BOX_HEIGHT / 2)
+		{
+			@Override
+			public void onClick()
+			{
+				try
+				{
+					if (GameLauncher.isDeveloperMode())
+					{
+						DataHandler.delete(MapSelectionMenu.this.saveStates[hoveredOption].getPath());
+
+						refresh();
+					}
+					else
+					{
+						Debug.warn("Insufficient permissions to delete " + MapSelectionMenu.this.saveStates[hoveredOption].getPath() + " !");
+					}
+				}
+				catch (IOException e)
+				{
+					Debug.warn("Could not \"delete\" selected map: " + e, e);
+				}
+			}
+		};
+		this.deleteHoveredButton.setShowBox(false);
+		this.deleteHoveredButton.setUseEventColors(true);
+
+		this.backButton = new Button("Back", xOffset, yOffset + height + Resolutions.SELECTION_MENU_BOX_HEIGHT, width - Resolutions.SELECTION_MENU_SCROLLBAR_WIDTH, 40)
+		{
+			@Override
+			public void onClick()
+			{
+				onBackButton();
+			}
+		};
+		this.backButton.setShowBox(false);
+		this.backButton.setUseEventColors(true);
+
+		updateGUI(saveStates);
+	}
+
+	public static void init() throws SlickException
+	{
+		addNewImage = new Image(FilePaths.GUI + "/plus.png");
+	}
+
+	public void refresh()
+	{
+		Level.fetchMaps();
+		updateSaveStates();
+	}
+
+	protected abstract void onBackButton();
+
+	public void update(GameContainer container, int delta)
+	{
+		if (active)
+		{
+			selectedButton = -1;
+			Input in = container.getInput();
+
+			if (!addedListener)
+			{
+				in.addMouseListener(this);
+				addedListener = true;
+			}
+
+			moveableScrollbar = new Rectangle(xOffset - Resolutions.SELECTION_MENU_SCROLLBAR_WIDTH + width, yOffset + barOffset, Resolutions.SELECTION_MENU_SCROLLBAR_WIDTH, barHeight);
+			if (moveableScrollbar.contains(in.getMouseX(), in.getMouseY()))
+			{
+				if (in.isMouseButtonDown(Input.MOUSE_LEFT_BUTTON))
+				{
+					movingMode = true;
+				}
+
+				barColor.a = 0.4f;
+			}
+			else if (!in.isMouseButtonDown(Input.MOUSE_LEFT_BUTTON))
+			{
+				movingMode = false;
+				barColor.a = 0.3f;
+			}
+
+			actualOffset = -(int) (((barOffset) / height) * (totalBoxes * Resolutions.SELECTION_MENU_BOX_HEIGHT));
+
+			for (int i = 0; i < this.totalBoxes; i++)
+			{
+				this.boxes[i] = new Rectangle(xOffset + 5, yOffset + i * Resolutions.SELECTION_MENU_BOX_HEIGHT + actualOffset + 5, width - Resolutions.SELECTION_MENU_SCROLLBAR_WIDTH - 10, Resolutions.SELECTION_MENU_BOX_HEIGHT);
+			}
+
+			for (int i = 0; i < totalBoxes; i++)
+			{
+				if ((boxes[i].getY() - box.getY()) > 0)
+				{
+					topOption = i;
+					break;
+				}
+			}
+
+			for (int i = topOption; i < totalBoxes; i++)
+			{
+				if ((((boxes[i].getY() + boxes[i].getHeight() * 2.0f + 10) - (box.getY() + box.getHeight())) > 0) || ((i + 1) == totalBoxes))
+				{
+					bottomOption = i;
+					break;
+				}
+			}
+
+			hoveredOption = -1;
+			anyOptionHovered = false;
+
+			if (totalBoxes <= 0)
+			{
+				bottomOption = -1;
+			}
+
+			for (int i = topOption; i <= bottomOption + 1; i++)
+			{
+				if (boxes[i].contains(in.getMouseX(), in.getMouseY()))
+				{
+					if (!deleteHoveredButton.contains(in.getMouseX(), in.getMouseY()) && in.isMousePressed(Input.MOUSE_LEFT_BUTTON))
+					{
+						Sounds.play("click");
+
+						selectedOption = i;
+
+						if (i == saveStates.length)
+						{
+							onAddButton();
+						}
+						else if (lastClickedOption == i && timeSinceLastClicked < 500)
+						{
+							if (i < saveStates.length)
+							{
+								onSelect(saveStates[i]);
+							}
+						}
+
+						lastClickedOption = i;
+						timeSinceLastClicked = 0;
+					}
+					else
+					{
+						hoveredOption = i;
+						anyOptionHovered = true;
+					}
+				}
+			}
+
+			if ((container.getInput().isKeyPressed(Input.KEY_ENTER) || InputHandler.isKeyPressed(InputAction.JUMP, container)) && selectedOption >= 0)
+			{
+				if (selectedOption < saveStates.length)
+				{
+					onSelect(saveStates[selectedOption]);
+				}
+				else
+				{
+					onAddButton();
+				}
+			}
+
+			if (InputHandler.isKeyPressed(InputAction.MOVE_UP, container))
+			{
+				selectedOption--;
+
+				if (selectedOption < 0)
+				{
+					selectedOption = totalBoxes - 1;
+				}
+
+				updateSelectionPosition();
+			}
+
+			if (InputHandler.isKeyPressed(InputAction.MOVE_DOWN, container))
+			{
+				selectedOption++;
+
+				if (selectedOption >= totalBoxes)
+				{
+					selectedOption = 0;
+				}
+
+				updateSelectionPosition();
+			}
+
+			if (anyOptionHovered)
+			{
+				deleteHoveredButton.setPosition((int) (boxes[hoveredOption].getMaxX() - GameLauncher.getFont().getWidth("Delete") - 40), (int) (boxes[hoveredOption].getCenterY() - GameLauncher.getFont().getHeight() / 2));
+			}
+
+			deleteHoveredButton.setActive(anyOptionHovered);
+
+			timeSinceLastClicked += delta;
+
+			backButton.update(container, delta);
+
+			if (InputHandler.isKeyDown(InputAction.BACK, container))
+			{
+				backButton.onClick();
+			}
+
+			if (hoveredOption < saveStates.length)
+			{
+				deleteHoveredButton.update(container, delta);
+			}
+		}
+
+		customUpdate(container, delta);
+	}
+
+	private void updateSelectionPosition()
+	{
+		if (selectedOption < topOption)
+		{
+
+		}
+		else if (selectedOption > bottomOption)
+		{
+
+		}
+	}
+
+	public void render(GameContainer container, Graphics g)
+	{
+		if (active)
+		{
+			ShaderHandler.disableLighting();
+
+			g.setFont(GameLauncher.getFont());
+
+			for (int i = topOption - 1; i <= (bottomOption + 1) && boxes.length > 0; i++)
+			{
+				if (i >= 0 && i < boxes.length)
+				{
+					if (i == saveStates.length)
+					{
+						addNewImage.setAlpha(getAlphaFactor(i));
+						addNewImage.drawCentered(boxes[i].getCenterX(), boxes[i].getCenterY());
+					}
+
+					if (i == selectedOption)
+					{
+						g.setColor(selectionColor);
+					}
+					else if (i == hoveredOption)
+					{
+						g.setColor(hoverColor);
+					}
+					else
+					{
+						g.setColor(fillColor);
+					}
+
+					replaceAndSetColor(g, g.getColor(), i);
+
+					g.fill(boxes[i]);
+
+					if (i < saveStates.length)
+					{
+						if (i == hoveredOption || i == selectedOption)
+						{
+							g.setColor(Menu.SELECTION_COLOR);
+						}
+						else
+						{
+							g.setColor(Menu.UNSELECTED_COLOR);
+						}
+
+						replaceAndSetColor(g, g.getColor(), i);
+
+						g.setFont(GameLauncher.getFont());
+						g.drawString(saveStates[i].getName() + " (" + saveStates[i].getID() + ")", xOffset + Resolutions.SELECTION_MENU_NAME_OFFSET, yOffset + i * Resolutions.SELECTION_MENU_BOX_HEIGHT + actualOffset);
+
+						g.setFont(GameLauncher.getSmallFont());
+						g.drawString(saveStates[i].getPath(), xOffset + Resolutions.SELECTION_MENU_NAME_OFFSET, yOffset + ((i + 1) * Resolutions.SELECTION_MENU_BOX_HEIGHT + actualOffset) - g.getFont().getLineHeight() - 3);
+					}
+				}
+			}
+
+			if (showBar)
+			{
+				g.setColor(barColor);
+				g.fill(moveableScrollbar);
+			}
+
+			backButton.render(container, 1.0f, g);
+
+			if (anyOptionHovered && hoveredOption < saveStates.length)
+			{
+				deleteHoveredButton.render(container, 1.0f, g);
+			}
+		}
+
+		g.setColor(Menu.SELECTION_COLOR);
+
+		customRender(container, g);
+	}
+
+	private void replaceAndSetColor(Graphics g, Color color, int index)
+	{
+		bufferColor.r = color.r;
+		bufferColor.g = color.g;
+		bufferColor.b = color.b;
+		bufferColor.a = getAlphaFactor(index) * color.a;
+
+		g.setColor(bufferColor);
+	}
+
+	private float getAlphaFactor(int index)
+	{
+		if (index >= topOption && index <= bottomOption)
+		{
+			return 1.0f;
+		}
+		else
+		{
+			if (index < topOption)
+			{
+				return 1.0f - ((box.getY() - boxes[index].getMinY()) / (Resolutions.SELECTION_MENU_BOX_HEIGHT));
+			}
+			else
+			{
+				return 1.0f - ((boxes[index].getMaxY() - box.getMaxY()) / (Resolutions.SELECTION_MENU_BOX_HEIGHT));
+			}
+		}
+	}
+
+	private void updateGUI(SelectionState[] saveStates)
+	{
+		this.totalBoxes = saveStates.length + 1;
+		this.saveStates = saveStates;
+		this.boxes = new Rectangle[this.totalBoxes];
+
+		for (int i = 0; i < this.totalBoxes; i++)
+		{
+			this.boxes[i] = new Rectangle(xOffset + 5, yOffset + i * Resolutions.SELECTION_MENU_BOX_HEIGHT + actualOffset + 5, width - Resolutions.SELECTION_MENU_SCROLLBAR_WIDTH - 10, Resolutions.SELECTION_MENU_BOX_HEIGHT);
+		}
+
+		this.scrollbarBorder = new Rectangle(xOffset + width - Resolutions.SELECTION_MENU_SCROLLBAR_WIDTH, yOffset, Resolutions.SELECTION_MENU_SCROLLBAR_WIDTH, height);
+		this.moveableScrollbar = new Rectangle(xOffset + width - Resolutions.SELECTION_MENU_SCROLLBAR_WIDTH, yOffset, Resolutions.SELECTION_MENU_SCROLLBAR_WIDTH, barHeight);
+		this.box = new Rectangle(xOffset, yOffset, width, height);
+
+		float displayableOptions = ((float) height) / ((float) Resolutions.SELECTION_MENU_BOX_HEIGHT);
+		float totalOptions = totalBoxes;
+
+		this.barHeight = (int) ((height) * (displayableOptions / totalOptions));
+
+		this.showBar = displayableOptions < totalOptions;
+	}
+
+	@Override
+	public boolean isAcceptingInput()
+	{
+		return true;
+	}
+
+	@Override
+	public void mouseWheelMoved(int change)
+	{
+		barOffset -= 10.0f * ((float) change / 120.0f);
+
+		if ((barOffset + barHeight) > (height))
+		{
+			barOffset = height - barHeight;
+		}
+		else if ((barOffset) < (0))
+		{
+			barOffset = 0;
+		}
+	}
+
+	@Override
+	public void mouseDragged(int oldx, int oldy, int newx, int newy)
+	{
+		if (movingMode)
+		{
+			barOffset += newy - oldy;
+
+			if ((barOffset + barHeight) > (height))
+			{
+				barOffset = height - barHeight;
+			}
+			else if ((barOffset) < (0))
+			{
+				barOffset = 0;
+			}
+		}
+	}
+
+	protected abstract SelectionState[] loadSaveStates();
+
+	public void updateSaveStates()
+	{
+		updateGUI(loadSaveStates());
+	}
+
+	protected abstract void onSelect(SelectionState saveState);
+
+	protected abstract void onAddButton();
+
+	public void customUpdate(GameContainer container, int delta)
+	{
+
+	}
+
+	public void customRender(GameContainer container, Graphics g)
+	{
+
+	}
+
+	public boolean isActive()
+	{
+		return active;
+	}
+
+	public void setActive(boolean active)
+	{
+		this.active = active;
+	}
+
+	public int getSelectedOption()
+	{
+		return selectedOption;
+	}
+
+	public void setSelectedOption(int selectedOption)
+	{
+		this.selectedOption = selectedOption;
+	}
+
+	public int getSelectedButton()
+	{
+		return selectedButton;
+	}
+
+	public void setSelectedButton(int selectedButton)
+	{
+		this.selectedButton = selectedButton;
+	}
+
+	public SelectionState[] getSaveStates()
+	{
+		return saveStates;
+	}
+
+	public void setSaveStates(SelectionState[] saveStates)
+	{
+		this.saveStates = saveStates;
+	}
+
+	public Rectangle[] getSaveStateRectangles()
+	{
+		return boxes;
+	}
+
+	public void setSaveStateRectangles(Rectangle[] saveStateRectangles)
+	{
+		this.boxes = saveStateRectangles;
+	}
+
+	public boolean isWasLoaded()
+	{
+		return wasLoaded;
+	}
+
+	public void setWasLoaded(boolean wasLoaded)
+	{
+		this.wasLoaded = wasLoaded;
+	}
+
+	public Rectangle[] getBoxes()
+	{
+		return boxes;
+	}
+
+	public void setBoxes(Rectangle[] boxes)
+	{
+		this.boxes = boxes;
+	}
+
+	public Rectangle getBorder()
+	{
+		return box;
+	}
+
+	public void setBorder(Rectangle border)
+	{
+		this.box = border;
+	}
+
+	public Rectangle getScrollbarBorder()
+	{
+		return scrollbarBorder;
+	}
+
+	public void setScrollbarBorder(Rectangle scrollbarBorder)
+	{
+		this.scrollbarBorder = scrollbarBorder;
+	}
+
+	public Rectangle getMoveableScrollbar()
+	{
+		return moveableScrollbar;
+	}
+
+	public void setMoveableScrollbar(Rectangle moveableScrollbar)
+	{
+		this.moveableScrollbar = moveableScrollbar;
+	}
+
+	public int getTopOption()
+	{
+		return topOption;
+	}
+
+	public void setTopOption(int topOption)
+	{
+		this.topOption = topOption;
+	}
+
+	public int getBottomOption()
+	{
+		return bottomOption;
+	}
+
+	public void setBottomOption(int bottomOption)
+	{
+		this.bottomOption = bottomOption;
+	}
+
+	public int getHoveredOption()
+	{
+		return hoveredOption;
+	}
+
+	public void setHoveredOption(int hoveredOption)
+	{
+		this.hoveredOption = hoveredOption;
+	}
+
+	public int getHeight()
+	{
+		return height;
+	}
+
+	public void setHeight(int height)
+	{
+		this.height = height;
+	}
+
+	public int getWidth()
+	{
+		return width;
+	}
+
+	public void setWidth(int width)
+	{
+		this.width = width;
+	}
+
+	public int getxOffset()
+	{
+		return xOffset;
+	}
+
+	public void setxOffset(int xOffset)
+	{
+		this.xOffset = xOffset;
+	}
+
+	public int getyOffset()
+	{
+		return yOffset;
+	}
+
+	public void setyOffset(int yOffset)
+	{
+		this.yOffset = yOffset;
+	}
+
+	public float getBarOffset()
+	{
+		return barOffset;
+	}
+
+	public void setBarOffset(float barOffset)
+	{
+		this.barOffset = barOffset;
+	}
+
+	public int getActualOffset()
+	{
+		return actualOffset;
+	}
+
+	public void setActualOffset(int actualOffset)
+	{
+		this.actualOffset = actualOffset;
+	}
+
+	public int getBarHeight()
+	{
+		return barHeight;
+	}
+
+	public void setBarHeight(int barHeight)
+	{
+		this.barHeight = barHeight;
+	}
+
+	public boolean isAnyOptionHovered()
+	{
+		return anyOptionHovered;
+	}
+
+	public void setAnyOptionHovered(boolean anyOptionHovered)
+	{
+		this.anyOptionHovered = anyOptionHovered;
+	}
+
+	public boolean isMovingMode()
+	{
+		return movingMode;
+	}
+
+	public void setMovingMode(boolean movingMode)
+	{
+		this.movingMode = movingMode;
+	}
+
+	public Font getNameFont()
+	{
+		return nameFont;
+	}
+
+	public void setNameFont(Font nameFont)
+	{
+		this.nameFont = nameFont;
+	}
+
+	public Font getButtonFont()
+	{
+		return buttonFont;
+	}
+
+	public void setButtonFont(Font buttonFont)
+	{
+		this.buttonFont = buttonFont;
+	}
+
+	public Font getInfoFont()
+	{
+		return infoFont;
+	}
+
+	public void setInfoFont(Font infoFont)
+	{
+		this.infoFont = infoFont;
+	}
+
+	public Color getBackgroundColor()
+	{
+		return backgroundColor;
+	}
+
+	public void setBackgroundColor(Color backgroundColor)
+	{
+		this.backgroundColor = backgroundColor;
+	}
+
+	public Color getFillColor()
+	{
+		return fillColor;
+	}
+
+	public void setFillColor(Color fillColor)
+	{
+		this.fillColor = fillColor;
+	}
+
+	public Color getInfoColor()
+	{
+		return infoColor;
+	}
+
+	public void setInfoColor(Color infoColor)
+	{
+		this.infoColor = infoColor;
+	}
+
+	public Color getNotActiveColor()
+	{
+		return notActiveColor;
+	}
+
+	public void setNotActiveColor(Color notActiveColor)
+	{
+		this.notActiveColor = notActiveColor;
+	}
+
+	public Color getActiveColor()
+	{
+		return selectionColor;
+	}
+
+	public void setActiveColor(Color activeColor)
+	{
+		this.selectionColor = activeColor;
+	}
+
+	public Color getHoverColor()
+	{
+		return hoverColor;
+	}
+
+	public void setHoverColor(Color hoverColor)
+	{
+		this.hoverColor = hoverColor;
+	}
+
+	public Color getBarColor()
+	{
+		return barColor;
+	}
+
+	public void setBarColor(Color barColor)
+	{
+		this.barColor = barColor;
+	}
+
+}

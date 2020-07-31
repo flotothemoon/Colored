@@ -1,0 +1,266 @@
+package com.unlogical.colored.particle;
+
+import java.io.IOException;
+
+import org.newdawn.slick.Color;
+
+import com.unlogical.colored.filesystem.FilePaths;
+import com.unlogical.colored.filesystem.files.WrapperTextureHandler;
+import com.unlogical.colored.particle.ParticleEmitterImpl.FloatRange;
+import com.unlogical.colored.particle.ParticleEmitterImpl.IntegerRange;
+import com.unlogical.colored.resources.ResourceLoader;
+import com.unlogical.colored.util.RealImage;
+
+public enum EmitterType
+{
+	// EmitterType(String spritePath, Color tint, int lifeTime, IntegerRange
+	// spawnInterval, IntegerRange spawnCount, IntegerRange initialLife,
+	// IntegerRange initialSize, FloatRange xOffset, FloatRange yOffset,
+	// FloatRange velocityX, FloatRange velocityY, FloatRange startRotation,
+	// FloatRange rotationVelocity, FloatRange growthFactor, FloatRange
+	// gravityFactor, FloatRange windFactor, IntegerRange startAlpha,
+	// IntegerRange fadeInTime, IntegerRange fadeOutTime, boolean shouldFadeIn,
+	// boolean shouldFadeOut, boolean limitToWrapper, boolean
+	// shouldBounceOutOfArea, boolean hasLimitedLifetime, boolean scaleWithSize,
+	// int originalWidth, int originalHeight)
+
+	SHARED(FilePaths.PARTICLES + "/shared", new Color(0.34434706f, 0.088427514f, 0.45098037f), 1000, new IntegerRange(150, 200), new IntegerRange(2, 3), new IntegerRange(1000, 1800), new IntegerRange(8, 16), new FloatRange(0.0f, 1.0f), new FloatRange(0.0f, 1.0f), new FloatRange(-0.005f, 0.005f), new FloatRange(-0.005f, 0.005f), new FloatRange(0.0f, 360.0f), new FloatRange(-1.0f, 1.0f), new FloatRange(-0.006f, -0.004f), new FloatRange(0.0f, 0.0f), new FloatRange(0.0f, 0.0f), new IntegerRange(255, 255), new IntegerRange(200, 400), new IntegerRange(400, 200), true, true, true, false, false, true, 87, 30, 0.5f, 256),
+
+	BLOCKED_SURFACE(FilePaths.PARTICLES + "/shared", new Color(0.087480605f, 0.47450978f, 0.07815455f), 1000, new IntegerRange(100, 200), new IntegerRange(2, 4), new IntegerRange(2500, 3300), new IntegerRange(6, 12), new FloatRange(0.0f, 1.0f), new FloatRange(0.0f, 0.0f), new FloatRange(-0.004f, 0.004f), new FloatRange(-0.012f, -0.004f), new FloatRange(0.0f, 360.0f), new FloatRange(2.0f, 4.0f), new FloatRange(0.0f, 0.0f), new FloatRange(0.0f, 0.0f), new FloatRange(0.0f, 0.0f), new IntegerRange(120, 220), new IntegerRange(500, 1000), new IntegerRange(1000, 1500), true, true, false, false, false, true, 293, 40, 0.5f)
+	{{
+			scaleWithWidthOnly = true;
+			useAttractors = true;
+			maxParticles = 256;
+	}},
+	
+	BLOCKED_AREA(FilePaths.PARTICLES + "/shared", new Color(0.087480605f, 0.47450978f, 0.07815455f), 1000, new IntegerRange(200, 400), new IntegerRange(6, 8), new IntegerRange(3000, 3500), new IntegerRange(8, 14), new FloatRange(0.0f, 1.0f), new FloatRange(0.0f, 1.0f), new FloatRange(-0.004f, 0.004f), new FloatRange(-0.004f, 0.004f), new FloatRange(0.0f, 360.0f), new FloatRange(2.0f, 4.0f), new FloatRange(-0.002f, 0.002f), new FloatRange(0.0f, 0.0f), new FloatRange(0.0f, 0.0f), new IntegerRange(120, 220), new IntegerRange(500, 1000), new IntegerRange(1000, 1500), true, true, false, false, false, true, 39, 258, 0.5f, 256), 
+	BLOCKED_AREA_ENTITY(FilePaths.PARTICLES + "/shared", new Color(0.087480605f, 0.47450978f, 0.07815455f), 1000, new IntegerRange(100, 150), new IntegerRange(4, 5), new IntegerRange(1500, 2000), new IntegerRange(6, 12), new FloatRange(0.0f, 1.0f), new FloatRange(0.0f, 1.0f), new FloatRange(-0.004f, 0.004f), new FloatRange(-0.004f, 0.004f), new FloatRange(0.0f, 360.0f), new FloatRange(2.0f, 4.0f), new FloatRange(-0.002f, 0.002f), new FloatRange(0.0f, 0.0f), new FloatRange(0.0f, 0.0f), new IntegerRange(120, 220), new IntegerRange(250, 500), new IntegerRange(500, 1000), true, true, false, false, false, true, 39, 100, 0.0f, 256),
+
+	TIME_RESISTANT_SURFACE(FilePaths.PARTICLES + "/minibubble", new Color(0.98039216f, 0.86346877f, 0.0768935f), 1000, new IntegerRange(100, 200), new IntegerRange(1, 2), new IntegerRange(2500, 3500), new IntegerRange(4, 8), new FloatRange(0.0f, 1.0f), new FloatRange(0.0f, 0.0f), new FloatRange(-0.004f, 0.004f), new FloatRange(-0.008f, -0.008f), new FloatRange(0.0f, 0.0f), new FloatRange(0.0f, 0.0f), new FloatRange(-0.002f, 0.0f), new FloatRange(0.0f, 0.0f), new FloatRange(0.0f, 0.0f), new IntegerRange(64, 128), new IntegerRange(500, 1000), new IntegerRange(1000, 1500), true, true, false, false, false, true, 150, 37, 0.5f, 256)
+	{{
+			scaleWithWidthOnly = true;
+			useAttractors = true;
+	}},
+	
+	TIME_RESISTANT_AREA(FilePaths.PARTICLES + "/minibubble", new Color(0.98039216f, 0.86346877f, 0.0768935f), 1000, new IntegerRange(100, 200), new IntegerRange(1, 3), new IntegerRange(2500, 3500), new IntegerRange(4, 8), new FloatRange(0.0f, 1.0f), new FloatRange(0.0f, 1.0f), new FloatRange(-0.004f, 0.004f), new FloatRange(-0.004f, 0.004f), new FloatRange(0.0f, 0.0f), new FloatRange(0.0f, 0.0f), new FloatRange(-0.002f, 0.0f), new FloatRange(0.0f, 0.0f), new FloatRange(0.0f, 0.0f), new IntegerRange(64, 192), new IntegerRange(500, 1000), new IntegerRange(1000, 1500), true, true, true, false, false, true, 100, 70, 0.5f, 256), 
+	TIME_RESISTANT_ENTITY(FilePaths.PARTICLES + "/minibubble", new Color(0.98039216f, 0.86346877f, 0.0768935f), 1000, new IntegerRange(100, 200), new IntegerRange(1, 2), new IntegerRange(2500, 3500), new IntegerRange(4, 8), new FloatRange(0.0f, 1.0f), new FloatRange(0.0f, 1.0f), new FloatRange(-0.004f, 0.004f), new FloatRange(-0.004f, 0.004f), new FloatRange(0.0f, 0.0f), new FloatRange(0.0f, 0.0f), new FloatRange(-0.002f, 0.0f), new FloatRange(0.0f, 0.0f), new FloatRange(0.0f, 0.0f), new IntegerRange(64, 192), new IntegerRange(500, 1000), new IntegerRange(1000, 1500), true, true, true, false, false, true, 50, 50, 0.0f, 256),
+
+	SNOW(FilePaths.PARTICLES + "/snow", new Color(0.64282966f, 0.76701725f, 0.8627451f), 1000, new IntegerRange(600, 1000), new IntegerRange(1, 2), new IntegerRange(50000, 60000), new IntegerRange(16, 32), new FloatRange(0.0f, 1.0f), new FloatRange(0.0f, 0.0f), new FloatRange(-0.004f, 0.004f), new FloatRange(0.03f, 0.05f), new FloatRange(0.0f, 360.0f), new FloatRange(-2.0f, 2.0f), new FloatRange(0.0f, 0.0f), new FloatRange(0.0f, 0.0f), new FloatRange(0.0f, 0.0f), new IntegerRange(128, 255), new IntegerRange(500, 1000), new IntegerRange(500, 1000), true, true, false, false, false, true, 822, 1150, 0.0f, 500)
+	{{
+			scaleWithWidthOnly = true;
+			maxParticles = 512;
+	}},
+
+	RAIN(FilePaths.PARTICLES + "/rain", new Color(1.0f, 1.0f, 1.0f), 1000, new IntegerRange(100, 250), new IntegerRange(2, 3), new IntegerRange(40000, 40000), new IntegerRange(30, 30), new FloatRange(0.0f, 1.0f), new FloatRange(0.0f, 0.0f), new FloatRange(-0.002f, 0.002f), new FloatRange(0.16f, 0.24f), new FloatRange(0.0f, 0.0f), new FloatRange(0.0f, 0.0f), new FloatRange(0.0f, 0.0f), new FloatRange(0.0f, 0.002f), new FloatRange(0.0f, 0.0f), new IntegerRange(128, 240), new IntegerRange(500, 1000), new IntegerRange(500, 1000), false, true, false, false, false, true, 670, 1044, 0.0f, 500)
+	{{
+			scaleWithWidthOnly = true;
+			maxParticles = 512;
+	}},
+
+	LIGHT_CAGE(FilePaths.PARTICLES + "/shared", new Color(0.9882353f, 0.9094044f, 0.031003458f), 1000, new IntegerRange(200, 400), new IntegerRange(1, 2), new IntegerRange(9000, 16000), new IntegerRange(10, 12), new FloatRange(0.0f, 1.0f), new FloatRange(0.0f, 1.0f), new FloatRange(-0.01f, 0.01f), new FloatRange(-0.01f, 0.01f), new FloatRange(0.0f, 360.0f), new FloatRange(-2.0f, 2.0f), new FloatRange(0.0f, 0.0f), new FloatRange(0.0f, 0.0f), new FloatRange(0.0f, 0.0f), new IntegerRange(48, 128), new IntegerRange(200, 500), new IntegerRange(1200, 1600), true, true, false, false, false, true, 50, 80)
+	{{
+			maxParticles = 256;
+	}},
+
+	LIGHT_CAGE_OPENED(FilePaths.PARTICLES + "/shared", new Color(0.9882353f, 0.9094044f, 0.031003458f), 1000, new IntegerRange(50, 100), new IntegerRange(20, 30), new IntegerRange(12000, 24000), new IntegerRange(8, 12), new FloatRange(0.45f, 0.55f), new FloatRange(0.45f, 0.55f), new FloatRange(-0.16f, 0.16f), new FloatRange(-0.16f, 0.16f), new FloatRange(0.0f, 360.0f), new FloatRange(-5.0f, 5.0f), new FloatRange(0.0f, 0.0f), new FloatRange(0.0f, 0.0f), new FloatRange(0.0f, 0.0f), new IntegerRange(128, 256), new IntegerRange(200, 500), new IntegerRange(1200, 1600), true, true, false, false, false, true, 50, 80)
+	{{
+			maxParticles = 768;
+	}},
+
+	TIME_TRAVEL_CHANGED(FilePaths.PARTICLES + "/star", new Color(0.99215686f, 0.9200624f, 0.11672433f), 1000, new IntegerRange(100, 200), new IntegerRange(1, 3), new IntegerRange(5000, 5000), new IntegerRange(8, 12), new FloatRange(0.0f, 1.0f), new FloatRange(0.0f, 1.0f), new FloatRange(0.0f, 0.0f), new FloatRange(0.0f, 0.0f), new FloatRange(0.0f, 360.0f), new FloatRange(-5.0f, 5.0f), new FloatRange(-0.002f, 0.0f), new FloatRange(0.000006f, 0.000008f), new FloatRange(0.0f, 0.0f), new IntegerRange(128, 196), new IntegerRange(500, 1000), new IntegerRange(500, 1000), true, true, true, false, false, true, 50, 40)
+	{{
+			foreground = false;
+			limitLifetimeToParticles = true;
+	}},
+
+	PIXELIFY(null, new Color(Color.white), 0, new IntegerRange(0, 0), new IntegerRange(0, 0), new IntegerRange(2000, 3000), null, null, null, new FloatRange(0.0f, 0.0f), new FloatRange(0.0f, 0.0f), new FloatRange(0, 0), new FloatRange(0, 0), new FloatRange(0, 0), new FloatRange(0.0002f, 0.0001f), new FloatRange(0.0f, 0.0f), new IntegerRange(256, 256), new IntegerRange(0, 0), new IntegerRange(1000, 2000), false, true, false, false, false, false, 0, 0)
+	{{
+			shouldUpdateEmitter = false;
+			renderMode = ParticleEmitter.RENDER_PARTIAL;
+			rotateAccelerations = false;
+			limitLifetimeToParticles = true;
+	}},
+	
+	;
+
+	public final RealImage[][] sprites;
+
+	public final Color tint;
+
+	public float trailFactor;
+
+	public int renderMode = ParticleEmitter.RENDER_IDENTICAL;
+	public int lifeTime;
+	public int maxParticles;
+	public int originalWidth;
+	public int originalHeight;
+
+	public final IntegerRange spawnInterval;
+	public final IntegerRange spawnCount;
+
+	public final IntegerRange initialLife;
+	public final IntegerRange initalSize;
+
+	public final FloatRange xOffset;
+	public final FloatRange yOffset;
+
+	public final FloatRange velocityX;
+	public final FloatRange velocityY;
+
+	public final FloatRange startRotation;
+	public final FloatRange rotationVelocity;
+
+	public final FloatRange growthFactor;
+
+	public final FloatRange gravityFactor;
+	public final FloatRange windFactor;
+
+	public final IntegerRange startAlpha;
+
+	public final IntegerRange fadeInTime;
+	public final IntegerRange fadeOutTime;
+
+	public boolean shouldUpdateEmitter = true;
+	public boolean shouldFadeIn;
+	public boolean shouldFadeOut;
+	public boolean limitToWrapper;
+	public boolean shouldBounceOutOfArea;
+	public boolean hasLimitedLifetime; 
+	public boolean scaleWithSize;
+	public boolean useAttractors;
+	public boolean scaleWithWidthOnly;
+	public boolean scaleWithHeightOnly;
+	public boolean foreground = true;
+	public boolean rotateAccelerations = true;
+	public boolean limitLifetimeToParticles;
+	
+	private EmitterType(String spritePath, Color tint, int lifeTime, IntegerRange spawnInterval, IntegerRange spawnCount, IntegerRange initialLife, IntegerRange initialSize, FloatRange xOffset, FloatRange yOffset, FloatRange velocityX, FloatRange velocityY, FloatRange startRotation, FloatRange rotationVelocity, FloatRange growthFactor, FloatRange gravityFactor, FloatRange windFactor, IntegerRange startAlpha, IntegerRange fadeInTime, IntegerRange fadeOutTime, boolean shouldFadeIn, boolean shouldFadeOut, boolean limitToWrapper, boolean shouldBounceOutOfArea, boolean hasLimitedLifetime, boolean scaleWithSize, int originalWidth, int originalHeight)
+	{
+		try
+		{
+			if (spritePath != null)
+			{
+				if (WrapperTextureHandler.bufferedWrappers.get(spritePath) == null)
+				{
+					this.sprites = ResourceLoader.getAnimatedImages(spritePath);
+					WrapperTextureHandler.bufferedWrappers.put(spritePath, this.sprites);
+				}
+				else
+				{
+					this.sprites = WrapperTextureHandler.bufferedWrappers.get(spritePath);
+				}
+			}
+			else
+			{
+				this.sprites = null;
+			}
+		}
+		catch (IOException e)
+		{
+			throw new RuntimeException("Woooooww, wait there dude! Errors while loading images for emitter " + spritePath + " .. (" + e + ")", e);
+		}
+
+		this.tint = tint;
+		this.lifeTime = lifeTime;
+		this.spawnInterval = spawnInterval;
+		this.spawnCount = spawnCount;
+		this.initialLife = initialLife;
+		this.initalSize = initialSize;
+		this.xOffset = xOffset;
+		this.yOffset = yOffset;
+		this.velocityX = velocityX;
+		this.velocityY = velocityY;
+		this.startRotation = startRotation;
+		this.rotationVelocity = rotationVelocity;
+		this.growthFactor = growthFactor;
+		this.gravityFactor = gravityFactor;
+		this.windFactor = windFactor;
+		this.startAlpha = startAlpha;
+		this.fadeInTime = fadeInTime;
+		this.fadeOutTime = fadeOutTime;
+		this.shouldFadeIn = shouldFadeIn;
+		this.shouldFadeOut = shouldFadeOut;
+		this.limitToWrapper = limitToWrapper;
+		this.shouldBounceOutOfArea = shouldBounceOutOfArea;
+		this.hasLimitedLifetime = hasLimitedLifetime;
+		this.scaleWithSize = scaleWithSize;
+		this.originalHeight = originalHeight;
+		this.originalWidth = originalWidth;
+	}
+
+	private EmitterType(String spritePath, Color tint, int lifeTime, IntegerRange spawnInterval, IntegerRange spawnCount, IntegerRange initialLife, IntegerRange initialSize, FloatRange xOffset, FloatRange yOffset, FloatRange velocityX, FloatRange velocityY, FloatRange startRotation, FloatRange rotationVelocity, FloatRange growthFactor, FloatRange gravityFactor, FloatRange windFactor, IntegerRange startAlpha, IntegerRange fadeInTime, IntegerRange fadeOutTime, boolean shouldFadeIn, boolean shouldFadeOut, boolean limitToWrapper, boolean shouldBounceOutOfArea, boolean hasLimitedLifetime, boolean scaleWithSize, int originalWidth, int originalHeight, float trailFactor)
+	{
+		this(spritePath, tint, lifeTime, spawnInterval, spawnCount, initialLife, initialSize, xOffset, yOffset, velocityX, velocityY, startRotation, rotationVelocity, growthFactor, gravityFactor, windFactor, startAlpha, fadeInTime, fadeOutTime, shouldFadeIn, shouldFadeOut, limitToWrapper, shouldBounceOutOfArea, hasLimitedLifetime, scaleWithSize, originalWidth, originalHeight);
+
+		this.trailFactor = trailFactor;
+	}
+
+	private EmitterType(String spritePath, Color tint, int lifeTime, IntegerRange spawnInterval, IntegerRange spawnCount, IntegerRange initialLife, IntegerRange initialSize, FloatRange xOffset, FloatRange yOffset, FloatRange velocityX, FloatRange velocityY, FloatRange startRotation, FloatRange rotationVelocity, FloatRange growthFactor, FloatRange gravityFactor, FloatRange windFactor, IntegerRange startAlpha, IntegerRange fadeInTime, IntegerRange fadeOutTime, boolean shouldFadeIn, boolean shouldFadeOut, boolean limitToWrapper, boolean shouldBounceOutOfArea, boolean hasLimitedLifetime, boolean scaleWithSize, int originalWidth, int originalHeight, float trailFactor, int maxParticles)
+	{
+		this(spritePath, tint, lifeTime, spawnInterval, spawnCount, initialLife, initialSize, xOffset, yOffset, velocityX, velocityY, startRotation, rotationVelocity, growthFactor, gravityFactor, windFactor, startAlpha, fadeInTime, fadeOutTime, shouldFadeIn, shouldFadeOut, limitToWrapper, shouldBounceOutOfArea, hasLimitedLifetime, scaleWithSize, originalWidth, originalHeight);
+
+		this.maxParticles = maxParticles;
+	}
+
+	public float getScaleFactor(int width, int height)
+	{
+		if (scaleWithWidthOnly)
+		{
+			return ((float) width) / ((float) this.originalWidth);
+		}
+		else if (scaleWithHeightOnly)
+		{
+			return ((float) height) / ((float) this.originalHeight);
+		}
+		else
+		{
+			return ((float) (width * height) / ((float) (this.originalWidth * this.originalHeight)));
+		}
+	}
+
+	public static boolean contains(String enumName)
+	{
+		for (EmitterType type : values())
+		{
+			if (type.name().equalsIgnoreCase(enumName))
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	public EmitterType setScaleWithWidthOnly()
+	{
+		this.scaleWithWidthOnly = true;
+
+		return this;
+	}
+
+	public EmitterType setScaleWithHeightOnly()
+	{
+		this.scaleWithHeightOnly = true;
+
+		return this;
+	}
+
+	public EmitterType setBackground()
+	{
+		this.foreground = false;
+
+		return this;
+	}
+
+	protected EmitterType setUseAttractors()
+	{
+		this.useAttractors = true;
+
+		return this;
+	}
+
+	public int getMaxParticles(EmitterType type, int width, int height)
+	{				
+		return (int) (type.maxParticles * type.getScaleFactor(width, height));
+	}
+}

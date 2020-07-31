@@ -1,0 +1,518 @@
+package com.unlogical.colored.util;
+
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.GL20;
+import com.badlogic.gdx.graphics.OrthographicCamera;
+import com.badlogic.gdx.graphics.Texture;
+import com.badlogic.gdx.graphics.g2d.Batch;
+import com.badlogic.gdx.graphics.g2d.BitmapFont;
+import com.badlogic.gdx.graphics.g2d.GlyphLayout;
+import com.badlogic.gdx.graphics.g2d.TextureRegion;
+import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
+import com.badlogic.gdx.math.Rectangle;
+import com.badlogic.gdx.math.Vector2;
+import com.badlogic.gdx.math.Vector3;
+import com.badlogic.gdx.scenes.scene2d.utils.ScissorStack;
+import com.badlogic.gdx.utils.viewport.FitViewport;
+import com.badlogic.gdx.utils.viewport.Viewport;
+import com.unlogical.colored.GameLauncher;
+import com.unlogical.colored.resources.font.Fonts;
+
+public class Renderer
+{
+	private static float horizontalScale;
+	private static float verticalScale;
+
+	private static boolean enableScissor;
+
+	private static final Vector2 buffer2 = new Vector2();
+	private static final Vector3 buffer3 = new Vector3();
+
+	private static OrthographicCamera camera;
+	private static IExtendedSpriteBatch batch;
+	private static ShapeRenderer shapeRenderer;
+	private static Rectangle scissor;
+	private static BitmapFont font = Fonts.getDefaultFont();
+	private static Viewport viewport;
+
+	public static void init()
+	{
+		camera = new OrthographicCamera();
+		batch = new ExtendedSpriteBatch();
+		shapeRenderer = new ShapeRenderer();
+		shapeRenderer.setAutoShapeType(true);
+		viewport = new FitViewport(GameLauncher.TARGET_WIDTH, GameLauncher.TARGET_HEIGHT, camera);
+	}
+
+	public static void initRender()
+	{
+		Gdx.gl.glClearColor(0, 0, 0, 1);
+		Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT | GL20.GL_DEPTH_BUFFER_BIT);
+
+		ShaderHandler.initRender();
+
+		camera.setToOrtho(true);
+		viewport.apply(true);
+		batch.setProjectionMatrix(camera.combined);
+		shapeRenderer.setProjectionMatrix(camera.combined);
+
+		batch.enableBlending();
+	}
+
+	public static void resize(int width, int height)
+	{
+		viewport.update(width, height, true);
+		camera.position.set(camera.viewportWidth / 2, camera.viewportHeight / 2, 0);
+
+		ShaderHandler.resize(viewport.getScreenX(), viewport.getScreenY(), viewport.getScreenWidth(), viewport.getScreenHeight());
+	}
+
+	public static Vector3 unproject(Vector3 pos)
+	{
+		return viewport.unproject(pos);
+	}
+
+	public static Vector2 unproject(int x, int y)
+	{
+		buffer3.set(x, y, 0.0f);
+
+		buffer3.set(viewport.unproject(buffer3));
+
+		buffer2.set(buffer3.x, buffer3.y);
+
+		return buffer2;
+	}
+
+	public static Vector2 project(int x, int y)
+	{
+		buffer3.set(x, y, 0.0f);
+
+		buffer3.set(viewport.project(buffer3));
+
+		buffer2.set(buffer3.x, buffer3.y);
+
+		return buffer2;
+	}
+
+	public static void push2DScissor(int x, int y, int width, int height)
+	{
+		if (enableScissor)
+		{
+			width = Math.min(GameLauncher.getWidth() - x, width);
+			height = Math.min(GameLauncher.getHeight() - y, height);
+
+			if (x < 0)
+			{
+				width += x;
+				x = 0;
+			}
+
+			if (y < 0)
+			{
+				height += y;
+				y = 0;
+			}
+		}
+
+		scissor = new Rectangle();
+
+		Rectangle clipBounds = new Rectangle(x, y, width, height);
+
+		ScissorStack.calculateScissors(camera, batch.getTransformMatrix(), clipBounds, scissor);
+
+		flushCurrent();
+
+		ScissorStack.pushScissors(scissor);
+	}
+
+	public static void popScissor()
+	{
+		scissor = null;
+
+		flushCurrent();
+
+		ScissorStack.popScissors();
+	}
+
+	public static void flushCurrent()
+	{
+		if (batch.isDrawing())
+		{
+			batch.flush();
+		}
+		else if (shapeRenderer.isDrawing())
+		{
+			shapeRenderer.flush();
+		}
+	}
+
+	public static IExtendedSpriteBatch useSpriteBatch()
+	{
+		if (shapeRenderer.isDrawing())
+		{
+			shapeRenderer.end();
+		}
+
+		if (!batch.isDrawing())
+		{
+			batch.begin();
+
+			batch.enableBlending();
+		}
+
+		return batch;
+	}
+
+	public static ShapeRenderer useShapeRenderer()
+	{
+		if (batch.isDrawing())
+		{
+			batch.end();
+		}
+
+		if (!shapeRenderer.isDrawing())
+		{
+			shapeRenderer.begin();
+		}
+
+		Gdx.gl.glEnable(GL20.GL_BLEND);
+
+		return shapeRenderer;
+	}
+
+	public static void postRender()
+	{
+		if (batch.isDrawing())
+		{
+			batch.end();
+		}
+
+		if (shapeRenderer.isDrawing())
+		{
+			shapeRenderer.end();
+		}
+	}
+
+	public static void moveCamera(float cameraTranslationX, float f)
+	{
+		flushCurrent();
+
+		camera.translate(cameraTranslationX, 0.0f);
+		camera.update();
+
+		batch.setProjectionMatrix(camera.combined);
+		shapeRenderer.setProjectionMatrix(camera.combined);
+	}
+
+	/**
+	 * Modified version of fillArea from libGDX with rotation, origin, scale,
+	 * drawSubImages flag and flipX/Y flags
+	 */
+	public static void fillArea(TextureRegion region, float x, float y, float originX, float originY, float width, float height, float scaleX, float scaleY, float rotation, boolean drawSubImages, Batch batch)
+	{
+		final boolean flipX = region.isFlipX();
+		final boolean flipY = region.isFlipY();
+
+		final float originalX = x;
+		final float originalY = y;
+
+		int regionWidth = (int) (region.getRegionWidth() * scaleX),
+				regionHeight = (int) (region.getRegionHeight() * scaleY);
+		int fullX = (int) (width / regionWidth),
+				fullY = (int) (height / regionHeight);
+		float remainingX = width - regionWidth * fullX,
+				remainingY = height - regionHeight * fullY;
+		float startX = x, startY = y;
+
+		for (int i = 0; i < fullX; i++)
+		{
+			y = startY;
+			for (int ii = 0; ii < fullY; ii++)
+			{
+				batch.draw(region, x, y, originX - (x - originalX), originY - (y - originalY), regionWidth, regionHeight, 1.0f, 1.0f, rotation);
+
+				y += regionHeight;
+			}
+			x += regionWidth;
+		}
+
+		Texture texture = region.getTexture();
+		float u = region.getU();
+		float v2 = region.getV2();
+
+		if (drawSubImages)
+		{
+			if (remainingX > 0)
+			{
+				// Right edge.
+				float u2 = u + (flipX ? -1 : 1) * remainingX / texture.getWidth();
+				float v = region.getV();
+
+				final int srcX = (int) ((u + (!flipX ? -(u2 - u) + (u2 - u) : u2 - u + (u2 - u) / scaleX - (u2 - u))) * texture.getWidth());
+				final int srcWidth = (int) ((u2 - u) / (scaleX * (flipX ? -1 : 1)) * texture.getWidth());
+
+				y = startY;
+				for (int ii = 0; ii < fullY; ii++)
+				{
+					batch.draw(texture, x, y, originX - (x - originalX), originY - (y - originalY), remainingX, regionHeight, 1.0f, 1.0f, rotation, srcX, (int) ((v + (flipY ? 0 : +(v2 - v))) * texture.getHeight()), srcWidth, (int) ((v2 - v) / (flipY ? 1 : -1) * texture.getHeight()), flipX, !flipY);
+					y += regionHeight;
+				}
+
+				// Upper right corner.
+				if (remainingY > 0)
+				{
+					v = v2 + (flipY ? 1 : -1) * remainingY / texture.getHeight();
+
+					batch.draw(texture, x, y, originX - (x - originalX), originY - (y - originalY), remainingX, remainingY, 1.0f, 1.0f, rotation, srcX, (int) ((v + (flipY ? -(v2 - v) / scaleY + (v2 - v) : +(v2 - v))) * texture.getHeight()), srcWidth, (int) ((v2 - v) / (scaleY * (flipY ? 1 : -1)) * texture.getHeight()), flipX, !flipY);
+				}
+			}
+
+			if (remainingY > 0)
+			{
+				// Top edge.
+				final float u2 = region.getU2();
+				final float v = v2 + (flipY ? 1 : -1) * remainingY / texture.getHeight();
+
+				final int srcY = (int) ((v + (flipY ? -(v2 - v) / scaleY + (v2 - v) : +(v2 - v))) * texture.getHeight());
+				final int srcHeight = (int) ((v2 - v) / (scaleY * (flipY ? 1 : -1)) * texture.getHeight());
+
+				x = startX;
+				for (int i = 0; i < fullX; i++)
+				{
+					batch.draw(texture, x, y, originX - (x - originalX), originY - (y - originalY), regionWidth, remainingY, 1.0f, 1.0f, rotation, (int) (flipX ? u2 - u : u * texture.getWidth()), srcY, (int) ((flipX ? u : u2 - u) * texture.getWidth()), srcHeight, flipX, !flipY);
+
+					x += regionWidth;
+				}
+			}
+		}
+	}
+
+	public static void drawPolygonAsTriangles(float[] points, ShapeRenderer sr)
+	{
+		sr.triangle(points[0], points[1], points[2], points[3], points[4], points[5]);
+		sr.triangle(points[4], points[5], points[6], points[7], points[0], points[1]);
+	}
+
+	public static void drawString(String str, float x, float y, Batch batch)
+	{
+		drawString(str, x, y, 1.0f, batch);
+	}
+
+	public static void drawString(String str, float x, float y, float scale, Batch batch)
+	{
+		if (scale != 1.0f)
+		{
+			x -= (scale - 1.0f) * getWidth(str, font) / 2.0f;
+			y -= (scale - 1.0f) * getHeight(str, font) / 2.0f;
+
+			font.getData().setScale(scale);
+		}
+
+		font.setColor(Color.WHITE);
+		font.draw(batch, str, x, y);
+
+		if (scale != 1.0f)
+		{
+			font.getData().setScale(1.0f);
+		}
+	}
+
+	public static void drawString(String str, BitmapFont font, float x, float y, Batch batch)
+	{
+		drawString(str, font, x, y, 1.0f, batch);
+	}
+
+	public static void drawString(String str, BitmapFont font, float x, float y, float scale, Batch batch)
+	{
+		if (scale != 1.0f)
+		{
+			x -= (scale - 1.0f) * getWidth(str, font) / 2.0f;
+			y -= (scale - 1.0f) * getHeight(str, font) / 2.0f;
+
+			font.getData().setScale(scale);
+		}
+
+		font.setColor(Color.WHITE);
+		font.draw(batch, str, x, y);
+
+		if (scale != 1.0f)
+		{
+			font.getData().setScale(1.0f);
+		}
+	}
+
+	public static void drawString(String str, Color color, float x, float y, Batch batch)
+	{
+		drawString(str, color, x, y, 1.0f, batch);
+	}
+
+	public static void drawString(String str, Color color, float x, float y, float scale, Batch batch)
+	{
+		if (scale != 1.0f)
+		{
+			x -= (scale - 1.0f) * getWidth(str, font) / 2.0f;
+			y -= (scale - 1.0f) * getHeight(str, font) / 2.0f;
+
+			font.getData().setScale(scale);
+		}
+
+		font.setColor(color);
+		font.draw(batch, str, x, y);
+
+		if (scale != 1.0f)
+		{
+			font.getData().setScale(1.0f);
+		}
+	}
+
+	public static void drawString(String str, Color color, BitmapFont font, float x, float y, Batch batch)
+	{
+		drawString(str, color, font, x, y, 1.0f, batch);
+	}
+
+	public static void drawString(String str, Color color, BitmapFont font, float x, float y, float scale, Batch batch)
+	{
+		if (scale != 1.0f)
+		{
+			x -= (scale - 1.0f) * getWidth(str, font) / 2.0f;
+			y -= (scale - 1.0f) * getHeight(str, font) / 2.0f;
+
+			font.getData().setScale(scale);
+		}
+
+		font.setColor(color);
+		font.draw(batch, str, x, y);
+
+		if (scale != 1.0f)
+		{
+			font.getData().setScale(1.0f);
+		}
+	}
+
+	public static void drawString(String str, Color color, GlyphLayout layout, BitmapFont font, float x, float y, Batch batch)
+	{
+		drawString(str, color, layout, font, x, y, 1.0f, batch);
+	}
+
+	public static void drawString(String str, Color color, GlyphLayout layout, BitmapFont font, float x, float y, float scale, Batch batch)
+	{
+		if (scale != 1.0f)
+		{
+			x -= (scale - 1.0f) * getWidth(str, font) / 2.0f;
+			y -= (scale - 1.0f) * getHeight(str, font) / 2.0f;
+
+			font.getData().setScale(scale);
+		}
+
+		font.setColor(color);
+		font.draw(batch, layout, x, y);
+
+		if (scale != 1.0f)
+		{
+			font.getData().setScale(1.0f);
+		}
+	}
+
+	public static void setAmbientColor(Color color)
+	{
+		batch.setAmbientColor(color);
+	}
+
+	public static void setAmbientColor(float r, float g, float b, float a)
+	{
+		batch.setAmbientColor(r, g, b, a);
+	}
+
+	public static void startUsingAdditiveTint(Color color)
+	{
+		batch.setAdditiveColor(color);
+	}
+
+	public static void endUsingAdditiveTint()
+	{
+		batch.setAdditiveColor(Color.BLACK);
+	}
+
+	public static void setGrayScaleFactor(float factor)
+	{
+		batch.setGrayScaleFactor(factor);
+	}
+
+	public static void setSaturation(float saturation)
+	{
+		batch.setSaturation(saturation);
+	}
+
+	public static int getWidth(String str, BitmapFont font)
+	{
+		return (int) new GlyphLayout(font, str).width;
+	}
+
+	public static int getHeight(String str, BitmapFont font)
+	{
+		return (int) new GlyphLayout(font, str).height;
+	}
+
+	public static int getWidth(String str)
+	{
+		// TODO implement proper font width calc for current font
+		return (int) new GlyphLayout(font, str).width;
+	}
+
+	public static int getHeight(String str)
+	{
+		// TODO definitely find better way to do this
+		return (int) new GlyphLayout(font, str).height;
+	}
+
+	public static int getLineHeight(BitmapFont font)
+	{
+		return (int) font.getLineHeight();
+	}
+
+	public static int getLineHeight()
+	{
+		return (int) font.getLineHeight();
+	}
+
+	public static BitmapFont getFont()
+	{
+		return font;
+	}
+
+	public static void setFont(BitmapFont font)
+	{
+		Renderer.font = font;
+	}
+
+	public static float getHorizontalScale()
+	{
+		return horizontalScale;
+	}
+
+	public static float getVerticalScale()
+	{
+		return verticalScale;
+	}
+
+	public static float getDefaultLineWidth()
+	{
+		return 2.0f;
+	}
+
+	public static OrthographicCamera getCamera()
+	{
+		return camera;
+	}
+
+	public static IExtendedSpriteBatch getUnsafeBatch()
+	{
+		return batch;
+	}
+
+	public static ShapeRenderer getUnsafeShapeRenderer()
+	{
+		return shapeRenderer;
+	}
+}

@@ -1,0 +1,134 @@
+package com.unlogical.colored.resources.image;
+
+import java.io.IOException;
+import java.util.HashMap;
+
+import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.g2d.Batch;
+import com.badlogic.gdx.graphics.g2d.TextureRegion;
+import com.unlogical.colored.filesystem.FilePaths;
+import com.unlogical.colored.resources.ResourceLoader;
+import com.unlogical.colored.util.Dimension;
+
+public class Images
+{
+	private static final HashMap<Object, ImageHandler> imageHandlers = new HashMap<Object, ImageHandler>();
+
+	public static ImageHandler registerAndLoadSilently(String item)
+	{
+		try
+		{
+			return registerAndLoad(item);
+		}
+		catch (IOException e)
+		{
+			throw new RuntimeException("Exception while siltently loading and registering item \"" + item + "\": " + e, e);
+		}
+	}
+
+	public static ImageHandler registerAndLoad(String item) throws IOException
+	{
+		return registerAndLoad(item, FilePaths.GUI + "/" + item + ".png");
+	}
+
+	public static ImageHandler registerAndLoad(Object identifier, String path) throws IOException
+	{
+		if (identifier == null)
+		{
+			throw new IllegalArgumentException("identifier cannot be null");
+		}
+
+		if (!imageHandlers.containsKey(identifier))
+		{
+			ImageHandler handler = new ImageHandler(path);
+			handler.loadImages();
+			imageHandlers.put(identifier, handler);
+
+			return handler;
+		}
+
+		return imageHandlers.get(identifier);
+	}
+
+	public static TextureRegion getImage(Object identifier)
+	{
+		return getImage(identifier, Dimension.LIGHT);
+	}
+
+	public static TextureRegion getImage(Object identifier, Dimension dimension)
+	{
+		return imageHandlers.get(identifier).getImage();
+	}
+
+	public static ImageHandler getHandler(Object identifier)
+	{
+		return imageHandlers.get(identifier);
+	}
+
+	public static boolean isLoaded(Object identifier)
+	{
+		return imageHandlers.containsKey(identifier);
+	}
+
+	public static String toIdentifier(String str)
+	{
+		return str.replace(' ', '_').toLowerCase();
+	}
+
+	public static void draw(Object identifer, float centerX, float centerY, float scale, float rotation, Batch batch)
+	{
+		draw(identifer, centerX, centerY, scale, rotation, Color.WHITE, batch);
+	}
+
+	public static void draw(Object identifer, float centerX, float centerY, float scale, float rotation, Color color, Batch batch)
+	{
+		ImageHandler handler = imageHandlers.get(identifer);
+		TextureRegion image = handler.getImage();
+		float width = image.getRegionWidth() * scale;
+		float height = image.getRegionHeight() * scale;
+
+		batch.setColor(color);
+		batch.draw(image, centerX - width / 2, centerY - height / 2, centerX, centerY, width, height, 1.0f, 1.0f, rotation);
+	}
+
+	public static class ImageHandler
+	{
+		private String path;
+		private TextureRegion[] images;
+
+		public ImageHandler(String path)
+		{
+			this.path = path;
+		}
+
+		private void loadImages() throws IOException
+		{
+			this.images = ResourceLoader.getImages(path);
+		}
+
+		public TextureRegion getImage()
+		{
+			return images[0];
+		}
+	}
+
+	public enum HintIdentifier
+	{
+		LEVER_HINT_INACTIVE("leverHintInactive"), LEVER_HINT_ACTIVE("leverHintActive"), CAGE_HINT("cageHint"), DOOR_HINT("doorHint"), CANT_TOGGLE("cantToggle");
+
+		private String value;
+
+		private HintIdentifier(String value)
+		{
+			this.value = value;
+		}
+
+		public static void loadAll() throws IOException
+		{
+			for (HintIdentifier identifier : values())
+			{
+				registerAndLoad(identifier, FilePaths.GUI + "/" + identifier.value.toLowerCase() + ".png");
+			}
+		}
+	}
+}

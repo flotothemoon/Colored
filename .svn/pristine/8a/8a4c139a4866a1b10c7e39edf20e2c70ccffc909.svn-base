@@ -1,0 +1,33 @@
+package com.unlogical.colored.story;
+
+import org.newdawn.slick.GameContainer;
+import org.newdawn.slick.Graphics;
+
+import com.unlogical.colored.level.Level;
+
+public class StoryHandler
+{	
+	private static Level level;
+	
+	public static void init()
+	{
+		
+	}
+	
+	public static void initMap(Level level, boolean fromCheckpoint)
+	{
+		StoryHandler.level = level;
+		
+		
+	}
+	
+	public static void update(GameContainer container, int delta)
+	{
+		
+	}
+	
+	public static void render(GameContainer container, Graphics g)
+	{
+		
+	}
+}

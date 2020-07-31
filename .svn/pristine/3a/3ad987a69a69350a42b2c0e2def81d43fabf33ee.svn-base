@@ -1,0 +1,1263 @@
+package com.unlogical.colored.levelmanaging;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Input;
+import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.g2d.Batch;
+import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
+import com.badlogic.gdx.graphics.glutils.ShapeRenderer.ShapeType;
+import com.badlogic.gdx.math.Vector2;
+import com.unlogical.colored.GameLauncher;
+import com.unlogical.colored.collision.Hitbox;
+import com.unlogical.colored.collision.Line;
+import com.unlogical.colored.debug.Debug;
+import com.unlogical.colored.entity.Entity;
+import com.unlogical.colored.entity.EntityType;
+import com.unlogical.colored.entity.player.EntityPlayer;
+import com.unlogical.colored.entity.property.EntityProperties;
+import com.unlogical.colored.level.Level;
+import com.unlogical.colored.level.LevelType;
+import com.unlogical.colored.resources.font.Fonts;
+import com.unlogical.colored.terrain.tile.Tile;
+import com.unlogical.colored.terrain.tile.TileCameraControl;
+import com.unlogical.colored.terrain.tile.properties.ITileReceiver;
+import com.unlogical.colored.terrain.tile.properties.ITileTriggerable;
+import com.unlogical.colored.util.ColorHelper;
+import com.unlogical.colored.util.Dimension;
+import com.unlogical.colored.util.GameObject;
+import com.unlogical.colored.util.Renderer;
+import com.unlogical.colored.util.ShaderHandler;
+import com.unlogical.colored.util.Transitions;
+import com.unlogical.colored.wrapper.WrapperTexture;
+
+public class MapManager
+{
+	private static final float MAX_HORIZONTAL_VELOCITY = EntityProperties.PLAYER.getMaxSpeed() * 2.0f;
+	private static final float MAX_VERTICAL_VELOCITY = MAX_HORIZONTAL_VELOCITY;
+
+	private static final Vector2 bufferedVector = new Vector2();
+
+	private static int transitionTime;
+	private static int totalTransitionTime;
+
+	private static float cameraOffsetChangeX;
+	private static float cameraOffsetChangeY;
+	private static float oldPositionX;
+	private static float oldPositionY;
+
+	private static boolean refreshLeft;
+	private static boolean refreshRight;
+	private static boolean refreshTop;
+	private static boolean refreshBottom;
+	private static boolean limitTransitionToCamera;
+	private static boolean limitHorizontalVelocity;
+	private static boolean limitVerticalVelocity;
+	private static boolean freeCamera;
+	private static boolean reSimulating;
+
+	private static TileCameraControl absLeftLimit;
+	private static TileCameraControl absRightLimit;
+	private static TileCameraControl absTopLimit;
+	private static TileCameraControl absBottomLimit;
+
+	private static TileCameraControl currentLeftLimit;
+	private static TileCameraControl currentRightLimit;
+	private static TileCameraControl currentTopLimit;
+	private static TileCameraControl currentBottomLimit;
+
+	private static TileCameraControl closestCameraLeft;
+	private static TileCameraControl closestCameraRight;
+	private static TileCameraControl closestCameraTop;
+	private static TileCameraControl closestCameraBottom;
+
+	private static TileCameraControl ignoreAsLeft;
+	private static TileCameraControl ignoreAsRight;
+	private static TileCameraControl ignoreAsTop;
+	private static TileCameraControl ignoreAsBottom;
+
+	private static Set<Tile> drawnConnectedTiles = new HashSet<Tile>();
+
+	private static List<TileCameraControl> cameraControllers = new ArrayList<TileCameraControl>();
+	private static List<ITileTriggerable> triggerableTiles = new ArrayList<ITileTriggerable>();
+
+	private static Map<GameObject, Vector2> oldObjectPositions = new HashMap<GameObject, Vector2>();
+	private static Set<Tile> simulatedTiles = new HashSet<Tile>(32);
+	private static Set<Entity> simulatedEntities = new HashSet<Entity>(64);
+	private static List<Entity> totalEntities = new ArrayList<Entity>(64);
+
+	private static Level level;
+
+	public static void initLevel(Vector2 spawnpoint, Level level)
+	{
+		MapManager.level = level;
+
+		cameraControllers.clear();
+		triggerableTiles.clear();
+		simulatedTiles.clear();
+		simulatedEntities.clear();
+
+		absLeftLimit = null;
+		absRightLimit = null;
+		absTopLimit = null;
+		absBottomLimit = null;
+
+		currentLeftLimit = null;
+		currentRightLimit = null;
+		currentTopLimit = null;
+		currentBottomLimit = null;
+
+		closestCameraLeft = null;
+		closestCameraRight = null;
+		closestCameraTop = null;
+		closestCameraBottom = null;
+
+		ignoreAsLeft = null;
+		ignoreAsRight = null;
+		ignoreAsTop = null;
+		ignoreAsBottom = null;
+
+		refreshLeft = false;
+		refreshRight = false;
+		refreshTop = false;
+		refreshBottom = false;
+
+		for (Tile tile : level.getTiles())
+		{
+			if (tile instanceof TileCameraControl)
+			{
+				TileCameraControl cameraControl = (TileCameraControl) tile;
+				cameraControllers.add(cameraControl);
+
+				if (absLeftLimit == null || cameraControl.getCenterX() < absLeftLimit.getCenterX())
+				{
+					absLeftLimit = cameraControl;
+				}
+
+				if (absRightLimit == null || cameraControl.getCenterX() > absRightLimit.getCenterX())
+				{
+					absRightLimit = cameraControl;
+				}
+
+				if (absTopLimit == null || cameraControl.getCenterY() < absTopLimit.getCenterY())
+				{
+					absTopLimit = cameraControl;
+				}
+
+				if (absBottomLimit == null || cameraControl.getCenterY() > absBottomLimit.getCenterY())
+				{
+					absBottomLimit = cameraControl;
+				}
+			}
+
+			if (tile instanceof ITileTriggerable)
+			{
+				if (tile instanceof ITileReceiver)
+				{
+					tile.listen();
+				}
+
+				triggerableTiles.add((ITileTriggerable) tile);
+			}
+		}
+
+		level.setAbsLeftLimit(absLeftLimit);
+		level.setAbsRightLimit(absRightLimit);
+		level.setAbsTopLimit(absTopLimit);
+		level.setAbsBottomLimit(absBottomLimit);
+
+		resetCameras();
+
+		findCurrentCameras();
+
+		calculateCameraOffset(false, 0);
+
+		limitHorizontalVelocity = false;
+		limitVerticalVelocity = false;
+		reSimulating = false;
+	}
+
+	private static Vector2 calculateSmoothOffset(boolean limitToCameras)
+	{
+		EntityPlayer player = level.getPlayer();
+
+		float finalCameraChangeX = cameraOffsetChangeX;
+		float finalCameraChangeY = cameraOffsetChangeY;
+
+		if (closestCameraLeft != absLeftLimit && closestCameraLeft.getHitbox().containsX(player.getCenterX()))
+		{
+			float transitionFactor = Transitions.getFactor((player.getCenterX() - closestCameraLeft.getHitbox().getMinX()) / closestCameraLeft.getWidth());
+			float baseCameraChangeX = cameraOffsetChangeX;
+			TileCameraControl beforeClosestLeft = closestCameraLeft;
+			TileCameraControl beforeLeftLimit = currentLeftLimit;
+			TileCameraControl beforeRightLimit = currentRightLimit;
+
+			ignoreAsLeft = closestCameraLeft;
+
+			if (closestCameraLeft.getCameraDirection() > 0 && closestCameraLeft.getCameraDirection() != 4)
+			{
+				resetCameras();
+			}
+			else
+			{
+				currentLeftLimit = absLeftLimit;
+				currentRightLimit = beforeLeftLimit;
+			}
+
+			findCurrentCameras();
+
+			if (closestCameraLeft.getCameraDirection() > 0 && beforeClosestLeft.getCameraDirection() > 0 && beforeClosestLeft.getCameraDirection() != 2)
+			{
+				currentRightLimit = beforeClosestLeft;
+			}
+
+			calculateBasicOffset(limitToCameras);
+
+			closestCameraLeft = beforeClosestLeft;
+			currentRightLimit = beforeRightLimit;
+			currentLeftLimit = beforeLeftLimit;
+			ignoreAsLeft = null;
+
+			finalCameraChangeX = cameraOffsetChangeX + (baseCameraChangeX - cameraOffsetChangeX) * transitionFactor;
+
+			refreshLeft = true;
+
+			if (closestCameraLeft.limitsCameraVelocity())
+			{
+				limitHorizontalVelocity = true;
+			}
+		}
+
+		if (closestCameraRight != absRightLimit && closestCameraRight.getHitbox().containsX(player.getCenterX()))
+		{
+			float transitionFactor = Transitions.getFactor((player.getCenterX() - closestCameraRight.getHitbox().getMinX()) / closestCameraRight.getWidth());
+			float baseCameraChangeX = cameraOffsetChangeX;
+			TileCameraControl beforeClosestRight = closestCameraRight;
+			TileCameraControl beforeRightLimit = currentRightLimit;
+			TileCameraControl beforeLeftLimit = currentLeftLimit;
+
+			ignoreAsRight = closestCameraRight;
+
+			if (closestCameraRight.getCameraDirection() > 0 && closestCameraRight.getCameraDirection() != 2)
+			{
+				resetCameras();
+			}
+			else
+			{
+				currentRightLimit = absRightLimit;
+				currentLeftLimit = closestCameraRight;
+			}
+
+			findCurrentCameras();
+
+			if (closestCameraRight.getCameraDirection() > 0 && beforeClosestRight.getCameraDirection() > 0 && beforeClosestRight.getCameraDirection() != 4)
+			{
+				currentLeftLimit = beforeClosestRight;
+			}
+
+			calculateBasicOffset(limitToCameras);
+
+			currentLeftLimit = beforeLeftLimit;
+			currentRightLimit = beforeRightLimit;
+			closestCameraRight = beforeClosestRight;
+			ignoreAsRight = null;
+
+			finalCameraChangeX = baseCameraChangeX + (cameraOffsetChangeX - baseCameraChangeX) * transitionFactor;
+
+			refreshRight = true;
+
+			if (closestCameraRight.limitsCameraVelocity())
+			{
+				limitHorizontalVelocity = true;
+			}
+		}
+
+		if (closestCameraTop != absTopLimit && closestCameraTop.getHitbox().containsY(player.getCenterY()))
+		{
+			float transitionFactor = Transitions.getFactor((player.getCenterY() - closestCameraTop.getHitbox().getMinY()) / closestCameraTop.getHeight());
+			float baseCameraChangeY = cameraOffsetChangeY;
+			TileCameraControl beforeClosestTop = closestCameraTop;
+			TileCameraControl beforeTopLimit = currentTopLimit;
+			TileCameraControl beforeBottomLimit = currentBottomLimit;
+
+			ignoreAsTop = closestCameraTop;
+
+			if (closestCameraTop.getCameraDirection() > 0 && closestCameraTop.getCameraDirection() != 1)
+			{
+				resetCameras();
+			}
+			else
+			{
+				currentTopLimit = absTopLimit;
+				currentBottomLimit = beforeTopLimit;
+			}
+
+			findCurrentCameras();
+
+			if (closestCameraTop.getCameraDirection() > 0 && beforeClosestTop.getCameraDirection() > 0 && beforeClosestTop.getCameraDirection() != 3)
+			{
+				currentBottomLimit = closestCameraTop;
+			}
+
+			calculateBasicOffset(limitToCameras);
+
+			closestCameraTop = beforeClosestTop;
+			currentBottomLimit = beforeBottomLimit;
+			currentTopLimit = beforeTopLimit;
+			ignoreAsTop = null;
+
+			finalCameraChangeY = cameraOffsetChangeY + (baseCameraChangeY - cameraOffsetChangeY) * transitionFactor;
+
+			refreshTop = true;
+
+			if (closestCameraTop.limitsCameraVelocity())
+			{
+				limitVerticalVelocity = true;
+			}
+		}
+
+		if (closestCameraBottom != absBottomLimit && closestCameraBottom.getHitbox().containsY(player.getCenterY()))
+		{
+			float transitionFactor = Transitions.getFactor((player.getCenterY() - closestCameraBottom.getHitbox().getMinY()) / closestCameraBottom.getHeight());
+			float baseCameraChangeY = cameraOffsetChangeY;
+			TileCameraControl beforeClosestBottom = closestCameraBottom;
+			TileCameraControl beforeBottomLimit = currentBottomLimit;
+			TileCameraControl beforeTopLimit = currentTopLimit;
+
+			ignoreAsBottom = closestCameraBottom;
+
+			if (closestCameraBottom.getCameraDirection() > 0 && closestCameraBottom.getCameraDirection() != 3)
+			{
+				resetCameras();
+			}
+			else
+			{
+				currentTopLimit = beforeBottomLimit;
+				currentBottomLimit = absBottomLimit;
+			}
+
+			findCurrentCameras();
+
+			if (closestCameraBottom.getCameraDirection() > 0 && beforeClosestBottom.getCameraDirection() > 0 && beforeClosestBottom.getCameraDirection() != 1)
+			{
+				currentTopLimit = closestCameraBottom;
+			}
+
+			calculateBasicOffset(limitToCameras);
+
+			closestCameraBottom = beforeClosestBottom;
+			currentTopLimit = beforeTopLimit;
+			currentBottomLimit = beforeBottomLimit;
+			ignoreAsBottom = null;
+
+			finalCameraChangeY = baseCameraChangeY + (cameraOffsetChangeY - baseCameraChangeY) * transitionFactor;
+
+			refreshBottom = true;
+
+			if (closestCameraBottom.limitsCameraVelocity())
+			{
+				limitVerticalVelocity = true;
+			}
+		}
+
+		bufferedVector.set(finalCameraChangeX, finalCameraChangeY);
+
+		return bufferedVector;
+	}
+
+	public static void calculateCameraOffset(boolean limitToCameras, int delta)
+	{
+		EntityPlayer player = level.getPlayer();
+
+		if (player == null)
+		{
+			return;
+		}
+
+		resetCameras(); // DO NOT DELETE THIS!
+		findCurrentCameras();
+
+		calculateBasicOffset(limitToCameras);
+		calculateSmoothOffset(limitToCameras);
+
+		float finalCameraChangeX = bufferedVector.x;
+		float finalCameraChangeY = bufferedVector.y;
+
+		if (transitionTime > 0)
+		{
+			float beforeX = player.getX();
+			float beforeY = player.getY();
+			float baseChangeX = finalCameraChangeX;
+			float baseChangeY = finalCameraChangeY;
+
+			boolean limitHorizontalVelocity = MapManager.limitHorizontalVelocity;
+			boolean limitVerticalVelocity = MapManager.limitVerticalVelocity;
+
+			player.setPosition(oldPositionX + level.getCameraOffset().x, oldPositionY + level.getCameraOffset().y);
+
+			resetCameras();
+			findCurrentCameras();
+			calculateBasicOffset(limitTransitionToCamera);
+			calculateSmoothOffset(limitTransitionToCamera);
+
+			cameraOffsetChangeX = bufferedVector.x;
+			cameraOffsetChangeY = bufferedVector.y;
+
+			float transitionFactor = Transitions.getFactor((float) transitionTime / (float) totalTransitionTime);
+
+			if (baseChangeX > cameraOffsetChangeX)
+			{
+				finalCameraChangeX = cameraOffsetChangeX + (baseChangeX - cameraOffsetChangeX) * (1.0f - transitionFactor);
+			}
+			else
+			{
+				finalCameraChangeX = baseChangeX + (cameraOffsetChangeX - baseChangeX) * transitionFactor;
+			}
+
+			if (baseChangeY > cameraOffsetChangeY)
+			{
+				finalCameraChangeY = cameraOffsetChangeY + (baseChangeY - cameraOffsetChangeY) * (1.0f - transitionFactor);
+			}
+			else
+			{
+				finalCameraChangeY = baseChangeY + (cameraOffsetChangeY - baseChangeY) * transitionFactor;
+			}
+
+			player.setPosition(beforeX, beforeY);
+
+			resetCameras();
+			findCurrentCameras();
+
+			MapManager.limitHorizontalVelocity = limitHorizontalVelocity;
+			MapManager.limitVerticalVelocity = limitVerticalVelocity;
+
+			transitionTime -= delta;
+		}
+
+		cameraOffsetChangeX = finalCameraChangeX;
+		cameraOffsetChangeY = finalCameraChangeY;
+	}
+
+	public static void transitionFrom(float fromX, float fromY, int transitionTime, boolean limitToCamera)
+	{
+		transitionFrom(fromX, fromY, transitionTime, transitionTime, limitToCamera);
+	}
+
+	public static void transitionFrom(float fromX, float fromY, int totalTransitionTime, int elapsedTime, boolean limitToCamera)
+	{
+		MapManager.transitionTime = elapsedTime;
+		MapManager.totalTransitionTime = transitionTime;
+		MapManager.limitTransitionToCamera = limitToCamera;
+		oldPositionX = fromX - level.getCameraOffset().x - Entity.getMainImage(EntityType.PLAYER).getRegionWidth() / 2.0f;
+		oldPositionY = fromY - level.getCameraOffset().y - Entity.getMainImage(EntityType.PLAYER).getRegionHeight() / 2.0f;
+	}
+
+	public static void calculateBasicOffset(boolean limitToCameras)
+	{
+		EntityPlayer player = level.getControllingPlayer();
+
+		float distanceToCenterX = player.getCenterX() - GameLauncher.getWidth() / 2;
+		float distanceToCenterY = player.getCenterY() - GameLauncher.getHeight() / 2;
+
+		cameraOffsetChangeX = distanceToCenterX;
+		cameraOffsetChangeY = distanceToCenterY;
+
+		if (limitToCameras)
+		{
+			if (currentRightLimit.getCenterX() - currentLeftLimit.getCenterX() < GameLauncher.getWidth())
+			{
+				cameraOffsetChangeX = (currentLeftLimit.getCenterX() + currentRightLimit.getCenterX() - GameLauncher.getWidth()) / 2;
+			}
+			else
+			{
+				if (currentLeftLimit.getCenterX() - cameraOffsetChangeX > 0)
+				{
+					cameraOffsetChangeX = currentLeftLimit.getCenterX();
+				}
+
+				if (currentRightLimit.getCenterX() - cameraOffsetChangeX < GameLauncher.getWidth())
+				{
+					cameraOffsetChangeX = currentRightLimit.getCenterX() - GameLauncher.getWidth();
+				}
+			}
+
+			if (currentBottomLimit.getCenterY() - currentTopLimit.getCenterY() < GameLauncher.getHeight())
+			{
+				cameraOffsetChangeY = (currentTopLimit.getCenterY() + currentBottomLimit.getCenterY() - GameLauncher.getHeight()) / 2;
+			}
+			else
+			{
+				if (currentTopLimit.getCenterY() - cameraOffsetChangeY > 0)
+				{
+					cameraOffsetChangeY = currentTopLimit.getCenterY();
+				}
+
+				if (currentBottomLimit.getCenterY() - cameraOffsetChangeY < GameLauncher.getHeight())
+				{
+					cameraOffsetChangeY = currentBottomLimit.getCenterY() - GameLauncher.getHeight();
+				}
+			}
+		}
+	}
+
+	public static void findCurrentCameras()
+	{
+		EntityPlayer player = level.getControllingPlayer();
+
+		if (player != null)
+		{
+			for (TileCameraControl cameraControl : cameraControllers)
+			{
+				if (!cameraControl.isVerticalController())
+				{
+					if (cameraControl != ignoreAsLeft && player.getCenterX() > cameraControl.getCenterX())
+					{
+						if (cameraControl.getCenterX() > currentLeftLimit.getCenterX() && !cameraControl.isOnlyFromLeftLimit())
+						{
+							currentLeftLimit = cameraControl;
+						}
+
+						if (cameraControl.getCenterX() > closestCameraLeft.getCenterX())
+						{
+							closestCameraLeft = cameraControl;
+						}
+					}
+
+					if (cameraControl != ignoreAsRight && player.getCenterX() < cameraControl.getCenterX())
+					{
+						if (cameraControl.getCenterX() < currentRightLimit.getCenterX() && !cameraControl.isOnlyFromRightLimit())
+						{
+							currentRightLimit = cameraControl;
+						}
+
+						if (cameraControl.getCenterX() < closestCameraRight.getCenterX())
+						{
+							closestCameraRight = cameraControl;
+						}
+					}
+				}
+
+				if (!cameraControl.isHorizontalController())
+				{
+					if (cameraControl != ignoreAsTop && player.getCenterY() > cameraControl.getCenterY())
+					{
+						if (cameraControl.getCenterY() > currentTopLimit.getCenterY() && !cameraControl.isOnlyFromTopLimit())
+						{
+							currentTopLimit = cameraControl;
+						}
+
+						if (cameraControl.getCenterY() > closestCameraTop.getCenterY())
+						{
+							closestCameraTop = cameraControl;
+						}
+					}
+
+					if (cameraControl != ignoreAsBottom && player.getCenterY() < cameraControl.getCenterY())
+					{
+						if (cameraControl.getCenterY() < currentBottomLimit.getCenterY() && !cameraControl.isOnlyFromBottomLimit())
+						{
+							currentBottomLimit = cameraControl;
+						}
+
+						if (cameraControl.getCenterY() < closestCameraBottom.getCenterY())
+						{
+							closestCameraBottom = cameraControl;
+						}
+					}
+				}
+			}
+		}
+	}
+
+	public static void focusCamera()
+	{
+		if (limitHorizontalVelocity && Math.abs(cameraOffsetChangeX) > MAX_HORIZONTAL_VELOCITY * GameLauncher.getDelta())
+		{
+			cameraOffsetChangeX = Math.signum(cameraOffsetChangeX) * MAX_HORIZONTAL_VELOCITY * GameLauncher.getDelta();
+		}
+
+		if (limitVerticalVelocity && Math.abs(cameraOffsetChangeY) > MAX_VERTICAL_VELOCITY * GameLauncher.getDelta())
+		{
+			cameraOffsetChangeY = Math.signum(cameraOffsetChangeY) * MAX_VERTICAL_VELOCITY * GameLauncher.getDelta();
+		}
+
+		if (Math.abs(cameraOffsetChangeX) < MAX_HORIZONTAL_VELOCITY * GameLauncher.getDelta())
+		{
+			limitHorizontalVelocity = false;
+		}
+
+		if (Math.abs(cameraOffsetChangeY) < MAX_VERTICAL_VELOCITY * GameLauncher.getDelta())
+		{
+			limitVerticalVelocity = false;
+		}
+
+		updatePositions(level, (int) -cameraOffsetChangeX, (int) -cameraOffsetChangeY);
+	}
+
+	public static void setCameraOffset(float x, float y)
+	{
+		updatePositions(level, x - level.getCameraOffset().x, y - level.getCameraOffset().y);
+	}
+
+	static void updatePositions(Level level, float xChange, float yChange)
+	{
+		if (xChange != 0.0f || yChange != 0.0f)
+		{
+			for (Entity entity : level.getEntities())
+			{
+				entity.adjustX(xChange);
+				entity.adjustY(yChange);
+			}
+
+			for (Tile tile : level.getTiles())
+			{
+				tile.adjustX(xChange);
+				tile.adjustY(yChange);
+			}
+
+			if (level == MapManager.level && Hitbox.debugMode)
+			{
+				for (Line line : Hitbox.cachedLines)
+				{
+					line.set(line.getX1() + xChange, line.getY1() + yChange, line.getX2() + xChange, line.getY2() + yChange);
+				}
+			}
+
+			level.getCameraOffset().x += xChange;
+			level.getCameraOffset().y += yChange;
+
+			level.updateWrapperPositions(xChange, yChange);
+		}
+	}
+
+	public static void triggerAndSimulateAll(Tile sender, int sendPort, boolean trigger)
+	{
+		boolean anyEffected = false;
+
+		for (ITileTriggerable tile : triggerableTiles)
+		{
+			if (tile instanceof ITileReceiver)
+			{
+				Tile triggerable = (Tile) tile;
+
+				if (triggerable.getReceivePort() == sendPort)
+				{
+					if (trigger)
+					{
+						// triggerable.trigger(true, sender);
+					}
+					else
+					{
+						triggerable.listen();
+					}
+
+					anyEffected = true;
+				}
+			}
+		}
+
+		if (anyEffected)
+		{
+			reSimulateAll(sender);
+		}
+	}
+
+	public static void reSimulateEntity(Entity entity, int preferredDelta)
+	{
+		reSimulating = true;
+
+		// long beforeTime = System.currentTimeMillis();
+
+		// Debug.log("Resimulating " + entity + " with a preferred delta of " +
+		// preferredDelta + " ...");
+
+		int simulatedTime = 0;
+		int milliseconds = Level.TIME_TRAVEL_TIME_DIFFERENCE_MILLIS - GameLauncher.getDelta();
+
+		if (entity.checkPreReSimulation())
+		{
+			oldObjectPositions.put(entity, entity.getPosition().cpy());
+
+			entity.onReSimulation();
+			entity.setReSimulating(true);
+
+			simulatedEntities.add(entity);
+		}
+
+		level.setReSimulating(true);
+
+		while (simulatedTime < milliseconds)
+		{
+			int delta = simulatedTime < milliseconds - preferredDelta ? preferredDelta : milliseconds - simulatedTime;
+
+			level.timeStepHandler.update(delta);
+
+			totalEntities.clear();
+			totalEntities.addAll(level.getEntities());
+			totalEntities.addAll(level.getEntitiesToAdd());
+			totalEntities.removeAll(level.getEntitiesToRemove());
+
+			entity.update(delta);
+			entity.updateEmitters(delta);
+
+			simulatedTime += preferredDelta;
+		}
+
+		level.setReSimulating(false);
+
+		// entity.onPostReSimulation(entity, oldObjectPositions.get(entity));
+		entity.setReSimulating(false);
+
+		// Debug.log("Resimulation finished, resimulated " + entity + " (took "
+		// + (System.currentTimeMillis() - beforeTime) + "ms).");
+
+		level.timeStepHandler.update(GameLauncher.getDelta());
+
+		reSimulating = false;
+	}
+
+	public static boolean reSimulateAll(GameObject changedObject)
+	{
+		if (reSimulating)
+		{
+			Debug.warn("Recursive reSimulation detected, blocked resimulation request by " + changedObject + ".");
+			Debug.printStackTrace(3);
+
+			return false;
+		}
+
+		reSimulating = true;
+		long beforeTime = System.currentTimeMillis();
+
+		Debug.log("Resimulating all as requested by " + changedObject + " ...");
+
+		int simulatedTime = 0;
+		int preferredDelta = 16;
+		int milliseconds = Level.TIME_TRAVEL_TIME_DIFFERENCE_MILLIS - GameLauncher.getDelta();
+
+		oldObjectPositions.clear();
+		simulatedTiles.clear();
+		simulatedEntities.clear();
+
+		// TODO maybe some kind of logical evaluation of what things could have
+		// changed to improve performance
+
+		for (Tile tile : level.getTiles())
+		{
+			if (tile.getDimension() == Dimension.COLORED && tile.shouldReSimulate() && !tile.isShared())
+			{
+				if (tile.checkPreReSimulation())
+				{
+					oldObjectPositions.put(tile, tile.getPosition().cpy());
+
+					tile.onReSimulation();
+					tile.setReSimulating(true);
+
+					simulatedTiles.add(tile);
+				}
+			}
+		}
+
+		for (Entity entity : level.getEntities())
+		{
+			if (entity.getDimension() == Dimension.COLORED && entity.shouldReSimulate())
+			{
+				if (entity.checkPreReSimulation())
+				{
+					oldObjectPositions.put(entity, entity.getPosition().cpy());
+
+					entity.onReSimulation();
+					entity.setReSimulating(true);
+
+					simulatedEntities.add(entity);
+				}
+			}
+		}
+
+		level.setReSimulating(true);
+
+		while (simulatedTime < milliseconds)
+		{
+			int delta = simulatedTime < milliseconds - preferredDelta ? preferredDelta : milliseconds - simulatedTime;
+
+			level.timeStepHandler.update(delta);
+
+			totalEntities.clear();
+			totalEntities.addAll(level.getEntities());
+			totalEntities.addAll(level.getEntitiesToAdd());
+			totalEntities.removeAll(level.getEntitiesToRemove());
+
+			for (Tile tile : simulatedTiles)
+			{
+				tile.update(delta);
+				tile.updateEmitters(delta);
+			}
+
+			for (Entity entity : simulatedEntities)
+			{
+				entity.update(delta);
+				entity.updateEmitters(delta);
+			}
+
+			if (!level.getEntitiesToAdd().isEmpty())
+			{
+				simulatedEntities.addAll(level.getEntitiesToAdd());
+			}
+
+			if (!level.getEntitiesToRemove().isEmpty())
+			{
+				simulatedEntities.removeAll(level.getEntitiesToRemove());
+			}
+
+			if (!level.getTilesToAdd().isEmpty())
+			{
+				simulatedTiles.addAll(level.getTilesToAdd());
+			}
+
+			if (!level.getTilesToRemove().isEmpty())
+			{
+				simulatedTiles.removeAll(level.getTilesToRemove());
+			}
+
+			simulatedTime += preferredDelta;
+		}
+
+		level.setReSimulating(false);
+
+		for (Tile tile : simulatedTiles)
+		{
+			tile.onPostReSimulation(changedObject, oldObjectPositions.get(tile));
+			tile.setReSimulating(false);
+		}
+
+		for (Entity entity : simulatedEntities)
+		{
+			entity.onPostReSimulation(changedObject, oldObjectPositions.get(entity));
+			entity.setReSimulating(false);
+		}
+
+		Debug.log("Resimulation finished, resimulated " + simulatedEntities.size() + " entities and " + simulatedTiles.size() + " tiles (took " + (System.currentTimeMillis() - beforeTime) + "ms).");
+
+		level.timeStepHandler.update(GameLauncher.getDelta());
+		reSimulating = false;
+
+		return true;
+	}
+
+	public static void updateTiles(Level level, Dimension dimension, float delta, float dimensionDelta)
+	{
+		for (Tile tile : level.getTiles())
+		{
+			if (tile.shouldUpdate() && tile.getDimension() == dimension && (!level.isUpdatingOnlyCycleObjects() || tile.isCycleObject()))
+			{
+				if (!tile.isShared())
+				{
+					tile.update(dimensionDelta);
+				}
+				else
+				{
+					tile.update(delta);
+				}
+			}
+		}
+	}
+
+	public static void renderBehindAllEntities(Level level, Dimension dimension, boolean renderAll, Batch batch)
+	{
+		batch.setColor(Color.WHITE);
+
+		for (Tile tile : level.getTiles())
+		{
+			if (renderAll || tile.shouldUseOriginalTextures())
+			{
+				if ((tile.isChangeable() || !level.isDead()) && tile.getDimension() == dimension && ((tile.shouldRenderInGame() || LevelManager.isDevMode()) && tile.shouldDrawBehindTiles() || tile.shouldDrawBehindEntities()))
+				{
+					drawTile(tile, dimension, batch);
+				}
+			}
+		}
+	}
+
+	public static void renderBackground(Level level, Dimension backgroundDimension, boolean renderAll, Batch batch)
+	{
+		batch.setColor(Color.WHITE);
+
+		for (Tile tile : level.getTiles())
+		{
+			if (renderAll || tile.shouldUseOriginalTextures())
+			{
+				if ((tile.isChangeable() || !level.isDead()) && (tile.shouldRenderInGame() || LevelManager.isDevMode()) && !tile.shouldDrawBehindEntities() && !tile.shouldDrawBehindTiles() && tile.getDimension() == backgroundDimension)
+				{
+					drawTile(tile, tile.getDimension(), batch);
+				}
+			}
+		}
+	}
+
+	public static void renderForeground(Level level, Dimension foregroundDimension, boolean renderAll, Batch batch)
+	{
+		for (Tile tile : level.getTiles())
+		{
+			if (renderAll || tile.shouldUseOriginalTextures())
+			{
+				if ((tile.isChangeable() || !level.isDead()) && (tile.shouldRenderInGame() || LevelManager.isDevMode()) && tile.getDimension() == foregroundDimension)
+				{
+					if (!tile.shouldDrawBehindEntities() && tile.shouldDrawBehindTiles())
+					{
+						drawTile(tile, tile.getDimension(), batch);
+					}
+				}
+			}
+		}
+
+		for (Tile tile : level.getTiles())
+		{
+			if (renderAll || tile.shouldUseOriginalTextures())
+			{
+				if ((tile.isChangeable() || !level.isDead()) && (tile.shouldRenderInGame() || LevelManager.isDevMode()) && tile.getDimension() == foregroundDimension)
+				{
+					if (!tile.shouldDrawBehindEntities() && !tile.shouldDrawBehindTiles())
+					{
+						drawTile(tile, tile.getDimension(), batch);
+					}
+				}
+			}
+		}
+	}
+
+	private static void drawTile(Tile tile, Dimension dimension, Batch batch)
+	{
+		if (level.getType() == LevelType.NORMAL)
+		{
+			tile.draw(batch, Dimension.MONOCHROME);
+		}
+
+		tile.initDraw();
+		tile.draw(batch, dimension);
+
+		drawTileDebug(tile, batch);
+	}
+
+	private static void drawTileDebug(Tile tile, Batch batch)
+	{
+		if (level.shouldShowHitboxes() && tile.isActive())
+		{
+			ShapeRenderer sr = Renderer.useShapeRenderer();
+
+			sr.set(ShapeType.Line);
+			sr.setColor(Color.DARK_GRAY);
+			sr.polygon(tile.getHitbox().getPoints());
+
+			if (tile instanceof TileCameraControl)
+			{
+				drawCameraDebug((TileCameraControl) tile, true, batch);
+			}
+		}
+	}
+
+	public static void drawCameraDebug(TileCameraControl camera, boolean drawLocals, Batch batch)
+	{
+		ShaderHandler.disableLighting();
+
+		Renderer.setFont(Fonts.getSmallFont());
+		batch.setColor(Color.RED);
+		int yOffset = 0;
+
+		if (drawLocals)
+		{
+			Renderer.useSpriteBatch();
+
+			if (camera == currentLeftLimit)
+			{
+				Renderer.drawString("LEFTLIMIT", camera.getPosition().x, camera.getPosition().y - (yOffset += 20), 1.0f, batch);
+			}
+
+			if (camera == currentRightLimit)
+			{
+				Renderer.drawString("RIGHTLIMIT", camera.getPosition().x, camera.getPosition().y - (yOffset += 20), 1.0f, batch);
+			}
+
+			if (camera == currentTopLimit)
+			{
+				Renderer.drawString("TOPLIMIT", camera.getPosition().x, camera.getPosition().y - (yOffset += 20), 1.0f, batch);
+			}
+
+			if (camera == currentBottomLimit)
+			{
+				Renderer.drawString("BOTTOMLIMIT", camera.getPosition().x, camera.getPosition().y - (yOffset += 20), 1.0f, batch);
+			}
+
+			if (camera == closestCameraLeft)
+			{
+				Renderer.drawString("CLOSESTLEFT", camera.getPosition().x, camera.getPosition().y - (yOffset += 20), 1.0f, batch);
+			}
+
+			if (camera == closestCameraRight)
+			{
+				Renderer.drawString("CLOSESTRIGHT", camera.getPosition().x, camera.getPosition().y - (yOffset += 20), 1.0f, batch);
+			}
+
+			if (camera == closestCameraTop)
+			{
+				Renderer.drawString("CLOSESTTOP", camera.getPosition().x, camera.getPosition().y - (yOffset += 20), 1.0f, batch);
+			}
+
+			if (camera == closestCameraBottom)
+			{
+				Renderer.drawString("CLOSESTBOTTOM", camera.getPosition().x, camera.getPosition().y - (yOffset += 20), 1.0f, batch);
+			}
+		}
+
+		if (camera.limitsCameraVelocity())
+		{
+			Renderer.useSpriteBatch();
+
+			Renderer.setFont(Fonts.getSmallBoldFont());
+			Renderer.drawString("STEADY", Color.RED, camera.getCenterX() - Renderer.getWidth("STEADY") / 2, camera.getCenterY() - Renderer.getLineHeight() / 2, 1.0f, batch);
+		}
+
+		if (camera.getCameraDirection() > 0)
+		{
+			String directionName = "dafuqshouldnthappen";
+
+			if (camera.getCameraDirection() == 1)
+			{
+				directionName = "TOP (1)";
+			}
+			else if (camera.getCameraDirection() == 2)
+			{
+				directionName = "RIGHT (2)";
+			}
+			else if (camera.getCameraDirection() == 3)
+			{
+				directionName = "DOWN (3)";
+			}
+			else if (camera.getCameraDirection() == 4)
+			{
+				directionName = "LEFT (4)";
+			}
+
+			Renderer.useSpriteBatch();
+
+			Renderer.setFont(Fonts.getSmallBoldFont());
+			Renderer.drawString(("ONLY FROM " + directionName).toLowerCase(), Color.RED, camera.getHitbox().getMinX(), camera.getHitbox().getMaxY() - Renderer.getLineHeight() + 3, 1.0f, batch);
+		}
+
+		ShapeRenderer sr = Renderer.useShapeRenderer();
+
+		sr.setColor(ColorHelper.applyAlphaAndCopy(Color.GREEN, 0.4f));
+		sr.rect(absLeftLimit.getCenterX(), absTopLimit.getCenterY(), absRightLimit.getCenterX() - absLeftLimit.getCenterX(), absBottomLimit.getCenterY() - absTopLimit.getCenterY());
+
+		sr.setColor(ColorHelper.applyAlphaAndCopy(Color.CYAN, 0.2f));
+		sr.rect(absLeftLimit.getCenterX() - Level.OUT_OF_MAP_TOLERANCE, absTopLimit.getCenterY() - Level.OUT_OF_MAP_TOLERANCE, absRightLimit.getCenterX() - absLeftLimit.getCenterX() + Level.OUT_OF_MAP_TOLERANCE * 2, absBottomLimit.getCenterY() - absTopLimit.getCenterY() + Level.OUT_OF_MAP_TOLERANCE * 2);
+
+		if (camera != absLeftLimit && camera != absRightLimit && camera != absTopLimit && camera != absBottomLimit)
+		{
+			sr.setColor(ColorHelper.applyAlphaAndCopy(Color.GREEN, 0.4f));
+
+			if (camera.isHorizontalController())
+			{
+				sr.line(camera.getCenterX(), absTopLimit.getCenterY(), camera.getCenterX(), absBottomLimit.getCenterY());
+			}
+
+			if (camera.isVerticalController())
+			{
+				sr.line(absLeftLimit.getCenterX(), camera.getCenterY(), absRightLimit.getCenterX(), camera.getCenterY());
+			}
+		}
+
+		ShaderHandler.enableLighting();
+	}
+
+	public static void update(int delta)
+	{
+		for (WrapperTexture wrapper : LevelManager.getLevel().getWrappers())
+		{
+			if (wrapper.isAnimated())
+			{
+				wrapper.updateAnimation(delta);
+			}
+		}
+
+		if (!freeCamera)
+		{
+			calculateCameraOffset(true, delta);
+
+			focusCamera();
+		}
+
+		if (!GameLauncher.getCheatPanel().isActive())
+		{
+			if (Gdx.input.isKeyJustPressed(Input.Keys.X))
+			{
+				toggleCameraMode();
+			}
+
+			if (freeCamera)
+			{
+				float cameraFactor = delta;
+
+				if (Gdx.input.isKeyPressed(Input.Keys.U))
+				{
+					updatePositions(level, 0.0f, cameraFactor);
+				}
+
+				if (Gdx.input.isKeyPressed(Input.Keys.J))
+				{
+					updatePositions(level, 0.0f, -cameraFactor);
+				}
+
+				if (Gdx.input.isKeyPressed(Input.Keys.H))
+				{
+					updatePositions(level, cameraFactor, 0.0f);
+				}
+
+				if (Gdx.input.isKeyPressed(Input.Keys.K))
+				{
+					updatePositions(level, -cameraFactor, 0.0f);
+				}
+			}
+		}
+
+		checkCameraRefresh();
+	}
+
+	public static void setFreeCamera()
+	{
+		freeCamera = true;
+	}
+
+	public static void toggleCameraMode()
+	{
+		freeCamera = !freeCamera;
+
+		if (!freeCamera)
+		{
+			transitionFrom(GameLauncher.getWidth() / 2, GameLauncher.getHeight() / 2, 1000, false);
+		}
+	}
+
+	private static void checkCameraRefresh()
+	{
+		EntityPlayer player = level.getControllingPlayer();
+
+		if (refreshRight && !closestCameraRight.getHitbox().containsX(player.getCenterX()) || refreshLeft && !closestCameraLeft.getHitbox().containsX(player.getCenterX()) || refreshTop && !closestCameraTop.getHitbox().containsY(player.getCenterY()) || refreshBottom && !closestCameraBottom.getHitbox().containsY(player.getCenterY()))
+		{
+			refreshLeft = false;
+			refreshRight = false;
+			refreshTop = false;
+			refreshBottom = false;
+
+			resetCameras();
+			findCurrentCameras();
+		}
+	}
+
+	public static void drawConnectedTile(Tile tile, Batch batch)
+	{
+		if (tile != null && !drawnConnectedTiles.contains(tile))
+		{
+			drawnConnectedTiles.add(tile);
+
+			ShapeRenderer sr = Renderer.useShapeRenderer();
+
+			sr.setColor(Color.WHITE);
+			sr.line(tile.getHitbox().getPoints()[tile.getHitbox().getTopLeftIndex()], tile.getHitbox().getPoints()[tile.getHitbox().getTopLeftIndex() + 1] - 1, tile.getHitbox().getPoints()[tile.getHitbox().getSecondPointIndex()], tile.getHitbox().getPoints()[tile.getHitbox().getSecondPointIndex() + 1] - 1);
+
+			if (tile.getHitbox().isConnectedLeft())
+			{
+				drawConnectedTile(tile.getLeftConnectedTile(), batch);
+
+				sr.set(ShapeType.Filled);
+				sr.rect(tile.getHitbox().getPoints()[tile.getHitbox().getTopLeftIndex()] - 5, tile.getHitbox().getPoints()[tile.getHitbox().getTopLeftIndex() + 1] - 5, 10, 10);
+			}
+
+			if (tile.getHitbox().isConnectedRight())
+			{
+				drawConnectedTile(tile.getRightConnectedTile(), batch);
+
+				sr.set(ShapeType.Filled);
+				sr.rect(tile.getHitbox().getPoints()[tile.getHitbox().getSecondPointIndex()] - 5, tile.getHitbox().getPoints()[tile.getHitbox().getSecondPointIndex() + 1] - 5, 10, 10);
+			}
+		}
+	}
+
+	public static void resetCameras()
+	{
+		currentLeftLimit = absLeftLimit;
+		currentRightLimit = absRightLimit;
+		currentTopLimit = absTopLimit;
+		currentBottomLimit = absBottomLimit;
+
+		closestCameraLeft = currentLeftLimit;
+		closestCameraRight = currentRightLimit;
+		closestCameraTop = currentTopLimit;
+		closestCameraBottom = currentBottomLimit;
+	}
+
+	public static void clearDrawnConnections()
+	{
+		drawnConnectedTiles.clear();
+	}
+
+	public static boolean isReSimulating()
+	{
+		return reSimulating;
+	}
+
+	public static List<TileCameraControl> getCameraControllers()
+	{
+		return cameraControllers;
+	}
+
+	public static TileCameraControl getCurrentLeftLimit()
+	{
+		return currentLeftLimit;
+	}
+
+	public static TileCameraControl getCurrentBottomLimit()
+	{
+		return currentBottomLimit;
+	}
+
+	public static TileCameraControl getCurrentRightLimit()
+	{
+		return currentRightLimit;
+	}
+
+	public static TileCameraControl getCurrentTopLimit()
+	{
+		return currentTopLimit;
+	}
+
+	public static float getCurrentCenterY()
+	{
+		return (currentTopLimit.getCenterY() + currentBottomLimit.getCenterY()) / 2.0f;
+	}
+
+	public static float getCurrentCenterX()
+	{
+		return (currentLeftLimit.getCenterX() + currentRightLimit.getCenterX()) / 2.0f;
+	}
+
+	public static List<Entity> getTotalEntities()
+	{
+		return totalEntities;
+	}
+
+	public static float getCameraOffsetChangeX()
+	{
+		return cameraOffsetChangeX;
+	}
+
+	public static float getCameraOffsetChangeY()
+	{
+		return cameraOffsetChangeY;
+	}
+}

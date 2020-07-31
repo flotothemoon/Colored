@@ -1,0 +1,161 @@
+package com.unlogical.linked.gui.menu;
+
+import java.io.File;
+
+import org.newdawn.slick.Color;
+import org.newdawn.slick.GameContainer;
+import org.newdawn.slick.Graphics;
+
+import com.unlogical.linked.GameLauncher;
+import com.unlogical.linked.configuration.Resolutions;
+import com.unlogical.linked.debug.Debug;
+import com.unlogical.linked.filesystem.FilePaths;
+import com.unlogical.linked.filesystem.MapFiles;
+import com.unlogical.linked.gui.UserInputLine;
+import com.unlogical.linked.gui.button.Button;
+import com.unlogical.linked.level.Level;
+import com.unlogical.linked.mapeditor.MapEditor;
+import com.unlogical.linked.util.GameStatus;
+import com.unlogical.linked.util.ShaderHandler;
+
+public class MapCreationMenu
+{
+	private UserInputLine nameInput;
+	private UserInputLine IDInput;
+	private Button cancelButton;
+	private CreateButton createButton;
+
+	private boolean active = false;
+
+	private int displayWidth;
+	private int displayHeight;
+	private int labelPosition;
+	private int inputPosition;
+	private int inputWidth;
+	private int width;
+	private int yOffset;
+
+	public MapCreationMenu()
+	{
+		displayWidth = 1920;
+		displayHeight = 1080;
+
+		labelPosition = displayWidth / 4;
+		inputPosition = displayWidth / 2;
+
+		inputWidth = displayWidth / 4;
+
+		width = displayWidth / 2;
+
+		yOffset = (displayHeight / 2 - Resolutions.USER_INPUT_FIELD_HEIGHT * 2);
+
+		this.nameInput = new UserInputLine(inputPosition, yOffset, inputWidth, Resolutions.USER_INPUT_FIELD_HEIGHT);
+		this.IDInput = new UserInputLine(inputPosition, yOffset + 2 * nameInput.getHeight() + 5, inputWidth, Resolutions.USER_INPUT_FIELD_HEIGHT);
+
+		this.nameInput.setSuggestedInput("Name");
+		this.IDInput.setSuggestedInput("ID");
+
+		this.nameInput.setActive(true);
+		this.IDInput.setActive(true);
+
+		this.cancelButton = new Button("Cancel", labelPosition + width / 2, IDInput.getY() + IDInput.getHeight() + 10, displayWidth / 4, Resolutions.USER_INPUT_FIELD_HEIGHT)
+		{
+			@Override
+			public void onClick()
+			{
+				GameLauncher.setStatus(GameStatus.MAP_EDITOR_MENU);
+			}
+		};
+
+		this.createButton = new CreateButton("Create", displayWidth / 4, Resolutions.USER_INPUT_FIELD_HEIGHT, labelPosition, IDInput.getY() + IDInput.getHeight() + 10);
+
+		this.createButton.updateInterface();
+		this.cancelButton.updateInterface();
+	}
+
+	public void update(GameContainer container, int delta)
+	{
+		this.nameInput.update(container, delta);
+		this.IDInput.update(container, delta);
+
+		this.createButton.update(container, delta);
+		this.cancelButton.update(container, delta);
+	}
+
+	public void render(GameContainer container, Graphics g)
+	{
+		if (active)
+		{
+			ShaderHandler.disableLighting();
+
+			g.setFont(GameLauncher.getFont());
+			g.setColor(Color.white);
+			g.drawString("Create New Map", labelPosition + width / 2 - g.getFont().getWidth("Create New Map") / 2, yOffset - 105 - g.getFont().getLineHeight());
+
+			g.setColor(Color.white);
+			g.drawLine(labelPosition + width / 2 - g.getFont().getWidth("Create New Map") / 2 - 10, yOffset - 105, labelPosition + width / 2 + g.getFont().getWidth("Create New Map") / 2 + 10, yOffset - 105);
+
+			g.drawString("Name:", labelPosition, nameInput.getY() + nameInput.getHeight() / 2 - g.getFont().getLineHeight() / 2);
+			g.drawString("ID:", labelPosition, IDInput.getY() + IDInput.getHeight() / 2 - g.getFont().getLineHeight() / 2);
+
+			IDInput.render(container, 1.0f, g);
+			nameInput.render(container, 1.0f, g);
+
+			createButton.render(container, 1.0f, g);
+			cancelButton.render(container, 1.0f, g);
+		}
+	}
+
+	private class CreateButton extends Button
+	{
+		public CreateButton(String label, int width, int height, int xOffset, int yOffset)
+		{
+			super(label, xOffset, yOffset, width, height);
+		}
+
+		@Override
+		public void onClick()
+		{
+			if (!nameInput.getInput().isEmpty() && !IDInput.getInput().isEmpty())
+			{
+				String mapName = nameInput.getInput();
+				String mapID = IDInput.getInput();
+
+				try
+				{
+					File mapFolder = new File(FilePaths.MAPS + "/" + mapID);
+					mapFolder.mkdirs();
+
+					MapFiles.initFiles(mapFolder, mapFolder.getPath(), mapName, mapID);
+
+					Level.createLevel(mapFolder.getPath(), mapID, mapName);
+
+					MapEditor.initMap(mapID, FilePaths.MAPS + "/" + mapID);
+
+					GameLauncher.clearRecords();
+
+					GameLauncher.setStatus(GameStatus.MAP_EDITOR);
+
+					Level.fetchMaps();
+				}
+				catch (Exception e)
+				{
+					Debug.warn("Could not create map " + nameInput.getInput() + ".");
+					Debug.warnStackTrace(e);
+
+					GameLauncher.setStatus(GameStatus.MAIN_MENU);
+				}
+			}
+		}
+	}
+
+	public boolean isActive()
+	{
+		return active;
+	}
+
+	public void setActive(boolean isActive)
+	{
+		this.active = isActive;
+	}
+}

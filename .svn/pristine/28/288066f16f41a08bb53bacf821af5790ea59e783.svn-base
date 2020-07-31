@@ -1,0 +1,80 @@
+package com.unlogical.linked.wrapper;
+
+public class WrapperClipper
+{
+	private WrapperTexture clippedWrapper;
+		
+	private int clippingLeft;
+	private int clippingRight;
+	private int clippingTop;
+	private int clippingBottom;
+	
+	public WrapperClipper(WrapperTexture wrapper, int[] clipping)
+	{
+		this(wrapper, clipping[0], clipping[1], clipping[2], clipping[3]);
+	}
+	
+	public WrapperClipper(WrapperTexture wrapper, int clippingTop, int clippingBottom, int clippingRight, int clippingLeft)
+	{
+		this.clippedWrapper = wrapper;
+		this.clippingTop = clippingTop;
+		this.clippingBottom = clippingBottom;
+		this.clippingRight = clippingRight;
+		this.clippingLeft = clippingLeft;		
+	}
+	
+	public WrapperClipper(int clippingTop, int clippingBottom, int clippingRight, int clippingLeft)
+	{
+		this(null, clippingTop, clippingBottom, clippingRight, clippingLeft);
+	}
+
+	public WrapperTexture getClippedWrapper()
+	{
+		return clippedWrapper;
+	}
+	
+	public int getClippingLeft()
+	{
+		return clippingLeft;
+	}
+
+	public void setClippingLeft(int clippingLeft)
+	{
+		this.clippingLeft = clippingLeft;
+	}
+
+	public int getClippingRight()
+	{
+		return clippingRight;
+	}
+
+	public void setClippingRight(int clippingRight)
+	{
+		this.clippingRight = clippingRight;
+	}
+
+	public int getClippingTop()
+	{
+		return clippingTop;
+	}
+
+	public void setClippingTop(int clippingTop)
+	{
+		this.clippingTop = clippingTop;
+	}
+
+	public int getClippingBottom()
+	{
+		return clippingBottom;
+	}
+
+	public void setClippingBottom(int clippingBottom)
+	{
+		this.clippingBottom = clippingBottom;
+	}
+
+	public void setClippedWrapper(WrapperTexture clippedWrapper)
+	{
+		this.clippedWrapper = clippedWrapper;
+	}
+}

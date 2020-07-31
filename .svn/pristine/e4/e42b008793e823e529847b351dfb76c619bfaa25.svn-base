@@ -1,0 +1,112 @@
+package com.unlogical.colored.levelmanaging;
+
+import org.newdawn.slick.Color;
+import org.newdawn.slick.GameContainer;
+import org.newdawn.slick.Graphics;
+
+import com.unlogical.colored.entity.Entity;
+import com.unlogical.colored.level.Level;
+import com.unlogical.colored.util.ColorHelper;
+import com.unlogical.colored.util.Dimension;
+import com.unlogical.colored.util.ShaderHandler;
+
+public class EntityManager
+{
+	public static void updateEntities(Level level, Dimension dimension, GameContainer container, float delta, float dimensionDelta)
+	{
+		for (Entity entity : level.getEntities())
+		{
+			if (entity.getDimension() == dimension && (!level.isUpdatingOnlyCycleObjects() || entity.isCycleObject()))
+			{
+				if (entity.isTimeEffected() && !entity.isShared() && !(entity.getHoldingEntity() != null && (!entity.getHoldingEntity().isTimeEffected() || entity.isShared())))
+				{
+					entity.update(container, dimensionDelta);
+				}
+				else
+				{
+					entity.update(container, delta);
+				}
+			}
+		}
+	}
+
+	public static void renderEntities(Level level, Dimension dimension, boolean renderShared, GameContainer container, Graphics g)
+	{
+		for (Entity entity : level.getEntities())
+		{
+			if (entity.shouldRenderInBatch() && (entity.getDimension() == dimension && !entity.isShared() || renderShared && entity.isShared()))
+			{
+				renderEntity(level, entity, g);
+			}
+		}
+	}
+
+	public static void renderEntity(Level level, Entity entity, Graphics g)
+	{
+		entity.draw(g);
+
+		if (level.shouldShowHitboxes())
+		{
+			ShaderHandler.disableLighting();
+
+			g.setColor(entity.getDimension() == level.getForegroundDimension() ? Color.blue : ColorHelper.applyAlphaAndCopy(Color.blue, 0.7f));
+
+			g.draw(entity.getHitbox());
+
+			if (LevelManager.isDevMode())
+			{
+				float beforeLW = g.getLineWidth();
+				float[] points = entity.getHitbox().getPoints();
+
+				g.setColor(ColorHelper.applyAlphaAndCopy(Color.cyan, entity.getDimension() == level.getForegroundDimension() ? 0.7f : 0.3f));
+				g.setLineWidth(beforeLW * 2.5f);
+
+				if (entity.isBlockedAbove())
+				{
+					g.drawLine(points[0], points[1], points[2], points[3]);
+				}
+
+				if (entity.isBlockedBelow())
+				{
+					g.drawLine(points[4], points[5], points[6], points[7]);
+				}
+
+				if (entity.isBlockedLeft())
+				{
+					g.drawLine(points[0], points[1], points[6], points[7]);
+				}
+
+				if (entity.isBlockedRight())
+				{
+					g.drawLine(points[2], points[3], points[4], points[5]);
+				}
+
+				g.setLineWidth(beforeLW);
+
+				g.setColor(Color.red);
+
+				int cornerSize = 6;
+				
+				if (entity.getHitbox().isLeftTop())
+				{
+					g.fillOval(points[0] - cornerSize / 2, points[1] - cornerSize / 2, cornerSize, cornerSize);
+				}
+
+				if (entity.getHitbox().isRightTop())
+				{
+					g.fillOval(points[2] - cornerSize / 2, points[3] - cornerSize / 2, cornerSize, cornerSize);
+				}
+
+				if (entity.getHitbox().isRightBottom())
+				{
+					g.fillOval(points[4] - cornerSize / 2, points[5] - cornerSize / 2, cornerSize, cornerSize);
+				}
+
+				if (entity.getHitbox().isLeftBottom())
+				{
+					g.fillOval(points[6] - cornerSize / 2, points[7] - cornerSize / 2, cornerSize, cornerSize);
+				}
+			}
+		}
+	}
+}

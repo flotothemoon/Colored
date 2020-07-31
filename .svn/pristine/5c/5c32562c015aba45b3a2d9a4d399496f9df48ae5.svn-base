@@ -1,0 +1,142 @@
+package com.unlogical.colored.entity.projectile;
+
+import java.util.Map;
+import java.util.Random;
+
+import org.newdawn.slick.Color;
+import org.newdawn.slick.GameContainer;
+import org.newdawn.slick.geom.Vector2f;
+
+import com.unlogical.colored.entity.Entity;
+import com.unlogical.colored.entity.EntityType;
+import com.unlogical.colored.entity.property.EntityProperty;
+import com.unlogical.colored.entity.property.SharedEntityProperties;
+import com.unlogical.colored.level.Level;
+import com.unlogical.colored.terrain.tile.TileSpike;
+import com.unlogical.colored.util.ColorHelper;
+import com.unlogical.colored.util.Dimension;
+import com.unlogical.colored.util.GameObject;
+import com.unlogical.colored.util.LevelObject;
+
+public class EntityIceSpike extends EntityProjectile
+{
+	private static final int SPIKE_COOLDOWN = 4000;
+
+	private int totalCooldown = SPIKE_COOLDOWN;
+	private int cooldown;
+	private boolean fell;
+	private boolean isSpawner;
+
+	public EntityIceSpike(EntityType type, Vector2f position, Level level, Dimension dimension, boolean allowMirrors)
+	{
+		super(type, position, level, dimension, allowMirrors);
+	}
+
+	@Override
+	public LevelObject deepCopy(Map<Object, Object> copiedReferences)
+	{
+		EntityIceSpike copy = (EntityIceSpike) super.deepCopy(copiedReferences);
+
+		copy.totalCooldown = this.totalCooldown;
+		copy.cooldown = this.cooldown;
+		copy.fell = this.fell;
+		copy.isSpawner = this.isSpawner;
+		
+		return copy;
+	}
+
+	@Override
+	public void init()
+	{
+		super.init();
+
+		this.isSpawner = this.wasCreatedFromFile;
+	}
+
+	public boolean fall()
+	{
+		if (cooldown > 0 || !this.isSpawner)
+		{
+			return false;
+		}
+
+		if (this.dimension == Dimension.LIGHT && this.hasMirror)
+		{
+			((EntityIceSpike) this.mirroredEntity).fall();
+		}
+
+		EntityIceSpike spike = (EntityIceSpike) this.copy(level);
+		spike.fell = true;
+
+		level.addEntity(spike);
+
+		cooldown = SPIKE_COOLDOWN;
+
+		return true;
+	}
+
+	@Override
+	public void onUpdate(GameContainer container, float delta, Random rng)
+	{
+		super.onUpdate(container, delta, rng);
+				
+		if (this.isSpawner)
+		{
+			if (cooldown > 0)
+			{
+				cooldown -= delta;
+			}
+		}
+		else
+		{
+			if (this.collidedBelow)
+			{
+				this.onDeath(null);
+			}
+		}
+	}
+
+	@Override
+	protected void customOnDeath(LevelObject damageSource)
+	{
+		this.velocity.y *= 0.3f;
+
+		this.transformToPixels(null, PIXELIFIED_PARTICLE_SIZE);
+	}
+
+	@Override
+	protected Color customModifiyDrawColor(Color color)
+	{
+		return ColorHelper.multiplyAlphaAndCopy(color, 1.0f - ((float) cooldown) / ((float) totalCooldown) * ((float) cooldown) / ((float) totalCooldown));
+	}
+
+	@Override
+	protected boolean canBeHarmedBy(GameObject source)
+	{
+		return !(source instanceof TileSpike) && super.canBeHarmedBy(source);
+	}
+
+	@Override
+	protected boolean canBeHarmedBy(Entity entity)
+	{
+		return !(source instanceof EntityIceSpike) && super.canBeHarmedBy(entity);
+	}
+
+	@Override
+	protected boolean canInteractWith(Entity entity)
+	{
+		return !(entity instanceof EntityIceSpike);
+	}
+	
+	@Override
+	protected EntityProperty getEntityProperty()
+	{
+		return SharedEntityProperties.ICE_SPIKES;
+	}
+
+	@Override
+	protected boolean isGravityAffected()
+	{
+		return fell;
+	}
+}

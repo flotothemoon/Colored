@@ -1,0 +1,58 @@
+ -- General -- 
+Generated on: 2016-06-16_20-45-52
+Build: 756 from 05:47 PM - 05/06/16
+GameState: LOADING (previous: null)
+Target FPS: 60
+Actual FPS: 0
+
+ -- Display -- 
+Target Width / Height: 1920 / 1080
+Actual Width / Height: 1920 / 1053 (windowed)
+
+ -- Environment -- 
+GPU: GeForce GTX 980 Ti/PCIe/SSE2 (NVIDIA Corporation)
+OpenGL Version: 4.5.0 NVIDIA 361.43
+"os.name": Windows 10
+"os.version": 10.0
+"os.arch": x86
+"java.version": 1.8.0_66
+"java.vendor": Oracle Corporation
+"sun.arch.data.model": 32
+
+ -- Stack Trace -- 
+java.lang.IllegalArgumentException: Error compiling shader: 0(21) : error C1008: undefined variable "rgb2hsv"
+0(22) : error C1008: undefined variable "u_saturation"
+0(23) : error C1008: undefined variable "u_saturation"
+0(24) : error C1008: undefined variable "hsv2rgb"
+
+com.unlogical.colored.util.ExtendedSpriteBatch.createShader(ExtendedSpriteBatch.java:234)
+com.unlogical.colored.util.ExtendedSpriteBatch.<init>(ExtendedSpriteBatch.java:150)
+com.unlogical.colored.util.ExtendedSpriteBatch.<init>(ExtendedSpriteBatch.java:81)
+com.unlogical.colored.util.Renderer.init(Renderer.java:42)
+com.unlogical.colored.GameLauncher.create(GameLauncher.java:203)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication.mainLoop(LwjglApplication.java:146)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication$1.run(LwjglApplication.java:123)
+
+ -- Last 20 Log Entries -- 
+@Log    : Starting launcher... (tid: 12)
+@Log    : ---- Startup Debug Information ---- (tid: 12)
+@Log    : Location: C:\Users\Flo\Desktop\Java\Colored\desktop\. (tid: 12)
+@Log    : Jar location: /C:/Users/Flo/Desktop/Java/Colored/core/bin/ (tid: 12)
+@Log    : Available memory: 123MB (tid: 12)
+@Log    : System.getProperty("os.name"): Windows 10 (tid: 12)
+@Log    : System.getProperty("os.version"): 10.0 (tid: 12)
+@Log    : System.getProperty("os.arch"): x86 (tid: 12)
+@Log    : System.getProperty("java.version"): 1.8.0_66 (tid: 12)
+@Log    : System.getProperty("java.vendor"): Oracle Corporation (tid: 12)
+@Log    : System.getProperty("sun.arch.data.model"): 32 (tid: 12)
+@Log    : ---- GPU Debug Information ---- (tid: 12)
+@Log    : GPU: GeForce GTX 980 Ti/PCIe/SSE2 (NVIDIA Corporation) (tid: 12)
+@Log    : OpenGL Version: 4.5.0 NVIDIA 361.43 (tid: 12)
+@Log    : Build: 756 from 05:47 PM - 05/06/16 (tid: 12)
+@Log    : Loading settings... (tid: 12)
+@Log    : Settings loaded. (tid: 12)
+@Log    : Logos loaded. (tid: 12)
+@Log    : Loading font "Chelsea.ttf" ... (tid: 12)
+@Log    : TrueTypeFont loaded, took 178ms. (tid: 12)
+
+ -- Last 0 Input Events -- 

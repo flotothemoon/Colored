@@ -1,0 +1,83 @@
+ -- General -- 
+Generated on: 2016-05-08_21-27-46
+Build: 722 from 08:02 PM - 08/05/16
+GameState: MAP_EDITOR (previous: IN_LEVEL)
+Target FPS: 60
+Actual FPS: 60
+
+ -- Display -- 
+Target Width / Height: 1920 / 1080
+Actual Width / Height: 1920 / 1017 (windowed)
+
+ -- Environment -- 
+GPU: GeForce GTX 980 Ti/PCIe/SSE2 (NVIDIA Corporation)
+OpenGL Version: 4.5.0 NVIDIA 361.43
+Allocated Memory: 15MB
+Used Memory: 2MB
+"os.name": Windows 10
+"os.version": 10.0
+"os.arch": x86
+"java.version": 1.8.0_66
+"java.vendor": Oracle Corporation
+"sun.arch.data.model": 32
+
+ -- Level --
+ID: test (internal: unknown)
+LevelType: TIME_SCALE
+Dimension: COLORED
+Location: ../worlds/maps/test
+
+ -- Stack Trace -- 
+java.lang.IllegalArgumentException: Error compiling shader: 0(47) : error C1031: swizzle mask element not present in operand "a"
+0(47) : error C1068: array index out of bounds
+
+com.unlogical.colored.util.ShaderHandler.createOutlineBlurShader(ShaderHandler.java:459)
+com.unlogical.colored.util.ShaderHandler.updateAndRender(ShaderHandler.java:263)
+com.unlogical.colored.mapeditor.MapEditor.render(MapEditor.java:1409)
+com.unlogical.colored.GameLauncher.render(GameLauncher.java:489)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication.mainLoop(LwjglApplication.java:218)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication$1.run(LwjglApplication.java:123)
+
+ -- Last 20 Log Entries -- 
+@Warning: Couldn't load level icon for test. (11)
+@Warning: Unable to load music "unknown": java.lang.NullPointerException: MainMusic cannot be null (11)
+@Warning: Unable to play music "unknown". (11)
+@Log: Fetching lights for level "test" ... (11)
+@Log: Lights fetched for level "test", 2 lights found. (11)
+@Log: Pre-simulating particles for 45000.0ms (300 x 150.0ms)... (11)
+@Log: Particle pre-simulation complete. Particles are now ahead of time by 45000.0ms. (11)
+@Log: Active save was saved to disk. (11)
+@Log: Loaded test (took 22ms). (11)
+@Log: Fetching lights for level "test" ... (11)
+@Log: Lights fetched for level "test", 2 lights found. (11)
+@Warning: Unable to load music "unknown": java.lang.NullPointerException: MainMusic cannot be null (11)
+@Warning: Unable to play music "unknown". (11)
+@Log: Loaded map Test (test, ../worlds/maps/test), took 14ms. (11)
+@Log: Compiled outline blur shader. (11)
+@Log: Compiled outline blur shader. (11)
+@Log: Compiled outline blur shader. (11)
+@Log: Compiled outline blur shader. (11)
+@Log: Compiled outline blur shader. (11)
+@Log: Compiled outline blur shader. (11)
+
+ -- Last 20 Input Events -- 
+Touch dragged: pointer: 0 at x:1187 y: 562 (180726ms ago)
+Key down: O (43) (180142ms ago)
+Key up: O (43) (180059ms ago)
+Touch down: 0 (pointer: 0) at x:1332 y: 589 (143440ms ago)
+Touch dragged: pointer: 0 at x:1328 y: 589 (143429ms ago)
+Touch up: 0 (pointer: 0) at x:1328 y: 589 (143379ms ago)
+Touch down: 0 (pointer: 0) at x:1122 y: 737 (107873ms ago)
+Touch up: 0 (pointer: 0) at x:1122 y: 737 (107829ms ago)
+Key down: O (43) (107779ms ago)
+Key up: O (43) (107696ms ago)
+Touch down: 0 (pointer: 0) at x:1065 y: 696 (99390ms ago)
+Key down: O (43) (99329ms ago)
+Key up: O (43) (99246ms ago)
+Touch down: 0 (pointer: 0) at x:1353 y: 848 (70755ms ago)
+Touch up: 0 (pointer: 0) at x:1353 y: 848 (70714ms ago)
+Key down: O (43) (70664ms ago)
+Key up: O (43) (70597ms ago)
+Touch down: 0 (pointer: 0) at x:1200 y: 615 (171ms ago)
+Touch up: 0 (pointer: 0) at x:1200 y: 615 (139ms ago)
+Key down: O (43) (22ms ago)

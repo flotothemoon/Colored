@@ -1,0 +1,388 @@
+package com.unlogical.linked.util;
+
+import static org.lwjgl.opengl.GL11.GL_FALSE;
+import static org.lwjgl.opengl.GL11.GL_TRUE;
+import static org.lwjgl.opengl.GL20.GL_COMPILE_STATUS;
+import static org.lwjgl.opengl.GL20.GL_FRAGMENT_SHADER;
+import static org.lwjgl.opengl.GL20.GL_INFO_LOG_LENGTH;
+import static org.lwjgl.opengl.GL20.GL_LINK_STATUS;
+import static org.lwjgl.opengl.GL20.GL_VALIDATE_STATUS;
+import static org.lwjgl.opengl.GL20.GL_VERTEX_SHADER;
+import static org.lwjgl.opengl.GL20.glAttachShader;
+import static org.lwjgl.opengl.GL20.glCompileShader;
+import static org.lwjgl.opengl.GL20.glCreateProgram;
+import static org.lwjgl.opengl.GL20.glCreateShader;
+import static org.lwjgl.opengl.GL20.glGetProgram;
+import static org.lwjgl.opengl.GL20.glGetProgramInfoLog;
+import static org.lwjgl.opengl.GL20.glGetShaderInfoLog;
+import static org.lwjgl.opengl.GL20.glGetShaderi;
+import static org.lwjgl.opengl.GL20.glGetUniformLocation;
+import static org.lwjgl.opengl.GL20.glLinkProgram;
+import static org.lwjgl.opengl.GL20.glShaderSource;
+import static org.lwjgl.opengl.GL20.glUniform1f;
+import static org.lwjgl.opengl.GL20.glUniform1i;
+import static org.lwjgl.opengl.GL20.glUniform3;
+import static org.lwjgl.opengl.GL20.glUniform4;
+import static org.lwjgl.opengl.GL20.glUseProgram;
+import static org.lwjgl.opengl.GL20.glValidateProgram;
+
+import java.io.BufferedReader;
+import java.io.FileReader;
+import java.nio.FloatBuffer;
+import java.util.HashSet;
+import java.util.Set;
+
+import org.lwjgl.BufferUtils;
+import org.lwjgl.opengl.GL20;
+import org.newdawn.slick.Color;
+import org.newdawn.slick.Input;
+import org.newdawn.slick.geom.Vector2f;
+
+import com.unlogical.linked.GameLauncher;
+import com.unlogical.linked.debug.Debug;
+import com.unlogical.linked.filesystem.FilePaths;
+import com.unlogical.linked.level.Level;
+import com.unlogical.linked.terrain.tile.Tile;
+
+public class ShaderHandler
+{
+	private static String vertexShader;
+	private static String fragmentShader;
+
+	private static Vector2f vector2f = new Vector2f(1.0f, 1.0f);
+	private static Color color = new Color(1.0f, 1.0f, 1.0f, 1.0f);
+	private static FloatBuffer positionFloatBuffer = BufferUtils.createFloatBuffer(3);
+	private static FloatBuffer colorfloatBuffer = BufferUtils.createFloatBuffer(4);
+
+	private static Level level;
+
+	private static Set<ILightSource> lights = new HashSet<ILightSource>();
+
+	private static int shaderProgramCode = -1;
+	private static int vertexShaderCode = -1;
+	private static int fragmentShaderCode = -1;
+	private static int vertexShaderTextureAttr = -1;
+	private static int usingTextureAttr = -1;
+	private static int depthAttr = -1;
+	private static int vertexCoordinateAttr = -1;
+
+	private static boolean enabled = true;
+
+	public static void init()
+	{
+		loadShaders();
+		initShaders();
+	}
+
+	private static void loadShaders()
+	{
+		vertexShader = loadShader("vertexShader.glsl");
+		fragmentShader = loadShader("fragmentShader.glsl");
+	}
+
+	private static String loadShader(String shaderName)
+	{
+		try
+		{
+			BufferedReader reader = new BufferedReader(new FileReader(FilePaths.SHADERS + "/" + shaderName));
+			String shader = "";
+			String line;
+
+			while ((line = reader.readLine()) != null)
+			{
+				shader += line + "\n";
+			}
+
+			return shader;
+		}
+		catch (Exception e)
+		{
+			throw new RuntimeException("Unable to load shader " + shaderName + ".");
+		}
+	}
+
+	@SuppressWarnings("deprecation")
+	// sorry hell
+	private static void initShaders()
+	{
+		if (shaderProgramCode > 0)
+		{
+			GL20.glDeleteProgram(shaderProgramCode);
+			GL20.glDeleteShader(vertexShaderCode);
+			GL20.glDeleteShader(fragmentShaderCode);
+		}
+
+		shaderProgramCode = glCreateProgram();
+
+		vertexShaderCode = glCreateShader(GL_VERTEX_SHADER);
+		fragmentShaderCode = glCreateShader(GL_FRAGMENT_SHADER);
+
+		glShaderSource(vertexShaderCode, vertexShader);
+		glShaderSource(fragmentShaderCode, fragmentShader);
+
+		glCompileShader(vertexShaderCode);
+
+		if (glGetProgram(vertexShaderCode, GL_COMPILE_STATUS) == GL_FALSE)
+		{
+			Debug.warn("Could not compile vertex shader :(");
+			Debug.warn("VertexShaderLog: " + glGetShaderInfoLog(vertexShaderCode, glGetShaderi(vertexShaderCode, GL_INFO_LOG_LENGTH)));
+		}
+		else
+		{
+			Debug.log("Vertex shader compiled successfully!");
+		}
+
+		glCompileShader(fragmentShaderCode);
+
+		if (glGetProgram(fragmentShaderCode, GL_COMPILE_STATUS) == GL_FALSE)
+		{
+			Debug.warn("Could not compile fragment shader :(");
+			Debug.warn("FragmentShaderLog: " + glGetShaderInfoLog(fragmentShaderCode, glGetShaderi(fragmentShaderCode, GL_INFO_LOG_LENGTH)));
+		}
+		else
+		{
+			Debug.log("Fragment shader compiled successfully!");
+		}
+
+		glAttachShader(shaderProgramCode, vertexShaderCode);
+		glAttachShader(shaderProgramCode, fragmentShaderCode);
+
+		glLinkProgram(shaderProgramCode);
+
+		if (glGetProgram(shaderProgramCode, GL_LINK_STATUS) == GL_FALSE)
+		{
+			Debug.warn("Couldn't link shaders together :(");
+			Debug.warn("VertexShaderLog: " + glGetShaderInfoLog(vertexShaderCode, glGetShaderi(vertexShaderCode, GL_INFO_LOG_LENGTH)));
+			Debug.warn("FragmentShaderLog: " + glGetShaderInfoLog(fragmentShaderCode, glGetShaderi(fragmentShaderCode, GL_INFO_LOG_LENGTH)));
+			Debug.warn("ShaderProgramLog: " + glGetProgramInfoLog(shaderProgramCode, 13370000));
+
+			return;
+		}
+		else
+		{
+			Debug.log("Shaders linked together successfully!");
+		}
+
+		glValidateProgram(shaderProgramCode);
+
+		if (glGetProgram(shaderProgramCode, GL_VALIDATE_STATUS) == GL_FALSE)
+		{
+			Debug.warn("Invalid shader program :(");
+			Debug.warn("VertexShaderLog: " + glGetShaderInfoLog(vertexShaderCode, glGetShaderi(vertexShaderCode, GL_INFO_LOG_LENGTH)));
+			Debug.warn("FragmentShaderLog: " + glGetShaderInfoLog(fragmentShaderCode, glGetShaderi(fragmentShaderCode, GL_INFO_LOG_LENGTH)));
+			Debug.warn("ShaderProgramLog: " + glGetProgramInfoLog(shaderProgramCode, 13370000));
+
+			return;
+		}
+		else
+		{
+			Debug.log("Shader program validated!");
+		}
+
+		vertexShaderTextureAttr = glGetUniformLocation(shaderProgramCode, "texture");
+		usingTextureAttr = glGetUniformLocation(shaderProgramCode, "isTexture");
+		depthAttr = glGetUniformLocation(shaderProgramCode, "myDepth");
+		vertexCoordinateAttr = glGetUniformLocation(shaderProgramCode, "currentPos");
+	}
+
+	public static void initMap(Level level)
+	{
+		ShaderHandler.level = level;
+
+		fetchLights(level);
+	}
+
+	private static void fetchLights(Level level)
+	{
+		Debug.log("Fetching lights for level \"" + level.getID() + "\" ...");
+
+		lights.clear();
+
+		for (Tile tile : level.getTiles())
+		{
+			if (tile instanceof ILightSource)
+			{
+				lights.add((ILightSource) tile);
+			}
+		}
+
+		Debug.log("Lights fetched for level \"" + level.getID() + "\", " + lights.size() + " light" + (lights.size() != 1 ? "s" : "") + " found.");
+	}
+
+	public static void addLight(ILightSource light)
+	{
+		lights.add(light);
+	}
+
+	public static void removeLight(ILightSource light)
+	{
+		lights.remove(light);
+	}
+
+	private static FloatBuffer getSpotDirection(int directionAngle)
+	{
+		vector2f.set(1.0f, 1.0f);
+		vector2f.setTheta(directionAngle);
+
+		positionFloatBuffer.clear();
+
+		positionFloatBuffer.put(vector2f.x);
+		positionFloatBuffer.put(vector2f.y);
+		positionFloatBuffer.put(0.0f);
+
+		positionFloatBuffer.rewind();
+
+		return positionFloatBuffer;
+	}
+
+	public static void startUsingTexture()
+	{
+		glUniform1i(vertexShaderTextureAttr, 0);
+		glUniform1i(usingTextureAttr, GL_TRUE);
+	}
+
+	public static void stopUsingTexture()
+	{
+		glUniform1i(usingTextureAttr, GL_FALSE);
+		glUniform1i(depthAttr, 0);
+	}
+
+	public static void initRender()
+	{
+		if (GameLauncher.getContainer().getInput().isKeyDown(Input.KEY_F8))
+		{
+			Debug.log("Re-initializing shaders...");
+
+			loadShaders();
+			initShaders();
+
+			Debug.log("Shaders re-initialized.");
+		}
+
+		if (enabled)
+		{
+			glUseProgram(shaderProgramCode);
+
+			glUniform1f(glGetUniformLocation(shaderProgramCode, "targetHeight"), GameLauncher.getHeight());
+			glUniform1f(glGetUniformLocation(shaderProgramCode, "horizontalScale"), Renderer.getHorizontalScale());
+			glUniform1f(glGetUniformLocation(shaderProgramCode, "verticalScale"), Renderer.getVerticalScale());
+			glUniform1f(glGetUniformLocation(shaderProgramCode, "xOffset"), Renderer.getXOffset());
+			glUniform1f(glGetUniformLocation(shaderProgramCode, "yOffset"), Renderer.getYOffset());
+
+			transferLights();
+		}
+		else
+		{
+			glUseProgram(0);
+		}
+	}
+
+	private static void transferLights()
+	{
+		glUniform1i(glGetUniformLocation(shaderProgramCode, "numLights"), lights.size());
+
+		int i = 0;
+
+		for (ILightSource light : lights)
+		{
+			glUniform3(glGetUniformLocation(shaderProgramCode, "lightPosition[" + i + "]"), positionToFloatBuffer(light.getPositionX(), light.getPositionY()));
+			glUniform4(glGetUniformLocation(shaderProgramCode, "lightColor[" + i + "]"), colorToFloatBuffer(light.getColor(), light.getIntensity()));
+			glUniform1i(glGetUniformLocation(shaderProgramCode, "minAffectedDepth[" + i + "]"), light.getMinDepth());
+			glUniform1i(glGetUniformLocation(shaderProgramCode, "maxAffectedDepth[" + i + "]"), light.getMaxDepth());
+			glUniform1i(glGetUniformLocation(shaderProgramCode, "isSpotLight[" + i + "]"), light.isSpotLight() ? GL_TRUE : GL_FALSE);
+			glUniform3(glGetUniformLocation(shaderProgramCode, "spotDirection[" + i + "]"), getSpotDirection(light.getSpotDirection()));
+			glUniform1f(glGetUniformLocation(shaderProgramCode, "spotExponent[" + i + "]"), light.getSpotExponent() / 25.0f);
+			glUniform1f(glGetUniformLocation(shaderProgramCode, "spotCosCutOff[" + i + "]"), (float) Math.cos(Math.toRadians(light.getAngle() / 2.0f)));
+			glUniform1f(glGetUniformLocation(shaderProgramCode, "linearAttenuation[" + i + "]"), light.getLinearAttenuation());
+			glUniform1f(glGetUniformLocation(shaderProgramCode, "quadraticAttenuation[" + i + "]"), light.getQuadraticAttenuation());
+
+			i++;
+		}
+	}
+
+	private static FloatBuffer positionToFloatBuffer(float x, float y)
+	{
+		positionFloatBuffer.clear();
+		positionFloatBuffer.put(x).put(GameLauncher.getHeight() - y).put(ZHandler.getZ(x, y));
+		positionFloatBuffer.flip();
+
+		return positionFloatBuffer;
+	}
+
+	public static void applyLights(int depth, boolean background)
+	{
+		if (enabled)
+		{
+			glUseProgram(shaderProgramCode);
+
+			if (background && depth > 0)
+			{
+				depth *= -1;
+			}
+
+			glUniform1i(depthAttr, depth);
+		}
+	}
+
+	private static FloatBuffer colorToFloatBuffer(Color color, float intensity)
+	{
+		colorfloatBuffer.clear();
+
+		colorfloatBuffer.put(color.r);
+		colorfloatBuffer.put(color.g);
+		colorfloatBuffer.put(color.b);
+		colorfloatBuffer.put(intensity);
+
+		colorfloatBuffer.flip();
+
+		return colorfloatBuffer;
+	}
+
+	public static void disable()
+	{
+		enabled = false;
+	}
+
+	public static void enable()
+	{
+		enabled = true;
+	}
+
+	public static void toggleLighting()
+	{
+		enabled = !enabled;
+
+		if (enabled)
+		{
+			if (level != null)
+			{
+				fetchLights(level);
+			}
+		}
+	}
+
+	public static void disableLighting()
+	{
+		glUseProgram(0);
+	}
+
+	public static void applyLights(int depth)
+	{
+		applyLights(depth, false);
+	}
+
+	public static boolean isEnabled()
+	{
+		return enabled;
+	}
+
+	public static int getVertexShaderTextureCode()
+	{
+		return vertexShaderTextureAttr;
+	}
+
+	public static int getVertexCoordinateAttr()
+	{
+		return vertexCoordinateAttr;
+	}
+}

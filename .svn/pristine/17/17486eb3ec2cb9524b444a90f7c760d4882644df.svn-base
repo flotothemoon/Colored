@@ -1,0 +1,795 @@
+package com.unlogical.colored.entity.player;
+
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Random;
+import java.util.Set;
+
+import org.newdawn.slick.GameContainer;
+import org.newdawn.slick.geom.Vector2f;
+
+import com.unlogical.colored.GameLauncher;
+import com.unlogical.colored.entity.Entity;
+import com.unlogical.colored.entity.EntityType;
+import com.unlogical.colored.level.Level;
+import com.unlogical.colored.levelrendering.LevelRenderer;
+import com.unlogical.colored.levelrendering.map.MapRenderer;
+import com.unlogical.colored.story.BeginningStoryHandler;
+import com.unlogical.colored.story.ColoredLevelStoryHandler;
+import com.unlogical.colored.terrain.tile.Tile;
+import com.unlogical.colored.terrain.tile.TileCameraControl;
+import com.unlogical.colored.terrain.tile.TileMarker;
+import com.unlogical.colored.terrain.tile.logical.TileLever;
+import com.unlogical.colored.terrain.tile.properties.ITileBlockedFromAbove;
+import com.unlogical.colored.util.Dimension;
+import com.unlogical.colored.util.LevelObject;
+import com.unlogical.colored.util.TextInfo;
+
+public class EntityScientist extends EntityPlayer
+{
+	private static final int ERASE_EVENT = 0;
+	private static final int RE_SCHEDULE_EVENT = 1;
+	private static final int DONT_ERASE_EVENT = 2;
+
+	private boolean tryJump;
+	private boolean tryMoveUp;
+	private boolean tryMoveDown;
+	private boolean inputMoveLeft;
+	private boolean inputMoveRight;
+	private boolean inputMoveUp;
+	private boolean inputMoveDown;
+
+	private Map<TileMarker, Boolean> markers = new HashMap<TileMarker, Boolean>();
+	private Set<TileCameraControl> sectionsPassed = new HashSet<TileCameraControl>();
+	private Vector2f distanceToPlayer = new Vector2f();
+	private float spawnX;
+	private int eventCount;
+
+	public EntityScientist(Vector2f position, Level level, Dimension dimension, boolean allowMirrors)
+	{
+		super(EntityType.SCIENTIST, position, level, dimension, false);
+
+		if (level != null)
+		{
+			this.spawnX = position.x - level.getCameraOffset().x;
+		}
+	}
+
+	@Override
+	public LevelObject deepCopy(Map<Object, Object> copiedReferences)
+	{
+		EntityScientist copy = (EntityScientist) super.deepCopy(copiedReferences);
+
+		for (TileMarker marker : this.markers.keySet())
+		{
+			copy.markers.put((TileMarker) Level.getCopy(marker, copiedReferences), this.markers.get(marker));
+		}
+
+		copy.sectionsPassed = Level.deepCopyCollection(this.sectionsPassed, new HashSet<TileCameraControl>(), copiedReferences);
+		copy.distanceToPlayer = this.distanceToPlayer.copy();
+		copy.spawnX = this.spawnX;
+		copy.eventCount = this.eventCount;
+
+		copy.tryJump = this.tryJump;
+		copy.tryMoveDown = this.tryMoveDown;
+		copy.tryMoveUp = this.tryMoveUp;
+		copy.inputMoveLeft = this.inputMoveLeft;
+		copy.inputMoveRight = this.inputMoveRight;
+		copy.inputMoveUp = this.inputMoveUp;
+		copy.inputMoveDown = this.inputMoveDown;
+
+		return copy;
+	}
+
+	@Override
+	public void init()
+	{
+		super.init();
+
+		for (Tile tile : level.getTiles())
+		{
+			if (tile instanceof TileMarker)
+			{
+				markers.put((TileMarker) tile, ((TileMarker) tile).isHorizontalMarker() ? tile.getCenterX() < this.getCenterX() : tile.getCenterY() > this.getCenterY());
+			}
+		}
+	}
+
+	private void updateControls(int currentSection)
+	{
+		if (level.getStoryHandler().getCustomStoryHandler() instanceof BeginningStoryHandler)
+		{
+			if (currentSection == 0)
+			{
+				if (eventCount == 0 && this.position.x < GameLauncher.getWidth())
+				{
+					inputMoveLeft = true;
+
+					level.getControllingPlayer().say(new TextInfo("You!", 0.1f));
+					level.getControllingPlayer().say(new TextInfo("Stop this machine, it will destroy everything!", 1.5f));
+
+					eventCount++;
+				}
+				else if (eventCount == 1 && this.position.x < GameLauncher.getWidth() - 150)
+				{
+					say(new TextInfo("No, you don't understand!"));
+					say(new TextInfo("There shouldn't be light at all..."));
+
+					inputMoveLeft = false;
+					inputMoveRight = true;
+
+					eventCount++;
+				}
+			}
+			else if (currentSection == 1)
+			{
+				if (eventCount == 3 && this.position.x < GameLauncher.getWidth() - 150)
+				{
+					inputMoveRight = true;
+
+					eventCount++;
+				}
+			}
+		}
+		else if (level.getStoryHandler().getCustomStoryHandler() instanceof ColoredLevelStoryHandler)
+		{
+			if (currentSection == 0)
+			{
+				if (eventCount == 0 && this.position.x < GameLauncher.getWidth())
+				{
+					inputMoveLeft = true;
+					
+					say(new TextInfo("I knew you would come... "));
+					say(new TextInfo("Just like you always do..."));
+					say(new TextInfo("Just like I was told..."));
+					say(new TextInfo("- just like you told me."));
+					
+					eventCount++;
+				}
+				else if (eventCount == 1 && Math.abs(distanceToPlayer.x) < 400)
+				{
+					say(new TextInfo("But I know you want to complete it."));
+					say(new TextInfo("You want to stop me, when in fact - "));
+					say(new TextInfo(" - you are stopping yourself."));
+					say(new TextInfo("It's all for the greater good!"));
+					
+					inputMoveLeft = false;
+					inputMoveRight = true;
+					
+					eventCount++;
+				}
+			}
+		}
+	}
+
+	private int onMarkerCrossed(TileMarker marker, boolean fromLeft, int currentSection)
+	{
+		if (level.getStoryHandler().getCustomStoryHandler() instanceof ColoredLevelStoryHandler)
+		{
+			if (marker.getMarkerID() == 0)
+			{
+				inputMoveRight = false;
+				
+				if (Math.abs(distanceToPlayer.x) > 1000)
+				{
+					return RE_SCHEDULE_EVENT;
+				}
+				
+				interactWithNearestLever();
+			}
+			else if (marker.getMarkerID() == 1)
+			{
+				inputMoveRight = true;
+				
+				say(new TextInfo("Well, that's it then."));
+				say(new TextInfo("*sighs*"));
+			}
+			else if (marker.getMarkerID() == 2)
+			{
+				level.removeEntity(this);
+			}
+			else if (marker.getMarkerID() == 3)
+			{
+				inputMoveLeft = false;
+			}
+		}
+		else if (level.getStoryHandler().getCustomStoryHandler() instanceof BeginningStoryHandler)
+		{
+			if (marker.getMarkerID() == 0 || marker.getMarkerID() == 2 || marker.getMarkerID() == 4)
+			{
+				tryJump = true;
+			}
+			else if (marker.getMarkerID() == 1)
+			{
+				if (Math.abs(distanceToPlayer.x) > 1400)
+				{
+					setFocused(true);
+
+					if (!isTalking())
+					{
+						say(new TextInfo("Wait! You got to listen!", 1.2f));
+						say(new TextInfo("There has to be darkness...", 0.8f));
+
+						level.getControllingPlayer().say(new TextInfo("I saw you turning on that machine!"));
+						level.getControllingPlayer().say(new TextInfo("It's all your fault!"));
+					}
+
+					inputMoveRight = false;
+
+					return RE_SCHEDULE_EVENT;
+				}
+				else
+				{
+					inputMoveRight = true;
+				}
+			}
+			else if (marker.getMarkerID() == 3)
+			{
+				if (Math.abs(distanceToPlayer.x) > 1700)
+				{
+					inputMoveRight = false;
+
+					return RE_SCHEDULE_EVENT;
+				}
+
+				inputMoveRight = true;
+
+				interactWithNearestLever();
+			}
+			else if (marker.getMarkerID() == 5)
+			{
+				inputMoveRight = false;
+				
+				say(new TextInfo("Everything should be dark..."));
+				say(new TextInfo("The color is just breaking everything!"));
+			}
+			else if (marker.getMarkerID() == 6)
+			{
+				inputMoveRight = true;
+			}
+			else if (marker.getMarkerID() == 7)
+			{
+				if (Math.abs(distanceToPlayer.x) > 1700)
+				{
+					if (!isTalking())
+					{
+						say(new TextInfo("Everything will be dark..."));
+						say(new TextInfo("The machine will drain all color from this world..."));
+					}
+
+					return RE_SCHEDULE_EVENT;
+				}
+
+				inputMoveUp = true;
+				inputMoveRight = false;
+			}
+			else if (marker.getMarkerID() == 8)
+			{
+				if (!this.hitbox.intersects(marker.getHitbox()))
+				{
+					return RE_SCHEDULE_EVENT;
+				}
+				
+				inputMoveLeft = true;
+				inputMoveRight = false;
+				inputMoveUp = false;
+			}
+			else if (marker.getMarkerID() == 9 || marker.getMarkerID() == 10)
+			{
+				if (velocity.x > 0.0f)
+				{
+					return DONT_ERASE_EVENT;
+				}
+
+				tryJump = true;
+			}
+			else if (marker.getMarkerID() == 11)
+			{
+				if (velocity.x > 0.0f)
+				{
+					return DONT_ERASE_EVENT;
+				}
+
+				inputMoveRight = true;
+				inputMoveLeft = false;
+			}
+			else if (marker.getMarkerID() == 12)
+			{
+				if (velocity.x > 0.0f && marker.getHitbox().intersects(this.hitbox))
+				{
+					inputMoveDown = true;
+					inputMoveRight = false;
+				}
+				else
+				{
+					return DONT_ERASE_EVENT;
+				}
+			}
+			else if (marker.getMarkerID() == 13)
+			{
+				inputMoveDown = false;
+			}
+			else if (marker.getMarkerID() == 14)
+			{
+				if (velocity.y > 0.0f && marker.getHitbox().intersects(this.hitbox))
+				{
+					tryJump = true;
+					inputMoveRight = true;
+				}
+				else
+				{
+					return DONT_ERASE_EVENT;
+				}
+			}
+			else if (marker.getMarkerID() == 15)
+			{
+				inputMoveUp = true;
+			}
+			else if (marker.getMarkerID() == 16)
+			{
+				inputMoveUp = false;
+			}
+			else if (marker.getMarkerID() == 17)
+			{
+				if (!marker.getHitbox().containsY(this.hitbox.getCenterY()))
+				{
+					return RE_SCHEDULE_EVENT;
+				}
+				
+				if (velocity.x >= 0.0f && velocity.y >= 0.0f)
+				{
+					inputMoveDown = true;
+					inputMoveRight = false;
+
+					return RE_SCHEDULE_EVENT;
+				}
+				else
+				{
+					inputMoveUp = false;
+					inputMoveRight = true;
+				}
+			}
+			else if (marker.getMarkerID() == 18)
+			{
+				inputMoveUp = true;
+			}
+			else if (marker.getMarkerID() == 19)
+			{
+				if (!this.hitbox.intersects(marker.getHitbox()) || !isOnGround())
+				{
+					return DONT_ERASE_EVENT;
+				}
+
+				interactWithNearestLever();
+
+				tryJump = true;
+				inputMoveDown = false;
+				inputMoveUp = true;
+			}
+			else if (marker.getMarkerID() == 20)
+			{
+				tryJump = true;
+			}
+			else if (marker.getMarkerID() == 21)
+			{
+				if (Math.abs(distanceToPlayer.x) > 1700)
+				{
+					inputMoveRight = false;
+					
+					return RE_SCHEDULE_EVENT;
+				}
+				else
+				{
+					interactWithNearestLever();
+					
+					inputMoveRight = true;
+				}
+			}
+			else if (marker.getMarkerID() == 22)
+			{
+				inputMoveRight = false;
+				
+				say(new TextInfo("Everything will break...", 0.8f));
+				say(new TextInfo(" - just tear apart -", 0.8f));
+				say(new TextInfo(" - into a million pieces...", 0.8f));
+				say(new TextInfo(" - and it's all your fault!", 0.8f));
+				say(new TextInfo("Or is it my fault?", 0.8f));
+				say(new TextInfo("Same thing anyway...", 0.8f));
+				say(new TextInfo("But more importantly, you will die.", 0.8f));
+				say(new TextInfo("Just like that!", 0.8f));
+				say(new TextInfo("Whose fault it is doesn't matter then...", 0.8f));
+			}
+			else if (marker.getMarkerID() == 23)
+			{
+				inputMoveRight = true;
+			}
+			else if (marker.getMarkerID() == 24)
+			{
+				tryJump = true;
+			}
+			else if (marker.getMarkerID() == 25)
+			{
+				interactWithNearestLever();
+			}
+			else if (marker.getMarkerID() == 26)
+			{
+				if (Math.abs(distanceToPlayer.x) > 300)
+				{
+					inputMoveRight = false;
+					
+					if (!isTalking())
+					{
+						say(new TextInfo("It all worked so well ..."));
+						say(new TextInfo("You destroyed my plan! But you will see..."));
+						say(new TextInfo("- just like always..."));
+						say(new TextInfo("You know - "));
+						say(new TextInfo(" - you are more like me than you think."));
+						say(new TextInfo("You mark my words!"));
+					}
+					
+					return RE_SCHEDULE_EVENT;
+				}
+				else
+				{
+					inputMoveRight = true;
+				}
+			}
+			else if (marker.getMarkerID() == 27)
+			{
+				level.removeEntity(this);
+			}
+		}
+
+		return ERASE_EVENT;
+	}
+
+	@Override
+	public void onUpdate(GameContainer container, float delta, Random rng)
+	{
+		tryJump = false;
+
+		distanceToPlayer.set(level.getControllingPlayer().getCenterX(), level.getControllingPlayer().getCenterY());
+		distanceToPlayer.x -= this.getCenterX();
+		distanceToPlayer.y -= this.getCenterY();
+
+		for (TileCameraControl camera : MapRenderer.getCameraControllers())
+		{
+			if (!camera.isVerticalController() && this.hitbox.getCenterX() > camera.getHitbox().getCenterX() && camera.getCenterX() > spawnX + level.getCameraOffset().x && !sectionsPassed.contains(camera))
+			{
+				sectionsPassed.add(camera);
+			}
+		}
+
+		int currentSection = sectionsPassed.size();
+
+		for (TileMarker marker : markers.keySet())
+		{
+			int result;
+
+			if (markers.get(marker) != null)
+			{
+				boolean markerCrossed = false;
+
+				if (marker.isHorizontalMarker() && marker.getHitbox().containsX(this.getCenterX()) && markers.get(marker) ^ this.hitbox.getCenterX() >= marker.getHitbox().getCenterX())
+				{
+					markerCrossed = true;
+				}
+				else if (marker.isVerticalMarker() && marker.getHitbox().containsY(this.getCenterY()) && markers.get(marker) ^ this.hitbox.getCenterY() <= marker.getHitbox().getCenterY())
+				{
+					markerCrossed = true;
+				}
+
+				if (markerCrossed && (result = onMarkerCrossed(marker, markers.get(marker), currentSection)) != RE_SCHEDULE_EVENT)
+				{
+					if (result == DONT_ERASE_EVENT)
+					{
+						markers.put(marker, this.hitbox.getCenterX() >= marker.getHitbox().getCenterX());
+					}
+					else
+					{
+						markers.put(marker, null);
+					}
+				}
+			}
+		}
+
+		updateControls(currentSection);
+
+		float friction = 1.0f;
+
+		boolean forceClimbingStop = false;
+
+		tryMoveLeft = inputMoveLeft;
+		tryMoveRight = inputMoveRight;
+
+		if (climbing)
+		{
+			boolean tryMoveUp = false;
+			boolean tryMoveDown = false;
+			float verticalFriction = 0.0f;
+
+			if (inputMoveUp)
+			{
+				if (climbedTile.contains(this.hitbox.getCenterX(), this.hitbox.getMinY() + 10) || onLadder && climbedTile.contains(this.hitbox.getCenterX(), this.hitbox.getCenterY()))
+				{
+					tryMoveUp = true;
+					velocity.y -= properties.getAcceleration(delta) * CLIMBING_ACCELERATION_FACTOR;
+
+					if (velocity.y > 0.0f)
+					{
+						verticalFriction = 0.02f;
+					}
+				}
+				else if (onLadder && (inputMoveLeft || inputMoveRight))
+				{
+					climbing = false;
+					forceClimbingStop = true;
+				}
+			}
+
+			if (inputMoveDown)
+			{
+				if (climbedTile.contains(this.hitbox.getCenterX(), this.hitbox.getMaxY() - 10) || onLadder && climbedTile.contains(this.hitbox.getCenterX(), this.hitbox.getCenterY()))
+				{
+					tryMoveDown = true;
+					velocity.y += properties.getAcceleration(delta) * CLIMBING_ACCELERATION_FACTOR;
+
+					if (velocity.y < 0.0f)
+					{
+						verticalFriction = 0.02f;
+					}
+				}
+				else
+				{
+					climbing = false;
+					forceClimbingStop = true;
+				}
+			}
+
+			if (!(tryMoveUp || tryMoveDown))
+			{
+				verticalFriction = 0.0145f;
+			}
+
+			velocity.y *= 1.0f - (verticalFriction * delta);
+		}
+
+		if (onClimbable && onLadder && !climbing && !forcedClimbingStop && !(tryMoveRight || tryMoveLeft) && ((inputMoveDown && (!collidedBelow || tileBelow instanceof ITileBlockedFromAbove)) || inputMoveUp))
+		{
+			if (this.hitbox.getCenterX() > climbedTile.getHitbox().getCenterX())
+			{
+				tryMoveLeft = true;
+			}
+			else
+			{
+				tryMoveRight = true;
+			}
+		}
+
+		if (tryMoveLeft && !(climbing && onLadder))
+		{
+			setFocused(true);
+
+			if (!bouncing)
+			{
+				velocity.x -= properties.getAcceleration(delta) * (climbing ? CLIMBING_ACCELERATION_FACTOR : 1.0f);
+
+				if (velocity.x > 0)
+				{
+					friction = 0.0132f * delta;
+				}
+			}
+
+			if (!climbing)
+			{
+				if (velocity.x < -properties.getMaxSpeed())
+				{
+					velocity.x = -properties.getMaxSpeed();
+				}
+			}
+			else if (velocity.x < -properties.getMaxClimbSpeed())
+			{
+				velocity.x = -properties.getMaxClimbSpeed();
+			}
+
+			if (climbing && !climbedTile.contains(this.hitbox.getMinX() + 10, this.hitbox.getCenterY()))
+			{
+				climbing = false;
+				forceClimbingStop = true;
+			}
+		}
+
+		if (tryMoveRight && !(climbing && onLadder))
+		{
+			setFocused(false);
+
+			if (!bouncing)
+			{
+				velocity.x += properties.getAcceleration(delta) * (climbing ? CLIMBING_ACCELERATION_FACTOR : 1.0f);
+
+				if (velocity.x < 0)
+				{
+					friction = 0.0135f * delta;
+				}
+			}
+
+			if (!climbing)
+			{
+				if (velocity.x > properties.getMaxSpeed())
+				{
+					velocity.x = getProperties().getMaxSpeed();
+				}
+			}
+			else if (velocity.x > properties.getMaxClimbSpeed())
+			{
+				velocity.x = properties.getMaxClimbSpeed();
+			}
+
+			if (climbing && !climbedTile.contains(this.hitbox.getMaxX() - 10, this.hitbox.getCenterY()))
+			{
+				climbing = false;
+				forceClimbingStop = true;
+			}
+		}
+
+		if (climbingOnGround && !collidedBelow)
+		{
+			climbingOnGround = false;
+		}
+
+		if (climbing && Math.abs(velocity.y) > properties.getMaxClimbSpeed())
+		{
+			velocity.y = velocity.y < 0 ? -properties.getMaxClimbSpeed() : properties.getMaxClimbSpeed();
+		}
+
+		if (!jumping && tryJump && (!hitbox.isCheckedAbove() || hitbox.getDistanceToBlockAbove() > 8.0f) && !collidedAbove && !climbing && (collidedBelow || lastBelow || (closeBelow && (!(hitbox.isRightBottom() && -hitbox.getRightAngle() > 45) && !(hitbox.isLeftBottom() && hitbox.getLeftAngle() > 45)) || hitbox.isOnCorner())))
+		{
+			velocity.y = -0.57f;
+			jumping = true;
+		}
+
+		if (forcedClimbingStop && (tryMoveUp || tryMoveDown || collidedBelow))
+		{
+			forcedClimbingStop = false;
+		}
+
+		boolean canClimb = onClimbable && climbedTile.contains(this.hitbox.getMaxX() - 10, this.hitbox.getCenterY()) && climbedTile.contains(this.hitbox.getMinX() + 10, this.hitbox.getCenterY()) && (onLadder || climbedTile.contains(this.hitbox.getCenterX(), this.hitbox.getMaxY() - 10) && climbedTile.contains(this.hitbox.getCenterX(), this.hitbox.getCenterY())) && !forceClimbingStop && !forcedClimbingStop;
+
+		if ((((inputMoveDown && (!collidedBelow || tileBelow instanceof ITileBlockedFromAbove)) || inputMoveUp) || ((tryMoveDown && !collidedBelow) || (tryMoveUp && !collidedAbove))) && onClimbable && !climbing && canClimb)
+		{
+			if (!onLadder || Math.abs(this.hitbox.getCenterX() - climbedTile.getHitbox().getCenterX()) < 4.0f && !(inputMoveLeft || inputMoveRight))
+			{
+				climbing = true;
+
+				resetVelocities();
+
+				if (onLadder)
+				{
+					this.position.x = climbedTile.getHitbox().getCenterX() - this.hitbox.getWidth() / 2.0f;
+				}
+
+				if ((collidedBelow || closeBelow || lastBelow) && !tryMoveDown)
+				{
+					climbingOnGround = true;
+				}
+			}
+		}
+		else if (climbing && (!(inputMoveDown || inputMoveUp) || tryJump || !canClimb))
+		{
+			if (onLadder)
+			{
+				if (tryMoveRight)
+				{
+					velocity.x = 0.1f;
+				}
+				else if (tryMoveLeft)
+				{
+					velocity.x = -0.1f;
+				}
+			}
+
+			if (tryJump)
+			{
+				forceClimbingStop = true;
+			}
+
+			climbing = climbing && ((!tryMoveRight && !tryMoveLeft) || !onLadder) && !tryJump;
+		}
+
+		if (forceClimbingStop)
+		{
+			velocity.y *= 0.6f;
+			forcedClimbingStop = true;
+		}
+
+		if ((!(tryMoveRight || tryMoveLeft) || friction != 1.0f) && (collidedBelow || closeBelow || climbing) && !(hitbox.getLeftAngle() > 45 || -hitbox.getRightAngle() > 45))
+		{
+			if (friction == 1.0f)
+			{
+				friction = 1.0f - (0.0145f * delta);
+			}
+
+			velocity.x *= friction;
+		}
+
+		if (collidedBelow && (!hitbox.isOnCorner() || (hitbox.isLeftBottom() ^ hitbox.isRightBottom())))
+		{
+			if (!hitbox.isLeftBottom() && !collidedLeft && !onLeftConnectedTile && hitbox.getDistanceToLeftEnd() < 14f && (!hitbox.isCheckedLeft() || hitbox.getDistanceToBlockLeft() > 14f))
+			{
+				collidedBelow = false;
+				gravityActive = true;
+				bouncing = true;
+
+				if (velocity.x > 0.0f)
+				{
+					velocity.x *= -1.15f;
+				}
+
+				velocity.x -= 0.0018f * delta;
+			}
+			else if (!hitbox.isRightBottom() && !collidedRight && !onRightConnectedTile && hitbox.getDistanceToRightEnd() < 14f && (!hitbox.isCheckedRight() || hitbox.getDistanceToBlockRight() > 14f))
+			{
+				collidedBelow = false;
+				bouncing = true;
+				gravityActive = true;
+
+				if (velocity.x < 0.0f)
+				{
+					velocity.x *= -1.15f;
+				}
+
+				velocity.x += 0.0018f * delta;
+			}
+		}
+
+		if (bouncing)
+		{
+			velocity.x *= (1.0f - 0.002f * delta);
+
+			if (Math.abs(velocity.x) < this.properties.getMaxSpeed())
+			{
+				bouncing = false;
+			}
+		}
+		else
+		{
+			if (velocity.x > this.properties.getMaxSpeed())
+			{
+				velocity.x = this.properties.getMaxSpeed();
+			}
+			else if (velocity.x < this.properties.getMaxSpeed() * -1)
+			{
+				velocity.x = this.properties.getMaxSpeed() * -1;
+			}
+		}
+	}
+
+	public void interactWithNearestLever()
+	{
+		for (Tile tile : LevelRenderer.getInteractableTiles())
+		{
+			if (inSameDimension(tile) && tile instanceof TileLever && tile.getHitbox().intersects(this.hitbox))
+			{
+				((TileLever) tile).onInteract(this);
+			}
+		}
+	}
+	
+	@Override
+	public boolean onCollisionWithEntity(Entity entity, boolean top, boolean bottom, boolean right, boolean left, boolean inversed)
+	{
+		if (entity instanceof EntityPlayer)
+		{
+			((EntityPlayer) entity).onDeath(this);
+		}
+
+		return super.onCollisionWithEntity(entity, top, bottom, right, left, inversed);
+	}
+
+	@Override
+	public boolean checkAdditionalSuffocation()
+	{
+		return false;
+	}
+}

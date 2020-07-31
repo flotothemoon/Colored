@@ -1,0 +1,395 @@
+package com.unlogical.colored.input;
+
+import java.util.HashSet;
+import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
+
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.Input;
+import com.badlogic.gdx.InputMultiplexer;
+import com.badlogic.gdx.InputProcessor;
+import com.badlogic.gdx.controllers.Controller;
+import com.badlogic.gdx.controllers.ControllerAdapter;
+import com.badlogic.gdx.controllers.Controllers;
+import com.badlogic.gdx.math.Vector3;
+import com.badlogic.gdx.utils.Pools;
+import com.unlogical.colored.debug.Debug;
+import com.unlogical.colored.util.Renderer;
+
+public class InputHandler
+{
+	private static final Vector3 buffer = new Vector3();
+
+	private static SortedSet<LogEntry> inputLog;
+	private static ControllerHandler usedController;
+	private static InputMultiplexer inputMultiplexer;
+	private static int lastInputX, lastInputY;
+	private static int currentInputX, currentInputY;
+
+	public static void init()
+	{
+		Controllers.addListener(new ControllerAdapter()
+		{
+			@Override
+			public void connected(Controller controller)
+			{
+				onControllerConnected(controller);
+			}
+
+			@Override
+			public void disconnected(Controller controller)
+			{
+				onControllerDisconnected(controller);
+			}
+		});
+
+		inputLog = new TreeSet<LogEntry>();
+
+		inputMultiplexer = new InputMultiplexer();
+		Gdx.input.setInputProcessor(inputMultiplexer);
+
+		inputMultiplexer.addProcessor(new InputProcessor()
+		{
+			@Override
+			public boolean touchUp(int screenX, int screenY, int pointer, int button)
+			{
+				logTouchUp(screenX, screenY, pointer, button);
+
+				return false;
+			}
+
+			@Override
+			public boolean touchDragged(int screenX, int screenY, int pointer)
+			{
+				logTouchDragged(screenX, screenY, pointer);
+
+				return false;
+			}
+
+			@Override
+			public boolean touchDown(int screenX, int screenY, int pointer, int button)
+			{
+				logTouchDown(screenX, screenY, pointer, button);
+
+				return false;
+			}
+
+			@Override
+			public boolean scrolled(int amount)
+			{
+				logScrolled(amount);
+
+				return false;
+			}
+
+			@Override
+			public boolean mouseMoved(int screenX, int screenY)
+			{
+//				logMouseMoved(screenX, screenY);
+
+				return false;
+			}
+
+			@Override
+			public boolean keyUp(int keycode)
+			{
+				logKeyUp(keycode);
+
+				return false;
+			}
+
+			@Override
+			public boolean keyTyped(char character)
+			{
+				logKeyTyped(character);
+
+				return false;
+			}
+
+			@Override
+			public boolean keyDown(int keycode)
+			{
+				logKeyDown(keycode);
+
+				return false;
+			}
+		});
+	}
+
+	protected static void log(String entry)
+	{
+		log(entry, System.currentTimeMillis());
+	}
+
+	protected static void log(String entry, long timestamp)
+	{
+		LogEntry e = Pools.obtain(LogEntry.class);
+		
+		e.init(entry, timestamp);
+				
+		inputLog.add(e);
+		
+		if (inputLog.size() > 100)
+		{
+			int index = 0;
+			
+			Set<LogEntry> toDelete = new HashSet<LogEntry>();
+			
+			for (LogEntry ee : inputLog)
+			{
+				index++;
+				
+				if (index < inputLog.size() - 25)
+				{
+					toDelete.add(ee);
+					Pools.free(ee);
+				}
+			}
+			
+			inputLog.removeAll(toDelete);
+		}
+	}
+
+	protected static void logKeyDown(int keycode)
+	{
+		log("Key down: " + Input.Keys.toString(keycode) + " (" + keycode + ")");
+	}
+
+	protected static void logKeyTyped(char character)
+	{
+		log("Key typed: " + character + " (charcode: " + ((int) character) + ")");
+	}
+
+	protected static void logKeyUp(int keycode)
+	{
+		log("Key up: " + Input.Keys.toString(keycode) + " (" + keycode + ")");
+	}
+
+	protected static void logMouseMoved(int screenX, int screenY)
+	{
+		log("Mouse moved: x: " + screenX + " y: " + screenY);
+	}
+
+	protected static void logScrolled(int amount)
+	{
+		log("Mouse scrolled: " + amount);
+	}
+
+	protected static void logTouchDown(int screenX, int screenY, int pointer, int button)
+	{
+		log("Touch down: " + button + " (pointer: " + pointer + ") at x:" + screenX + " y: " + screenY);
+	}
+
+	protected static void logTouchDragged(int screenX, int screenY, int pointer)
+	{
+		log("Touch dragged: pointer: " + pointer + " at x:" + screenX + " y: " + screenY);
+	}
+
+	protected static void logTouchUp(int screenX, int screenY, int pointer, int button)
+	{
+		log("Touch up: " + button + " (pointer: " + pointer + ") at x:" + screenX + " y: " + screenY);
+	}
+
+	public static void useController(Controller controller)
+	{
+		usedController = new ControllerHandler(controller);
+	}
+
+	public static void disconnectController()
+	{
+		usedController.target = null;
+		usedController = null;
+	}
+
+	public static void update(int delta)
+	{
+		if (usedController != null)
+		{
+			usedController.update(delta);
+		}
+
+		Vector3 realPos = Renderer.unproject(buffer.set(Gdx.input.getX(), Gdx.input.getY(), 0.0f));
+
+		currentInputX = (int) realPos.x;
+		currentInputY = (int) realPos.y;
+	}
+
+	public static void postUpdate()
+	{
+		lastInputX = currentInputX;
+		lastInputY = currentInputY;
+	}
+
+	public static void fetchControllers()
+	{
+		Debug.log("Fetching controllers...");
+
+		for (Controller controller : Controllers.getControllers())
+		{
+			onControllerConnected(controller);
+		}
+
+		if (Controllers.getControllers().size == 0)
+		{
+			Debug.log("No controllers found.");
+		}
+	}
+
+	private static boolean canUseController(Controller controller)
+	{
+		return true;
+	}
+
+	public static void onControllerConnected(Controller controller)
+	{
+		Debug.log("Controller connected: " + controller.getName());
+
+		if (usedController == null && canUseController(controller))
+		{
+			useController(controller);
+
+			Debug.log("Now using controller: " + controller.getName());
+		}
+	}
+
+	public static void onControllerDisconnected(Controller controller)
+	{
+		if (usedController != null && usedController.target == controller)
+		{
+			usedController = null;
+
+			Debug.log("Currently used controller was disconnected.");
+		}
+
+		fetchControllers();
+	}
+
+	public static float getHorizontalAxisFactor()
+	{
+		if (usedController != null)
+		{
+			if (usedController.currentAxisFactors[1] != 0.0f)
+			{
+				return usedController.currentAxisFactors[1];
+			}
+			else
+			{
+				return usedController.currentAxisFactors[3];
+			}
+		}
+
+		return 1.0f;
+	}
+
+	public static float getVerticalAxisFactor()
+	{
+		if (usedController != null)
+		{
+			if (usedController.currentAxisFactors[0] != 0.0f)
+			{
+				return usedController.currentAxisFactors[0];
+			}
+			else
+			{
+				return usedController.currentAxisFactors[2];
+			}
+		}
+
+		return 1.0f;
+	}
+
+	public static boolean isKeyJustPressed(InputAction action)
+	{
+		if (usedController != null && usedController.isButtonPressed(action))
+		{
+			return true;
+		}
+
+		return KeyBindings.isKeyPressed(action);
+	}
+
+	public static boolean isKeyPressed(InputAction action)
+	{
+		if (usedController != null && usedController.isButtonDown(action))
+		{
+			return true;
+		}
+
+		return KeyBindings.isKeyDown(action);
+	}
+
+	public static void addInputProcessor(InputProcessor processor)
+	{
+		inputMultiplexer.addProcessor(processor);
+	}
+
+	public static void removeInputProcessor(InputProcessor processor)
+	{
+		inputMultiplexer.removeProcessor(processor);
+	}
+
+	public static int getLastInputX()
+	{
+		return lastInputX;
+	}
+
+	public static int getLastInputY()
+	{
+		return lastInputY;
+	}
+
+	public static int getCurrentInputX()
+	{
+		return currentInputX;
+	}
+
+	public static int getCurrentInputY()
+	{
+		return currentInputY;
+	}
+
+	public static Set<LogEntry> getInputLog()
+	{
+		return inputLog;
+	}
+	
+	public static class LogEntry implements Comparable<LogEntry>
+	{
+		private String entry;
+		private long timestamp;
+		
+		public LogEntry()
+		{
+			
+		}
+		
+		public LogEntry(String entry, long time)
+		{
+			this.entry = entry;
+			this.timestamp = time;
+		}
+		
+		public void init(String entry, long time)
+		{
+			this.entry = entry;
+			this.timestamp = time;
+		}
+		
+		public String getEntry()
+		{
+			return entry;
+		}
+		
+		public long getTime()
+		{
+			return timestamp;
+		}
+
+		@Override
+		public int compareTo(LogEntry o)
+		{
+			return (int) (this.timestamp - o.timestamp);
+		}
+	}
+}

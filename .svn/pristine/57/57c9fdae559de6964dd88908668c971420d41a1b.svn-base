@@ -1,0 +1,14 @@
+package com.unlogical.linked.terrain.tile.properties;
+
+import com.unlogical.linked.entity.player.EntityPlayer;
+import com.unlogical.linked.gui.HintProperties;
+import com.unlogical.linked.resources.image.Images.HintIdentifier;
+
+public interface ITileInteractable extends ITileMirrorable
+{
+	public boolean canInteract(EntityPlayer interactor);
+	public void onInteract(EntityPlayer interactor);
+	
+	public HintIdentifier getHintIdentifier();
+	public HintProperties getHintProperties();
+}

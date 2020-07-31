@@ -1,0 +1,68 @@
+package com.unlogical.linked.entity.projectile;
+
+import java.util.Random;
+
+import org.newdawn.slick.GameContainer;
+import org.newdawn.slick.geom.Vector2f;
+
+import com.unlogical.linked.entity.Entity;
+import com.unlogical.linked.entity.EntityType;
+import com.unlogical.linked.entity.property.EntityProperty;
+import com.unlogical.linked.entity.property.SharedEntityProperties;
+import com.unlogical.linked.level.Level;
+import com.unlogical.linked.terrain.tile.Tile;
+import com.unlogical.linked.util.Dimension;
+import com.unlogical.linked.util.LevelObject;
+
+public class EntityShadowBall extends EntityProjectile
+{
+	public EntityShadowBall(EntityType type, Vector2f position, Level level, Dimension dimension, boolean allowMirrors)
+	{
+		super(type, position, level, dimension, allowMirrors);
+	}
+
+	@Override
+	public void onUpdate(GameContainer container, float delta, Random rng)
+	{
+		super.onUpdate(container, delta, rng);
+	}
+
+	@Override
+	public boolean onCollisionWithEntity(Entity entity, boolean top, boolean bottom, boolean right, boolean left)
+	{
+		if (entity instanceof EntityShadowBall)
+		{
+			this.onDeath(entity);
+			
+			((EntityShadowBall) entity).onDeath(this);
+		}	
+		
+		return this.alive;
+	}
+	
+	@Override
+	public void onCollisionWithTile(Tile tile, boolean top, boolean bottom, boolean right, boolean left, boolean intersect)
+	{
+		if (!intersect)
+		{			
+			this.onDeath(tile);
+		}
+	}
+
+	@Override
+	protected void customOnDeath(LevelObject damageSource)
+	{
+		resetVelocities();
+		
+		if (!reversing)
+		{
+			transformToPixels(null, PIXELIFIED_PARTICLE_SIZE);
+		}
+	}
+	
+	@Override
+	protected EntityProperty getEntityProperty()
+	{
+		return SharedEntityProperties.SHADOW_BALL;
+	}
+}

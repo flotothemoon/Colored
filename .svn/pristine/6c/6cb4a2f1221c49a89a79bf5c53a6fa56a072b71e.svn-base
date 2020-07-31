@@ -1,0 +1,291 @@
+package com.unlogical.colored.gui.panel;
+
+import org.newdawn.slick.Color;
+import org.newdawn.slick.GameContainer;
+import org.newdawn.slick.Graphics;
+
+import com.unlogical.colored.GameLauncher;
+import com.unlogical.colored.gui.InputChangeListener;
+import com.unlogical.colored.gui.Slider;
+import com.unlogical.colored.gui.UserInputLine;
+import com.unlogical.colored.gui.button.Button;
+import com.unlogical.colored.gui.colorpicker.ColorPicker;
+import com.unlogical.colored.gui.colorpicker.ColorPickerListener;
+import com.unlogical.colored.mapeditor.MapEditor;
+import com.unlogical.colored.terrain.tile.TileLight;
+import com.unlogical.colored.util.ColorHelper;
+import com.unlogical.colored.util.Renderer;
+
+@SuppressWarnings({ "unchecked", "rawtypes" })
+public class LightPanel extends GUIPanel
+{
+	private static final float LIGHT_SCALE_FACTOR = 2.0f;
+	private static final float LINEAR_ATTENUATION_SCALE_FACTOR = 80.0f;
+	private static final float QUADRATIC_ATTENUATION_SCALE_FACTOR = 10000.0f;
+	private static final float SPOT_EXPONENT_SCALE_FACTOR = 150.0f;
+
+	private TileLight light;
+
+	private Slider intensitySlider;
+	private Slider angleSlider;
+	private Slider linearAttenuationSlider;
+	private Slider quadraticAttenuationSlider;
+	private Slider spotExponentSlider;
+	private UserInputLine minDepthInput;
+	private UserInputLine maxDepthInput;
+	private UserInputLine lightWidthInput;
+	private Button colorButton;
+	private ColorPicker colorPicker;
+
+	public LightPanel(float xOffset, float yOffset, float width, float height)
+	{
+		super("Edit Light", xOffset, yOffset, width, height);
+
+		this.fillColor = new Color(MapEditor.panelColor);
+
+		int lineHeight = 30;
+		int inputWidth = (int) (width / 2) + 15;
+		int currentOffset = 40;
+		int inputX = (int) (xOffset + width / 2) - 20;
+
+		currentOffset += 25;
+
+		intensitySlider = new Slider(xOffset + 5, currentOffset, width - 5, lineHeight, 0.0f, false, null)
+		{
+			@Override
+			protected void onFactorChanged(float selectedRange, Object reference)
+			{
+				light.setIntensity(selectedRange * LIGHT_SCALE_FACTOR);
+			}
+		};
+		intensitySlider.setActive(true);
+
+		currentOffset += intensitySlider.getHeight() + 35;
+
+		angleSlider = new Slider(xOffset + 5, currentOffset, width - 5, lineHeight, 0.0f, false, null)
+		{
+			@Override
+			protected void onFactorChanged(float selectedRange, Object reference)
+			{
+				light.setAngle((int) (360 * selectedRange));
+			}
+		};
+		angleSlider.setActive(true);
+
+		currentOffset += angleSlider.getHeight() + 35;
+
+		linearAttenuationSlider = new Slider(xOffset + 5, currentOffset, width - 5, lineHeight, 0.0f, false, null)
+		{
+			@Override
+			protected void onFactorChanged(float selectedRange, Object reference)
+			{
+				light.setLinearAttenuation(selectedRange / LINEAR_ATTENUATION_SCALE_FACTOR);
+			}
+		};
+		linearAttenuationSlider.setActive(true);
+
+		currentOffset += linearAttenuationSlider.getHeight() + 35;
+
+		quadraticAttenuationSlider = new Slider(xOffset + 5, currentOffset, width - 5, lineHeight, 0.0f, false, null)
+		{
+			@Override
+			protected void onFactorChanged(float selectedRange, Object reference)
+			{
+				light.setQuadraticAttenuation(selectedRange / QUADRATIC_ATTENUATION_SCALE_FACTOR);
+			}
+		};
+		quadraticAttenuationSlider.setActive(true);
+
+		currentOffset += quadraticAttenuationSlider.getHeight() + 35;
+
+		spotExponentSlider = new Slider(xOffset + 5, currentOffset, width - 5, lineHeight, 0.0f, false, null)
+		{
+			@Override
+			protected void onFactorChanged(float selectedRange, Object reference)
+			{
+				light.setSpotExponent((int) (selectedRange * SPOT_EXPONENT_SCALE_FACTOR));
+			}
+		};
+		spotExponentSlider.setActive(true);
+
+		currentOffset += spotExponentSlider.getHeight() + 10;
+
+		minDepthInput = new UserInputLine(inputX, currentOffset, inputWidth, lineHeight);
+		minDepthInput.addInputChangedListener(new InputChangeListener()
+		{
+			@Override
+			public void onInputChanged()
+			{
+				try
+				{
+					light.setMinDepth(Integer.parseInt(minDepthInput.getInput()));
+				}
+				catch (Exception e)
+				{
+				}
+			}
+		});
+		minDepthInput.setOnlyNumeric(true);
+		minDepthInput.setActive(true);
+
+		currentOffset += minDepthInput.getHeight() + 10;
+
+		maxDepthInput = new UserInputLine(inputX, currentOffset, inputWidth, lineHeight);
+		maxDepthInput.addInputChangedListener(new InputChangeListener()
+		{
+			@Override
+			public void onInputChanged()
+			{
+				try
+				{
+					light.setMaxDepth(Integer.parseInt(maxDepthInput.getInput()));
+				}
+				catch (Exception e)
+				{
+				}
+			}
+		});
+		maxDepthInput.setOnlyNumeric(true);
+		maxDepthInput.setActive(true);
+
+		currentOffset += maxDepthInput.getHeight() + 10;
+		
+		lightWidthInput = new UserInputLine(inputX, currentOffset, inputWidth, lineHeight);
+		lightWidthInput.addInputChangedListener(new InputChangeListener()
+		{
+			@Override
+			public void onInputChanged()
+			{
+				try
+				{
+					light.setLightWidth(Integer.parseInt(lightWidthInput.getInput()));
+				}
+				catch (Exception e)
+				{
+				}
+			}
+		});
+		lightWidthInput.setOnlyNumeric(true);
+		lightWidthInput.setActive(true);
+
+		currentOffset += lightWidthInput.getHeight() + 10;
+
+		colorButton = new Button("", inputX, currentOffset, inputWidth, lineHeight)
+		{
+			@Override
+			public void onClick()
+			{
+				colorPicker.init(light.getColor());
+				colorPicker.enable();
+			}
+		};
+
+		currentOffset += colorButton.getHeight();
+
+		colorPicker = new ColorPicker("Light Color", 1920 / 2 - 200, 1080 / 2 - 200, 0, 0);
+		colorPicker.addColorPickerListener(new ColorPickerListener()
+		{
+			@Override
+			public void colorChanged(Color newColor)
+			{
+				light.setColor(newColor);
+				colorButton.setFillColor(newColor);
+				colorButton.setHoverColor(newColor);
+			}
+		});
+
+		this.setHeight(currentOffset);
+	}
+
+	public void init(TileLight light)
+	{
+		this.light = light;
+
+		intensitySlider.setSelectedRange(light.getIntensity() / LIGHT_SCALE_FACTOR);
+		angleSlider.setSelectedRange(((float) light.getAngle()) / 360.0f);
+		linearAttenuationSlider.setSelectedRange(light.getLinearAttenuation() * LINEAR_ATTENUATION_SCALE_FACTOR);
+		quadraticAttenuationSlider.setSelectedRange(light.getQuadraticAttenuation() * QUADRATIC_ATTENUATION_SCALE_FACTOR);
+		spotExponentSlider.setSelectedRange(((float) light.getSpotExponent()) / SPOT_EXPONENT_SCALE_FACTOR);
+		colorButton.setFillColor(light.getColor());
+		colorButton.setHoverColor(light.getColor());
+		minDepthInput.setInput(light.getMinDepth() + "");
+		maxDepthInput.setInput(light.getMaxDepth() + "");
+		lightWidthInput.setInput((int) light.getLightWidth() + "");
+
+		colorPicker.setActive(false);
+
+		setActive(true);
+	}
+
+	@Override
+	protected void customUpdate(GameContainer container, int g)
+	{
+		intensitySlider.update(container, g);
+		angleSlider.update(container, g);
+		linearAttenuationSlider.update(container, g);
+		quadraticAttenuationSlider.update(container, g);
+		spotExponentSlider.update(container, g);
+		colorButton.update(container, g);
+		minDepthInput.update(container, g);
+		colorPicker.update(container, g);
+		minDepthInput.update(container, g);
+		maxDepthInput.update(container, g);
+		lightWidthInput.update(container, g);
+	}
+
+	@Override
+	protected void customRender(GameContainer container, float alphaFactor, Graphics g)
+	{
+		intensitySlider.render(container, g);
+		angleSlider.render(container, g);
+		linearAttenuationSlider.render(container, g);
+		quadraticAttenuationSlider.render(container, g);
+		spotExponentSlider.render(container, g);
+		colorButton.render(container, alphaFactor, g);
+		minDepthInput.render(container, alphaFactor, g);
+		colorPicker.render(container, alphaFactor, g);
+		minDepthInput.render(container, alphaFactor, g);
+		maxDepthInput.render(container, alphaFactor, g);
+		lightWidthInput.render(container, alphaFactor, g);
+
+		ColorHelper.applyAlphaAndCopy(Color.white, alphaFactor, g);
+
+		g.setFont(GameLauncher.getSmallFont());
+		g.drawString("Intensity: " + Math.round(light.getIntensity() * 100) + "%", xOffset + 5, intensitySlider.getY() - g.getFont().getLineHeight());
+		g.drawString("Angle: " + light.getAngle(), xOffset + 5, angleSlider.getY() - g.getFont().getLineHeight());
+		g.drawString("Linear Attenuation: " + light.getLinearAttenuation(), xOffset + 5, linearAttenuationSlider.getY() - g.getFont().getLineHeight());
+		g.drawString("Quadratic Attenuation: " + light.getQuadraticAttenuation(), xOffset + 5, quadraticAttenuationSlider.getY() - g.getFont().getLineHeight());
+		g.drawString("Smooth Edges: " + light.getSpotExponent(), xOffset + 5, spotExponentSlider.getY() - g.getFont().getLineHeight());
+		g.drawString("Min Depth", xOffset + 5, minDepthInput.getCenterY() - g.getFont().getLineHeight() / 2);
+		g.drawString("Max Depth", xOffset + 5, maxDepthInput.getCenterY() - g.getFont().getLineHeight() / 2);
+		g.drawString("Light Width", xOffset + 5, lightWidthInput.getCenterY() - g.getFont().getLineHeight() / 2);
+		g.drawString("Light Color", xOffset + 5, colorButton.getCenterY() - g.getFont().getLineHeight() / 2);
+	
+		Renderer.clearBind();
+	}
+
+	@Override
+	public void onPositionUpdate(int xChange, int yChange)
+	{
+		intensitySlider.adjust(xChange, yChange);
+		angleSlider.adjust(xChange, yChange);
+		linearAttenuationSlider.adjust(xChange, yChange);
+		quadraticAttenuationSlider.adjust(xChange, yChange);
+		spotExponentSlider.adjust(xChange, yChange);
+		colorButton.adjust(xChange, yChange);
+		minDepthInput.adjust(xChange, yChange);
+		maxDepthInput.adjust(xChange, yChange);
+		lightWidthInput.adjust(xChange, yChange);
+	}
+
+	@Override
+	protected boolean subContains(float mouseX, float mouseY)
+	{
+		return colorPicker.contains(mouseX, mouseY);
+	}
+	
+	public boolean shouldLockInput()
+	{
+		return this.lightWidthInput.isFocused() || this.minDepthInput.isFocused() || this.maxDepthInput.isFocused();
+	}
+}

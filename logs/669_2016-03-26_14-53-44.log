@@ -1,0 +1,67 @@
+ -- General -- 
+Generated on: 2016-03-26_14-53-44
+Build: 669 from 02:57 PM - 24/03/16
+GameState: IN_LEVEL (previous: LOADING)
+Target FPS: 60
+Actual FPS: 10
+
+ -- Display -- 
+Target Width / Height: 1920 / 1080
+Actual Width / Height: 1920 / 1017 (windowed)
+
+ -- Environment -- 
+GPU: GeForce GTX 980 Ti/PCIe/SSE2 (NVIDIA Corporation)
+OpenGL Version: 4.5.0 NVIDIA 361.43
+Allocated Memory: 15MB
+Used Memory: 0MB
+"os.name": Windows 10
+"os.version": 10.0
+"os.arch": x86
+"java.version": 1.8.0_66
+"java.vendor": Oracle Corporation
+"sun.arch.data.model": 32
+
+ -- Level --
+ID: 21-07 (internal: 07)
+LevelType: REVERSAL
+Dimension: LIGHT
+Location: ../worlds/maps/21-07
+
+ -- Stack Trace -- 
+java.lang.NullPointerException
+com.unlogical.colored.entity.Entity.<init>(Entity.java:148)
+com.unlogical.colored.entity.EntityLiving.<init>(EntityLiving.java:48)
+com.unlogical.colored.entity.key.EntityKeyChain.<init>(EntityKeyChain.java:18)
+com.unlogical.colored.entity.Entity.createEntity(Entity.java:348)
+com.unlogical.colored.entity.boss.EntityReversalBoss.init(EntityReversalBoss.java:52)
+com.unlogical.colored.levelmanaging.LevelManager.initMap(LevelManager.java:275)
+com.unlogical.colored.GameLauncher.goToLastVisitedLevel(GameLauncher.java:739)
+com.unlogical.colored.GameLauncher.update(GameLauncher.java:355)
+com.unlogical.colored.GameLauncher.render(GameLauncher.java:430)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication.mainLoop(LwjglApplication.java:218)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication$1.run(LwjglApplication.java:123)
+
+ -- Last 20 Log Entries -- 
+@Log: Loading save states... (8)
+@Log: SaveState 1.dat found and read successfully. (8)
+@Log: Active save state selected, last accessed on Sat Mar 26 11:54:53 CET 2016 (8)
+@Log: Initializing animation handler... (8)
+@Log: Fetching maps... (8)
+@Log: Found world hub for world 20 at 20-05. (8)
+@Log: Found world hub for world 21 at 21-08. (8)
+@Log: Found world hub for world 22 at 22-08. (8)
+@Log: Found world hub for world 23 at 23-09. (8)
+@Log: Found world hub for world 24 at 24-10. (8)
+@Log: Initializing map editor... (8)
+@Log: Initialising levelrenderer... (8)
+@Log: Initializing menus... (8)
+@Log: SaveState 1.dat found and read successfully. (8)
+@Log: Initializing story handler... (8)
+@Log: Initializing credits screen... (8)
+@Log: Resizing contents to current window size... (8)
+@Log: Finished loading, took 334ms. (8)
+@Log: Loading map ../worlds/maps/21-07 ... (8)
+@Log: Loading map files took 9ms. (8)
+
+ -- Last 1 Input Events -- 
+Touch up: 0 (pointer: 0) at x:419 y: 0 (81ms ago)

@@ -1,0 +1,85 @@
+ -- General -- 
+Generated on: 2016-04-22_20-56-28
+Build: 695 from 08:54 PM - 22/04/16
+GameState: MAP_EDITOR (previous: MAP_EDITOR_MENU)
+Target FPS: 60
+Actual FPS: 61
+
+ -- Display -- 
+Target Width / Height: 1920 / 1080
+Actual Width / Height: 1920 / 1017 (windowed)
+
+ -- Environment -- 
+GPU: GeForce GTX 980 Ti/PCIe/SSE2 (NVIDIA Corporation)
+OpenGL Version: 4.5.0 NVIDIA 361.43
+Allocated Memory: 15MB
+Used Memory: 2MB
+"os.name": Windows 10
+"os.version": 10.0
+"os.arch": x86
+"java.version": 1.8.0_66
+"java.vendor": Oracle Corporation
+"sun.arch.data.model": 32
+
+ -- Level --
+ID: test (internal: unknown)
+LevelType: NORMAL
+Dimension: LIGHT
+Location: ../worlds/maps/test
+
+ -- Stack Trace -- 
+java.lang.NullPointerException
+com.unlogical.colored.util.CustomVerticesSpriteBatch.draw(CustomVerticesSpriteBatch.java:737)
+com.unlogical.colored.terrain.tile.platform.TilePlatform.drawImage(TilePlatform.java:402)
+com.unlogical.colored.terrain.TerrainObject.drawImage(TerrainObject.java:295)
+com.unlogical.colored.terrain.TerrainObject.drawTextured(TerrainObject.java:279)
+com.unlogical.colored.terrain.TerrainObject.draw(TerrainObject.java:212)
+com.unlogical.colored.mapeditor.MapEditor.drawTile(MapEditor.java:1479)
+com.unlogical.colored.mapeditor.MapEditor.render(MapEditor.java:1223)
+com.unlogical.colored.GameLauncher.render(GameLauncher.java:460)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication.mainLoop(LwjglApplication.java:218)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication$1.run(LwjglApplication.java:123)
+
+ -- Last 20 Log Entries -- 
+@Log: Fetching lights for level "test" ... (11)
+@Log: Lights fetched for level "test", 1 light found. (11)
+@Log: Loaded map Test (test, ../worlds/maps/test), took 6ms. (11)
+@Log: Clicked "Type: SEPERATED" and called its onClick(). (11)
+@Log: Play sound MENU_CLICK at volume 0.17 and pitch 1.0 (once). (11)
+@Log: Fetching lights for level "test" ... (11)
+@Log: Lights fetched for level "test", 1 light found. (11)
+@Log: Loaded map Test (test, ../worlds/maps/test), took 5ms. (11)
+@Log: Clicked "Add Tile" and called its onClick(). (11)
+@Log: Play sound MENU_CLICK at volume 0.17 and pitch 1.0 (once). (11)
+@Log: Creating tile CANNON ... (11)
+@Log: Creating tile PLATFORM_RIGHT_EDGE ... (11)
+@Log: Clicked "Save" and called its onClick(). (11)
+@Log: Play sound MENU_CLICK at volume 0.17 and pitch 1.0 (once). (11)
+@Log: Clicked "Reload" and called its onClick(). (11)
+@Log: Play sound MENU_CLICK at volume 0.17 and pitch 1.0 (once). (11)
+@Log: Fetching lights for level "test" ... (11)
+@Log: Lights fetched for level "test", 1 light found. (11)
+@Log: Loaded map Test (test, ../worlds/maps/test), took 5ms. (11)
+@Log: Creating tile PLATFORM ... (11)
+
+ -- Last 20 Input Events -- 
+Touch dragged: pointer: 0 at x:1187 y: 257 (2719ms ago)
+Touch dragged: pointer: 0 at x:1184 y: 259 (2703ms ago)
+Touch dragged: pointer: 0 at x:1181 y: 261 (2686ms ago)
+Touch dragged: pointer: 0 at x:1179 y: 262 (2669ms ago)
+Touch dragged: pointer: 0 at x:1178 y: 263 (2653ms ago)
+Touch dragged: pointer: 0 at x:1176 y: 264 (2637ms ago)
+Touch dragged: pointer: 0 at x:1175 y: 265 (2520ms ago)
+Touch dragged: pointer: 0 at x:1175 y: 272 (2469ms ago)
+Touch dragged: pointer: 0 at x:1175 y: 281 (2453ms ago)
+Touch dragged: pointer: 0 at x:1176 y: 290 (2436ms ago)
+Touch dragged: pointer: 0 at x:1178 y: 299 (2419ms ago)
+Touch dragged: pointer: 0 at x:1178 y: 305 (2403ms ago)
+Touch dragged: pointer: 0 at x:1180 y: 309 (2386ms ago)
+Touch dragged: pointer: 0 at x:1181 y: 310 (2369ms ago)
+Touch up: 0 (pointer: 0) at x:1181 y: 310 (2203ms ago)
+Key down: Forward Delete (112) (1387ms ago)
+Key up: Forward Delete (112) (1303ms ago)
+Touch down: 0 (pointer: 0) at x:1735 y: 192 (304ms ago)
+Touch up: 0 (pointer: 0) at x:1735 y: 192 (254ms ago)
+Touch down: 0 (pointer: 0) at x:1140 y: 332 (36ms ago)

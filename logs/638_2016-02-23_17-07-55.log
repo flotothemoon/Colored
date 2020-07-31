@@ -1,0 +1,79 @@
+ -- General -- 
+Generated on: 2016-02-23_17-07-55
+Build: 638 from 08:32 PM - 22/02/16
+GameState: IN_LEVEL (previous: LOADING)
+Target FPS: 60
+Actual FPS: 60
+
+ -- Display -- 
+Target Width / Height: 1920 / 1080
+Actual Width / Height: 1920 / 1053 (windowed)
+
+ -- Environment -- 
+GPU: GeForce GTX 980 Ti/PCIe/SSE2 (NVIDIA Corporation)
+OpenGL Version: 4.5.0 NVIDIA 361.43
+Allocated Memory: 15MB
+Used Memory: 0MB
+"os.name": Windows 10
+"os.version": 10.0
+"os.arch": x86
+"java.version": 1.8.0_66
+"java.vendor": Oracle Corporation
+"sun.arch.data.model": 32
+
+ -- Level --
+ID: 20-01 (internal: 01)
+LevelType: SEPERATED
+Dimension: SHADOW
+Location: ../worlds/maps/20-01
+
+ -- Stack Trace -- 
+java.lang.NullPointerException: xyz cannot be null
+com.unlogical.colored.GameLauncher.update(GameLauncher.java:387)
+com.unlogical.colored.GameLauncher.render(GameLauncher.java:483)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication.mainLoop(LwjglApplication.java:218)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication$1.run(LwjglApplication.java:123)
+
+ -- Last 20 Log Entries -- 
+@Log: Found world hub for world 24 at 24-10. (8)
+@Log: Initializing map editor... (8)
+@Log: Initialising levelrenderer... (8)
+@Log: Initializing menus... (8)
+@Log: SaveState 22.dat found and read successfully. (8)
+@Log: SaveState 23.dat found and read successfully. (8)
+@Log: SaveState 25.dat found and read successfully. (8)
+@Log: SaveState 26.dat found and read successfully. (8)
+@Log: Initializing story handler... (8)
+@Log: Initializing credits screen... (8)
+@Log: Resizing contents to current window size... (8)
+@Log: Finished loading, took 310ms. (8)
+@Log: Loading map ../worlds/maps/20-01 ... (8)
+@Log: Loading map files took 25ms. (8)
+@Log: Fetching lights for level "20-01" ... (8)
+@Log: Lights fetched for level "20-01", 14 lights found. (8)
+@Log: Pre-simulating particles for 45000.0ms (300 x 150.0ms)... (8)
+@Log: Particle pre-simulation complete. Particles are now ahead of time by 45000.0ms. (8)
+@Log: Active save was saved to disk. (8)
+@Log: Loaded 20-01 (took 105ms). (8)
+
+ -- Last 20 Input Events -- 
+Key up: D (32) (3700ms ago)
+Key down: Space (62) (3583ms ago)
+Key up: W (51) (3500ms ago)
+Key down: D (32) (3483ms ago)
+Key up: Space (62) (3417ms ago)
+Key down: A (29) (3400ms ago)
+Key down: W (51) (3333ms ago)
+Key up: A (29) (3250ms ago)
+Key up: W (51) (3217ms ago)
+Key down: Space (62) (3167ms ago)
+Key up: D (32) (3100ms ago)
+Key down: A (29) (3083ms ago)
+Key down: W (51) (3000ms ago)
+Key up: A (29) (2917ms ago)
+Key down: D (32) (2850ms ago)
+Key up: W (51) (2800ms ago)
+Key up: D (32) (2067ms ago)
+Key down: L-Ctrl (129) (167ms ago)
+Key down: L-Alt (57) (150ms ago)
+Key down: Space (62) (17ms ago)

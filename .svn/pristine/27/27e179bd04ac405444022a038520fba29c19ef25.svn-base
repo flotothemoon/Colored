@@ -1,0 +1,62 @@
+package com.unlogical.linked.terrain.tile.logical;
+
+import org.newdawn.slick.geom.Vector2f;
+
+import com.unlogical.linked.level.Level;
+import com.unlogical.linked.terrain.TileType;
+import com.unlogical.linked.terrain.property.TileProperty;
+import com.unlogical.linked.terrain.tile.properties.ITileReceiver;
+import com.unlogical.linked.util.Dimension;
+
+public class TileLeverGate extends TileGate implements ITileReceiver
+{
+	public TileLeverGate(TileType type, String metadata, int innerType, float rotation, Vector2f position, Level level, Dimension dimension, TileProperty properties, boolean allowMirrors)
+	{
+		super(type, metadata, innerType, rotation, position, level, dimension, properties, allowMirrors);
+	}
+
+	@Override
+	public void onTrigger()
+	{
+		if (!inverted)
+		{
+			open(transitioning, true);
+		}
+		else
+		{
+			close(transitioning);
+		}
+	}
+
+	@Override
+	public void onUntrigger()
+	{
+		if (!inverted)
+		{
+			close(transitioning);
+		}
+		else
+		{
+			open(transitioning, true);
+		}
+	}
+
+	@Override
+	public void readMetadata()
+	{
+		try
+		{
+			this.setPort(Integer.parseInt(metadata.trim()));
+		}
+		catch (Exception e)
+		{
+		}
+	}
+
+	@Override
+	public void writeMetadata()
+	{
+		this.metadata = this.getPort() + "";
+	}
+
+}

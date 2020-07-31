@@ -1,0 +1,147 @@
+package com.unlogical.colored.gui.menu;
+
+import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.g2d.Batch;
+import com.unlogical.colored.GameLauncher;
+import com.unlogical.colored.configuration.Settings;
+import com.unlogical.colored.configuration.SoundVolume;
+import com.unlogical.colored.gui.menu.MenuItemSlider.IMenuItemSliderListener;
+import com.unlogical.colored.gui.menu.MenuOptions.MenuOption;
+import com.unlogical.colored.resources.image.Images;
+import com.unlogical.colored.sound.SoundManager.SoundType;
+import com.unlogical.colored.util.Renderer;
+
+public class SettingsMenu extends Menu
+{
+	public static final String HOW_TO_PLAY_KEYBOARD = "how_to_play_keyboard";
+
+	private static final int BORDER_PADDING = 100;
+
+	private static final int SOUND_SLIDER_PLAY_INTERVAL = 1000;
+
+	private long lastSoundPlayerTime;
+	private MenuItemSlider soundVolumeSlider;
+	private MenuItemSlider musicVolumeSlider;
+
+	public SettingsMenu(float yOffset, float padding)
+	{
+		super(createOptions(), GameLauncher.getWidth() / 2 + BORDER_PADDING, yOffset + 100, GameLauncher.getWidth() / 2 - BORDER_PADDING * 2, padding, true);
+
+		Images.registerAndLoadSilently(HOW_TO_PLAY_KEYBOARD);
+
+		for (final MenuItem item : this.options)
+		{
+			if (item.getItem().equals(MenuOption.SOUND_VOLUME.name) || item.getItem().equals(MenuOption.SOUND_OFF.name))
+			{
+				soundVolumeSlider = (MenuItemSlider) item;
+				((MenuItemSlider) item).setListener(new IMenuItemSliderListener()
+				{
+					@Override
+					public void onFactorChanged(float selectedRange)
+					{
+						if (selectedRange <= 0.0f)
+						{
+							item.setItem(MenuOption.SOUND_OFF.name);
+						}
+						else
+						{
+							item.setItem(MenuOption.SOUND_VOLUME.name);
+						}
+
+						SoundVolume.SOUND.setVolume((int) (100 * selectedRange));
+						Settings.saveSettings();
+					}
+				});
+				((MenuItemSlider) item).setSelectedRange(SoundVolume.SOUND.volume() / 100.0f);
+			}
+			else if (item.getItem().equals(MenuOption.MUSIC_VOLUME.name) || item.getItem().equals(MenuOption.MUSIC_OFF.name))
+			{
+				musicVolumeSlider = (MenuItemSlider) item;
+				((MenuItemSlider) item).setListener(new IMenuItemSliderListener()
+				{
+					@Override
+					public void onFactorChanged(float selectedRange)
+					{
+						if (selectedRange <= 0.0f)
+						{
+							item.setItem(MenuOption.MUSIC_OFF.name);
+						}
+						else
+						{
+							item.setItem(MenuOption.MUSIC_VOLUME.name);
+						}
+
+						SoundVolume.MUSIC.setVolume((int) (100 * selectedRange));
+						Settings.saveSettings();
+					}
+				});
+				((MenuItemSlider) item).setSelectedRange(SoundVolume.MUSIC.volume() / 100.0f);
+			}
+		}
+	}
+
+	private static MenuItem[] createOptions()
+	{
+		return new MenuItem[] { new MenuItemSlider(MenuOption.SOUND_VOLUME.name), new MenuItemSlider(MenuOption.MUSIC_VOLUME.name), new MenuItem(GameLauncher.isFullscreenMode() ? MenuOption.SWITCH_TO_WINDOWED.name : MenuOption.SWITCH_TO_FULLSCREEN.name), new MenuItem(MenuOption.BACK.name) };
+	}
+
+	@Override
+	public void onSelect(MenuItem item)
+	{
+		if (item.getItem().equals(MenuOption.SWITCH_TO_FULLSCREEN.name))
+		{
+			item.setItem(MenuOption.SWITCH_TO_WINDOWED.name);
+			GameLauncher.setFullscreenMode(true);
+		}
+		else if (item.getItem().equals(MenuOption.SWITCH_TO_WINDOWED.name))
+		{
+			item.setItem(MenuOption.SWITCH_TO_FULLSCREEN.name);
+			GameLauncher.setFullscreenMode(false);
+		}
+		else if (item.getItem().equals(MenuOption.BACK.name))
+		{
+			MenuHandler.transitionTo(GameLauncher.getPreviousStatus(), true);
+		}
+	}
+
+	@Override
+	public void customUpdate(int delta)
+	{
+		if (this.selectedOption >= 0)
+		{
+			if (this.options[selectedOption] == soundVolumeSlider)
+			{
+				if ((System.currentTimeMillis() - lastSoundPlayerTime) >= SOUND_SLIDER_PLAY_INTERVAL)
+				{
+					MenuHandler.getSoundManager().play(SoundType.randomSoundFromAll());
+					
+					lastSoundPlayerTime = System.currentTimeMillis();
+				}
+			}
+			else if (this.options[selectedOption] == musicVolumeSlider)
+			{
+
+			}
+		}
+	}
+
+	@Override
+	public void customRender(Batch batch)
+	{
+		Renderer.useSpriteBatch();
+
+		Images.draw(HOW_TO_PLAY_KEYBOARD, GameLauncher.getWidth() / 4, GameLauncher.getHeight() / 2 - 100, 1.0f, 0, Color.WHITE, batch);
+	}
+
+	@Override
+	protected void onShow()
+	{
+		for (MenuItem item : this.options)
+		{
+			if (item instanceof MenuItemSlider)
+			{
+				((MenuItemSlider) item).createSlider();
+			}
+		}
+	}
+}

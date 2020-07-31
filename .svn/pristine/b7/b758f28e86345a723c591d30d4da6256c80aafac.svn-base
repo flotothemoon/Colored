@@ -1,0 +1,11 @@
+package com.unlogical.linked.terrain.tile.properties;
+
+import com.unlogical.linked.entity.Entity;
+import com.unlogical.linked.terrain.tile.Tile;
+
+public interface ITileCollissionNotifier
+{
+	public void onCollisionWithEntity(Entity entity, boolean top, boolean bottom, boolean right, boolean left);
+
+	public void onCollisionWithTile(Tile tile, boolean top, boolean bottom, boolean right, boolean left);
+}

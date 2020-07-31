@@ -1,0 +1,84 @@
+ -- General -- 
+Generated on: 2016-04-08_19-51-54
+Build: 686 from 07:46 PM - 08/04/16
+GameState: MAP_EDITOR (previous: IN_LEVEL)
+Target FPS: 60
+Actual FPS: 60
+
+ -- Display -- 
+Target Width / Height: 1920 / 1080
+Actual Width / Height: 1920 / 1053 (windowed)
+
+ -- Environment -- 
+GPU: GeForce GTX 980 Ti/PCIe/SSE2 (NVIDIA Corporation)
+OpenGL Version: 4.5.0 NVIDIA 361.43
+Allocated Memory: 15MB
+Used Memory: 0MB
+"os.name": Windows 10
+"os.version": 10.0
+"os.arch": x86
+"java.version": 1.8.0_66
+"java.vendor": Oracle Corporation
+"sun.arch.data.model": 32
+
+ -- Level --
+ID: 22-07 (internal: 07)
+LevelType: TIME_SCALE
+Dimension: LIGHT
+Location: ../worlds/maps/22-07
+
+ -- Stack Trace -- 
+java.lang.IllegalStateException: SpriteBatch.begin must be called before draw.
+com.unlogical.colored.util.CustomVerticesSpriteBatch.draw(CustomVerticesSpriteBatch.java:682)
+com.badlogic.gdx.graphics.g2d.BitmapFontCache.draw(BitmapFontCache.java:237)
+com.badlogic.gdx.graphics.g2d.BitmapFont.draw(BitmapFont.java:191)
+com.unlogical.colored.util.Renderer.drawString(Renderer.java:361)
+com.unlogical.colored.entity.boss.EntityTimeScaleBoss.draw(EntityTimeScaleBoss.java:242)
+com.unlogical.colored.mapeditor.MapEditor.render(MapEditor.java:1236)
+com.unlogical.colored.GameLauncher.render(GameLauncher.java:460)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication.mainLoop(LwjglApplication.java:218)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication$1.run(LwjglApplication.java:123)
+
+ -- Last 20 Log Entries -- 
+@Log: Play sound MENU_CLICK at volume 0.0 and pitch 1.0 (once). (11)
+@Log: Fetching lights for level "22-05" ... (11)
+@Log: Lights fetched for level "22-05", 5 lights found. (11)
+@Log: Loaded map The Flow of Time (22-05, ../worlds/maps/22-05), took 37ms. (11)
+@Log: Clicked "Add Particle Emitter" and called its onClick(). (11)
+@Log: Play sound MENU_CLICK at volume 0.0 and pitch 1.0 (once). (11)
+@Log: Clicked "Import" and called its onClick(). (11)
+@Log: Play sound MENU_CLICK at volume 0.0 and pitch 1.0 (once). (11)
+@Log: Copied 1 objects to clipboard. (11)
+@Log: Copied 1 objects to clipboard. (11)
+@Log: Fetching lights for level "22-06" ... (11)
+@Log: Lights fetched for level "22-06", 5 lights found. (11)
+@Log: Loaded map Back and Forth (22-06, ../worlds/maps/22-06), took 46ms. (11)
+@Log: Pasted 1 objects. (11)
+@Log: Pasted 1 objects. (11)
+@Log: Clicked "Go there!" and called its onClick(). (11)
+@Log: Play sound MENU_CLICK at volume 0.0 and pitch 1.0 (once). (11)
+@Log: Fetching lights for level "22-07" ... (11)
+@Log: Lights fetched for level "22-07", 2 lights found. (11)
+@Log: Loaded map Ice Cave (22-07, ../worlds/maps/22-07), took 44ms. (11)
+
+ -- Last 20 Input Events -- 
+Touch dragged: pointer: 0 at x:1038 y: 296 (2727ms ago)
+Touch dragged: pointer: 0 at x:1036 y: 296 (2710ms ago)
+Touch dragged: pointer: 0 at x:1035 y: 296 (2693ms ago)
+Touch dragged: pointer: 0 at x:1034 y: 296 (2610ms ago)
+Touch dragged: pointer: 0 at x:1031 y: 296 (2593ms ago)
+Touch up: 0 (pointer: 0) at x:1031 y: 296 (2510ms ago)
+Touch down: 0 (pointer: 0) at x:1153 y: 334 (2343ms ago)
+Touch dragged: pointer: 0 at x:1153 y: 335 (2310ms ago)
+Touch up: 0 (pointer: 0) at x:1153 y: 335 (2293ms ago)
+Key down: S (47) (2243ms ago)
+Key up: S (47) (2043ms ago)
+Touch down: 0 (pointer: 0) at x:876 y: 762 (1710ms ago)
+Touch up: 0 (pointer: 0) at x:876 y: 763 (1610ms ago)
+Touch down: 1 (pointer: 0) at x:876 y: 763 (1360ms ago)
+Touch up: 1 (pointer: 0) at x:876 y: 763 (1293ms ago)
+Touch down: 1 (pointer: 0) at x:876 y: 763 (1227ms ago)
+Touch up: 1 (pointer: 0) at x:876 y: 763 (1110ms ago)
+Touch down: 1 (pointer: 0) at x:876 y: 763 (927ms ago)
+Touch up: 1 (pointer: 0) at x:876 y: 763 (877ms ago)
+Touch down: 0 (pointer: 0) at x:1626 y: 372 (77ms ago)

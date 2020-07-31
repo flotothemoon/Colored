@@ -1,0 +1,97 @@
+package com.unlogical.linked.gui.panel;
+
+import org.lwjgl.opengl.Display;
+import org.newdawn.slick.Color;
+import org.newdawn.slick.GameContainer;
+import org.newdawn.slick.Graphics;
+
+import com.unlogical.linked.GameLauncher;
+import com.unlogical.linked.entity.player.EntityPlayer;
+import com.unlogical.linked.level.LevelType;
+import com.unlogical.linked.levelrendering.LevelRenderer;
+import com.unlogical.linked.levelrendering.map.MapRenderer;
+import com.unlogical.linked.mapeditor.MapEditor;
+import com.unlogical.linked.util.TimeStepHandler;
+import com.unlogical.linked.util.ZHandler;
+
+public class DebugPanel extends GUIPanel
+{
+	public DebugPanel(float xOffset, float yOffset, float width, float height)
+	{
+		super("Debug", xOffset, yOffset, width, height);
+
+		this.fillColor = new Color(MapEditor.panelColor);
+		this.setHeight((GameLauncher.getSmallFont().getLineHeight() + 5) * 11);
+	}
+
+	@Override
+	protected void customRender(GameContainer container, float alphaFactor, Graphics g)
+	{
+		int y = (int) (yOffset + 5);
+		int x = (int) (xOffset + 5);
+
+		g.setColor(Color.white);
+		g.setFont(GameLauncher.getSmallFont());
+
+		int offset = g.getFont().getLineHeight() + 5;
+		EntityPlayer player = LevelRenderer.getPlayer();
+
+		g.drawString("FPS: " + GameLauncher.getFPS() + " (Lock: " + GameLauncher.getTargetFPS() + ", vsync:" + GameLauncher.getContainer().isVSyncRequested() + ")", x, y);
+		y += offset;
+		
+		g.drawString("Memory Usage: " + LevelRenderer.getUsedMemory() + " (" + ((LevelRenderer.getUsedMemory()) * 100) / (LevelRenderer.getAllocatedMemory()) + "%) / " + LevelRenderer.getAllocatedMemory() + "MB", x, y);
+		y += offset;
+		
+		g.drawString("LevelType: " + player.getLevel().getType(), x, y);
+		y += offset;
+
+		g.drawString("Dimension: " + player.getDimension(), x, y);
+		y += offset;
+
+		if (player.getLevel().getType() == LevelType.TIME_TRAVEL || player.getLevel().getType() == LevelType.FROZEN)
+		{
+			g.drawString("CurrentFrame: " + TimeStepHandler.currentFrameStart + " (" + TimeStepHandler.currentFrameBeforeStart + ") - " + TimeStepHandler.currentFrameEnd, x, y);
+			y += offset;
+		}
+		
+		g.drawString((GameLauncher.isFullscreenMode() ? "F" : "W") + ": " + Display.getWidth() + "x" + Display.getHeight() + " (" + ((Math.round((((float) Display.getWidth()) / ((float) Display.getHeight())) * 100)) / 100.0f) + ") - " + GameLauncher.getWidth() + "x" + GameLauncher.getHeight() + " (" + ((Math.round(GameLauncher.TARGET_RATIO * 100)) / 100.0f) + ")", x, y);
+		y += offset;
+
+		if (player.isSuffocating() || (player.hasMirror() && player.getMirroredEntity().isSuffocating()))
+		{
+			if (player.isSuffocating())
+			{
+				g.drawString("Suffocating!", x, y);
+			}
+			else
+			{
+				g.drawString("Can't toggle!", x, y);
+			}
+
+			y += offset;
+		}
+
+		g.drawString("CameraOffset: " + LevelRenderer.getLevel().getCameraOffset().x + " | " + LevelRenderer.getLevel().getCameraOffset().y, x, y);
+		y += offset;
+
+		g.drawString("E: " + LevelRenderer.getEntities().size() + " | T: " + GameLauncher.getLevelContext().getTiles().size() + " | Z: " + ZHandler.getDistortionCount() + " | E-P: " + LevelRenderer.getLevel().getParticleSystem().getEmitterCount() + " - " + LevelRenderer.getLevel().getParticleSystem().getParticleCount() + " / " + LevelRenderer.getLevel().getParticleSystem().getRealParticleCount(), x, y);
+		y += offset;
+				
+		if (LevelRenderer.isTransitioning())
+		{
+			g.drawString("TransitionTime: " + LevelRenderer.getDimensionTransitionTime(), x, y);
+			y += offset;
+		}
+		
+		if (MapRenderer.isReSimulating())
+		{
+			g.drawString("ReSimulating?", x, y);
+			y += offset;
+		}
+
+		if ((y - yOffset + 20) != this.height)
+		{
+			this.setHeight(y - yOffset + 20);
+		}
+	}
+}

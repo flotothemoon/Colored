@@ -1,0 +1,90 @@
+package com.unlogical.colored.entity.boss;
+
+import java.util.Random;
+
+import com.badlogic.gdx.graphics.g2d.Batch;
+import com.badlogic.gdx.math.Vector2;
+import com.unlogical.colored.GameLauncher;
+import com.unlogical.colored.entity.EntityType;
+import com.unlogical.colored.entity.property.EntityProperties;
+import com.unlogical.colored.level.Level;
+import com.unlogical.colored.resources.font.Fonts;
+import com.unlogical.colored.util.ColorHelper;
+import com.unlogical.colored.util.Dimension;
+import com.unlogical.colored.util.Renderer;
+
+public class EntityTimeTravelBoss extends EntityBoss
+{
+	private static final float MAX_ACTIVE_DISTANCE = 350.0f;
+
+	private boolean active = true;
+
+	public EntityTimeTravelBoss(EntityType type, Vector2 position, Level level, Dimension dimension, boolean allowMirrors)
+	{
+		super(type, position, level, dimension, allowMirrors);
+	}
+
+	@Override
+	public void init()
+	{
+		super.init();
+	}
+
+	@Override
+	public void onUpdate(float delta, Random rng)
+	{
+		super.onUpdate(delta, rng);
+
+		super.onUpdate(delta, rng);
+
+		if (!this.active && this.distanceToPlayer.len() < MAX_ACTIVE_DISTANCE)
+		{
+			this.active = true;
+		}
+
+		if (this.active)
+		{
+			this.setFocused(this.distanceToPlayer.x > 0);
+
+			float targetDistanceX = this.distanceToPlayer.x + (this.level.getControllingPlayer().getCenterX() > GameLauncher.getWidth() / 2.0f ? -1 : 1) * 150;
+
+			this.velocity.x += this.properties.getAcceleration(delta) * (targetDistanceX > 0.0f ? 1 : -1);
+
+			if (Math.abs(this.velocity.x) > this.properties.getMaxSpeed())
+			{
+				this.velocity.x = this.properties.getMaxSpeed() * Math.signum(this.velocity.x);
+			}
+		}
+	}
+
+	@Override
+	public void draw(Batch batch)
+	{
+		super.draw(batch);
+
+		if (this.alive)
+		{
+			Renderer.setFont(Fonts.getSmallFont());
+
+			String drawString = "";
+
+			for (int i = 0; i < this.properties.getMaxHealth() - this.health; i++)
+			{
+				drawString += "X";
+			}
+
+			for (int i = 0; i < this.health; i++)
+			{
+				drawString += "O";
+			}
+
+			Renderer.drawString(drawString, this.customModifiyDrawColor(this.getDrawColor(this.dimension, ColorHelper.buffer)), this.getCenterX() - Renderer.getWidth(drawString) / 2.0f, this.getCenterY() - 58, 1.0f, batch);
+		}
+	}
+
+	@Override
+	protected EntityProperties getEntityProperty()
+	{
+		return EntityProperties.TIME_TRAVEL_BOSS;
+	}
+}

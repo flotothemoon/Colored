@@ -1,0 +1,8 @@
+package com.unlogical.colored.terrain.tile.properties;
+
+public interface ITileReceiver extends ITileTriggerable
+{
+	public void onTrigger(boolean hasInversedMirror);
+	
+	public void onUntrigger(boolean hasInversedMirror);
+}

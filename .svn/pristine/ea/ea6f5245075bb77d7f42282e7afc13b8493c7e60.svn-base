@@ -1,0 +1,48 @@
+package com.unlogical.linked.input;
+
+public enum InputAction
+{
+	MOVE_RIGHT(0),
+	MOVE_LEFT(1),
+	MOVE_UP(2),
+	MOVE_DOWN(3),
+	
+	JUMP(4),
+	TOGGLE_DIMENSIONS(6),
+	PAUSE(7),
+	INTERACT(8),
+	BACK(9);
+	
+	private int saveCode;
+	
+	private InputAction(int saveCode)
+	{
+		this.saveCode = saveCode;
+	}
+	
+	public static InputAction getAction(String action)
+	{
+		return getAction(Integer.parseInt(action));
+	}
+	
+	public static InputAction getAction(int action)
+	{
+		return values()[action];
+	}
+	
+	public static boolean contains(int index)
+	{
+		return index >= 0 && index < values().length;
+	}
+	
+	public int getSaveCode()
+	{
+		return this.saveCode;
+	}
+	
+	@Override
+	public String toString()
+	{
+		return getSaveCode() + "";
+	}
+}

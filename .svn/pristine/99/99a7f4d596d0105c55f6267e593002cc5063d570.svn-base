@@ -1,0 +1,560 @@
+package com.unlogical.linked.entity;
+
+import java.util.HashSet;
+import java.util.Random;
+
+import org.newdawn.slick.GameContainer;
+import org.newdawn.slick.geom.Vector2f;
+
+import com.unlogical.linked.debug.Debug;
+import com.unlogical.linked.entity.player.EntityPlayer;
+import com.unlogical.linked.level.Level;
+import com.unlogical.linked.level.LevelType;
+import com.unlogical.linked.levelrendering.map.MapRenderer;
+import com.unlogical.linked.particle.AttractorConfiguration;
+import com.unlogical.linked.sound.Sounds;
+import com.unlogical.linked.terrain.TerrainObject;
+import com.unlogical.linked.terrain.tile.Tile;
+import com.unlogical.linked.util.Dimension;
+import com.unlogical.linked.util.ScheduledEvent;
+import com.unlogical.linked.util.GameObject;
+import com.unlogical.linked.util.LevelObject;
+import com.unlogical.linked.util.TimeStepHandler;
+
+public abstract class EntityLiving extends Entity implements IEntityCollisionNotifier
+{
+	public static final String DEATH = "death";
+	public static final String REMOVAL = "remove";
+
+	protected static final int PROTECTION_TIME = 250;
+
+	protected boolean alive = true;
+	protected boolean invincible;
+	protected boolean frozen;
+	protected boolean fellToDeath;
+
+	protected int hurtTime;
+
+	protected int maxHealth;
+	protected int health;
+
+	protected long age;
+
+	protected HashSet<Tile> attractedEmitters;
+
+	private IEntityPickupable holdedEntity;
+	private boolean holdingEntity;
+
+	protected float latestDelta;
+	private float rotationFactor;
+
+	public EntityLiving(EntityType type, Vector2f position, Level level, Dimension dimension, boolean allowMirrors)
+	{
+		super(type, position, level, dimension, allowMirrors);
+
+		this.health = properties.getMaxHealth();
+	}
+
+	@Override
+	public final void updateEntity(GameContainer container, float delta, Random rng)
+	{
+		this.latestDelta = delta;
+		this.frozen = delta == 0.0f;
+
+		if (alive)
+		{
+			age += delta;
+
+			if (this.collidedBelow && this.tileBelow != null && this.tileBelow.hasAttractableEmitters() && ((tileBelow.blocksDimensionTravel() && (this instanceof EntityPlayer)) || !tileBelow.blocksDimensionTravel()))
+			{
+				if (this.attractedEmitters == null)
+				{
+					this.attractedEmitters = new HashSet<Tile>(3);
+				}
+
+				this.attractedEmitters.add(tileBelow);
+				tileBelow.addAttractor(this.hitbox, getAttractorConfiguration(tileBelow));
+			}
+			else if (this.attractedEmitters != null && !this.attractedEmitters.isEmpty())
+			{
+				for (Tile tile : attractedEmitters)
+				{
+					tile.removeAttractor(this.hitbox);
+				}
+
+				this.attractedEmitters.clear();
+			}
+
+			if (hurtTime > 0)
+			{
+				hurtTime -= delta;
+			}
+
+			onUpdate(container, delta, rng);
+
+			if (holdingEntity)
+			{
+				updateHoldedEntityPosition();
+			}
+
+			if (outOfMap)
+			{
+				damage(5, null);
+			}
+		}
+		else
+		{
+			if (fellToDeath)
+			{
+				collidedBelow = false;
+				gravityActive = true;
+
+				this.rotation += (0.2f * rotationFactor * delta * (this.velocity.x / this.properties.getMaxSpeed()));
+			}
+
+			if (pixelified || outOfMap || !fellToDeath && shouldRemoveOnDeath())
+			{
+				if (level.getType() == LevelType.TIME_TRAVEL && this.dimension == Dimension.LIGHT && !this.shared)
+				{
+					if (!scheduledEvents.containsKey(REMOVAL))
+					{
+						scheduleEvent(new ScheduledEvent(REMOVAL), TimeStepHandler.currentFrameBeforeStart);
+					}
+				}
+				else if (hasActiveEmitters())
+				{
+					if (!scheduledEvents.containsKey(REMOVAL))
+					{
+						scheduleEvent(new ScheduledEvent(REMOVAL), 3000);
+					}
+				}
+				else
+				{
+					level.removeEntity(this);
+				}
+			}
+		}
+	}
+
+	public final void damage(int damage, LevelObject damageSource)
+	{
+		if (damage > 0 && health > 0 && hurtTime <= 0 && !frozen && !invincible && canBeHarmedBy(damageSource))
+		{
+			health -= damage;
+			hurtTime = PROTECTION_TIME;
+
+			if (damageSource instanceof Entity)
+			{
+				damagedByEntity(damage, (Entity) damageSource);
+			}
+			else if (damageSource instanceof TerrainObject)
+			{
+				damagedByTerrain(damage, (TerrainObject) damageSource);
+			}
+			else
+			{
+				damagedByOther(damage);
+			}
+
+			if (health <= 0)
+			{
+				bufferedVector.set(this.velocity);
+
+				onDeath(damageSource);
+
+				if (level.getLevelType() == LevelType.TIME_TRAVEL && (this.dimension == Dimension.SHADOW || this.isShared()) && damageSource instanceof EntityPlayer)
+				{
+					if (this.hasMirror)
+					{
+						IEntityPickupable holded = ((EntityLiving) this.mirroredEntity).holdedEntity;
+
+						this.mirroredEntity.setPosition(this.position.x, this.position.y);
+						this.mirroredEntity.setVelocity(bufferedVector.x, bufferedVector.y);
+						((EntityLiving) this.mirroredEntity).onDeath(damageSource);
+						((EntityLiving) this.mirroredEntity).hold(holded);
+					}
+
+					MapRenderer.reSimulateAll(this);
+				}
+			}
+			else
+			{
+				Sounds.play(getHurtSound());
+			}
+		}
+	}
+
+	protected boolean canBeHarmedBy(GameObject source)
+	{
+		return !(source instanceof EntityLiving) || !(level.getLevelType() == LevelType.FROZEN && this.timeEffected && (this.frozen || ((source.isShared() || source.shouldHandleAsShared()) && !this.shared)));
+	}
+
+	public final void onDeath(LevelObject damageSource)
+	{
+		if (alive)
+		{
+			alive = false;
+			this.setSkipMainUpdate(true);
+
+			dropHoldedEntity();
+
+			stopAllEmitters();
+
+			// TODO fix crash for shadowball in time travel
+			// (concurrentmodification), probably because of damageSource
+			// somehow
+			// try removing projectiles from test level could be particle system
+			// too :)
+
+			// if (supportsAction(EntityAction.DEAD))
+			// {
+			// setEntityAction(EntityAction.DEAD);
+			//
+			// onCurrentActionChanged();
+			//
+			// setImageFocus(this.focused);
+			// }
+
+			if (!initialising)
+			{
+				if (level.getType() == LevelType.TIME_TRAVEL)
+				{
+					if (this.dimension == Dimension.LIGHT)
+					{
+						scheduleMirroredEvent(new ScheduledEvent(DEATH, damageSource));
+					}
+					else
+					{
+						if (damageSource != null && damageSource.hasMirror() && damageSource.getDimension() == Dimension.LIGHT)
+						{
+							damageSource = damageSource.getMirror();
+						}
+					}
+				}
+
+				Sounds.play(getDieSound());
+
+				customOnDeath(damageSource);
+			}
+		}
+	}
+
+	protected void fallOnDeath()
+	{
+		this.fellToDeath = true;
+		this.hitbox.resetCache();
+		this.velocity.x *= 0.5f;
+
+		this.rotationFactor = (float) (level.getRNG(this).nextFloat() + 0.5f) * (this.velocity.x > 0 ? 1.0f : -1.0f);
+	}
+
+	protected void customOnDeath(LevelObject damageSource)
+	{
+
+	}
+
+	protected void updateHoldedEntityPosition()
+	{		
+		Vector2f offset = getHandOffset(focused && !climbing, currentAction, currentImage);
+
+		if (offset == null)
+		{
+			Debug.warn("offset is null");
+			System.out.println(this);
+		}
+		((Entity) holdedEntity).getPosition().x = this.position.x + offset.x - (focused && !climbing ? ((Entity) holdedEntity).getHitbox().getWidth() : 0);
+		((Entity) holdedEntity).getPosition().y = this.position.y + offset.y;
+
+		if (climbing)
+		{
+			((Entity) holdedEntity).setRotation(-90.0f);
+		}
+		else
+		{
+			if (focused)
+			{
+				((Entity) holdedEntity).setRotation(180.0f);
+			}
+			else
+			{
+				((Entity) holdedEntity).setRotation(0.0f);
+			}
+		}
+	}
+
+	@Override
+	protected void onScheduledEvent(ScheduledEvent event)
+	{
+		super.onScheduledEvent(event);
+
+		if (event.type == DEATH)
+		{
+			onDeath((LevelObject) event.object);
+		}
+		else if (event.type == REMOVAL)
+		{
+			if (hasActiveEmitters())
+			{
+				reScheduleEvent = true;
+			}
+			else
+			{
+				level.removeEntity(this);
+			}
+		}
+	}
+
+	public void hold(IEntityPickupable entity)
+	{		
+		this.holdedEntity = entity;
+		this.holdingEntity = entity != null;
+	}
+
+	public void dropHoldedEntity()
+	{
+		if (holdingEntity)
+		{
+			if (((Entity) holdedEntity).getRotation() < 0)
+			{
+				if (focused)
+				{
+					((Entity) holdedEntity).setRotation(180.0f);
+				}
+				else
+				{
+					((Entity) holdedEntity).setRotation(0.0f);
+				}
+			}
+
+			holdedEntity.onDropped();
+
+			holdedEntity = null;
+			holdingEntity = false;
+		}
+	}
+
+	@Override
+	public boolean onCollisionWithEntity(Entity entity, boolean top, boolean bottom, boolean right, boolean left)
+	{		
+		if ((top || right || left || (bottom && (!this.shouldBounceFromEntities() || !entity.canBeBouncedOff()))) && canBeHarmedBy(entity) && (!(entity instanceof EntityLiving) || (((EntityLiving) entity).alive || ((EntityLiving) entity).frozen)))
+		{
+			this.damage(entity.getProperties().getDamagePerHit(), entity);
+		}
+
+		return this.alive && !this.frozen;
+	}
+
+	@Override
+	public void onCollisionWithTile(Tile tile, boolean top, boolean bottom, boolean right, boolean left, boolean intersect)
+	{
+		this.damage(tile.getTouchDamage(), tile);
+	}
+
+	@Override
+	public void onReSimulation()
+	{
+		super.onReSimulation();
+
+		if (((EntityLiving) this.mirroredEntity).alive && !this.alive)
+		{
+			this.revive();
+		}
+
+		if (this.holdedEntity != ((EntityLiving) this.mirroredEntity).holdedEntity && this.holdedEntity != null)
+		{
+			updateHoldedEntityPosition();
+			dropHoldedEntity();
+		}
+	}
+
+	@Override
+	public void onPostReSimulation(GameObject changedObject, Vector2f oldPosition)
+	{
+		super.onPostReSimulation(changedObject, oldPosition);
+	}
+
+	public void revive()
+	{
+		this.health = properties.getMaxHealth();
+		this.velocity.x = 0.0f;
+		this.velocity.y = 0.0f;
+		this.setRotation(0.0f);
+
+		this.reAdd();
+		this.setSkipMainUpdate(false);
+
+		this.alive = true;
+	}
+
+	protected abstract boolean canBeHarmedBy(Entity entity);
+
+	protected abstract Vector2f getHandOffset(boolean focused, EntityAction currentAction, int currentImage);
+
+	protected AttractorConfiguration getAttractorConfiguration(Tile tileBelow)
+	{
+		return AttractorConfiguration.DEFAULT_ENTITY;
+	}
+	
+	public boolean canPickUpEntities()
+	{
+		return true;
+	}
+
+	@Override
+	public boolean isRendered()
+	{
+		return !this.shooting || this.moving;
+	}
+
+	@Override
+	protected IEntityPickupable getHoldedObject()
+	{
+		return holdedEntity;
+	}
+
+	@Override
+	public boolean checkSuffocation()
+	{
+		return true;
+	}
+
+	@Override
+	protected void onSuffocation(boolean timeResistantSuffocation)
+	{
+		if (!invincible && (!frozen || timeResistantSuffocation))
+		{
+			onDeath(null);
+		}
+	}
+
+	protected boolean shouldRemoveOnDeath()
+	{
+		return false;
+	}
+
+	protected String getHurtSound()
+	{
+		return null;
+	}
+
+	protected String getAliveSound()
+	{
+		return null;
+	}
+
+	protected String getDieSound()
+	{
+		return null;
+	}
+
+	public void damagedByEntity(int damage, Entity damageSource)
+	{
+	}
+
+	public void damagedByTerrain(int damage, TerrainObject damageSource)
+	{
+	}
+
+	public void damagedByOther(int damage)
+	{
+	}
+
+	public void onSuffaction(TerrainObject object)
+	{
+		damage(2, null);
+	}
+
+	@Override
+	protected int getTileCheckRadius()
+	{
+		return 3;
+	}
+
+	protected boolean shouldBounceOnEntityCollision()
+	{
+		return false;
+	}
+
+	@Override
+	protected boolean notifyOnNearbyTerrain()
+	{
+		return false;
+	}
+
+	public boolean isNearby(TerrainObject object)
+	{
+		return true;
+	}
+
+	public boolean checkInsideBlock()
+	{
+		return false;
+	}
+
+	protected boolean shouldCreateParticlesOnDeath()
+	{
+		return true;
+	}
+
+	protected boolean notifyOnCollisions()
+	{
+		return false;
+	}
+
+	@Override
+	public String customToString()
+	{
+		return super.customToString() + (this.alive ? (this.health == this.properties.getMaxHealth() ? "alive" : "health:" + this.health + "/" + this.properties.getMaxHealth()) : "dead");
+	}
+
+	protected void onEntityHeal(int amount)
+	{
+		this.health += amount;
+
+		if (this.health >= this.properties.getMaxHealth())
+		{
+			this.health = this.properties.getMaxHealth();
+		}
+	}
+
+	public void customEntityHeal(int amount)
+	{
+	}
+
+	public abstract void onUpdate(GameContainer container, float delta, Random generator);
+
+	public int getHealth()
+	{
+		return health;
+	}
+
+	public long getAge()
+	{
+		return age;
+	}
+
+	public int getHurtTime()
+	{
+		return hurtTime;
+	}
+
+	public int getMaxHealth()
+	{
+		return properties.getMaxHealth();
+	}
+
+	public boolean isAlive()
+	{
+		return alive;
+	}
+
+	public IEntityPickupable getHoldedEntity()
+	{
+		return holdedEntity;
+	}
+
+	public boolean isHoldingEntity()
+	{
+		return holdingEntity;
+	}
+}

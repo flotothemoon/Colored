@@ -1,0 +1,56 @@
+package com.unlogical.colored.saving;
+
+import com.unlogical.colored.level.Level;
+import com.unlogical.colored.levelmanaging.LevelManager;
+
+public class Checkpoint
+{
+	private Level level;
+	private long timestamp;
+	
+	private Checkpoint(Level level, long timestamp)
+	{
+		this.level = level;
+		this.timestamp = timestamp;
+	}
+	
+	@Override
+	public boolean equals(Object obj)
+	{
+		if (!(obj instanceof Checkpoint))
+		{
+			return false;
+		}
+		
+		return this.timestamp == ((Checkpoint) obj).timestamp;
+	}
+	
+	public Checkpoint copy()
+	{
+		return new Checkpoint(copyLevel(this.level), timestamp);
+	}
+	
+	public static Checkpoint storeLevel(Level level)
+	{
+		return new Checkpoint(copyLevel(level), LevelManager.getRunningTimestamp());		
+	}
+	
+	private static Level copyLevel(Level level)
+	{
+		Level newLevel = new Level();
+		
+		Level.deepCopy(level, newLevel);
+		
+		return newLevel;
+	}
+	
+	public long getTimestamp()
+	{
+		return timestamp;
+	}
+	
+	public Level getLevel()
+	{
+		return level;
+	}
+}

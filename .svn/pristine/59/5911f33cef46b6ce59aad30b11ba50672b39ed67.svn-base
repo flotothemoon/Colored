@@ -1,0 +1,96 @@
+package com.unlogical.linked.util;
+
+import java.util.Map;
+
+import com.unlogical.linked.level.Level;
+import com.unlogical.linked.level.LevelType;
+
+public class TimeStepHandler implements IDeepCopyable<TimeStepHandler>
+{
+	public int currentFrameBeforeStart;
+	public int currentFrameStart;
+	public int currentFrameEnd;
+	public int nextFrameStart;
+	public int timeLoopLimit;
+
+	public Level level;
+
+	public TimeStepHandler(Level level)
+	{
+		this.level = level;
+
+		currentFrameStart = 0;
+		currentFrameEnd = 0;
+				
+		if (level.getLevelType() == LevelType.TIME_TRAVEL || level.getLevelType() == LevelType.FROZEN)
+		{
+			timeLoopLimit = level.getTimeLoopLimit();
+		}
+		else
+		{
+			timeLoopLimit = Level.DEFAULT_TIME_LOOP;
+		}
+	}
+
+	@Override
+	public TimeStepHandler deepCopy(Map<Object, Object> copiedReferences)
+	{
+		TimeStepHandler copy = new TimeStepHandler((Level) Level.getCopy(level, copiedReferences));
+		
+		copy.currentFrameEnd = this.currentFrameEnd;
+		copy.currentFrameStart = this.currentFrameStart;
+		copy.currentFrameBeforeStart = this.currentFrameBeforeStart;
+		copy.nextFrameStart = this.nextFrameStart;
+		copy.timeLoopLimit = this.timeLoopLimit;
+		
+		return copy;
+	}
+
+	@Override
+	public boolean shouldCopy()
+	{
+		return true;
+	}
+	
+	public void update(int delta)
+	{		
+		currentFrameStart = currentFrameEnd;
+		currentFrameEnd = currentFrameStart + delta;
+
+		currentFrameBeforeStart = currentFrameStart - 1;
+
+		if (currentFrameBeforeStart < 0)
+		{
+			currentFrameBeforeStart = timeLoopLimit - 1;
+		}
+
+		if (currentFrameStart >= timeLoopLimit)
+		{
+			currentFrameStart = currentFrameStart % timeLoopLimit;
+		}
+
+		if (currentFrameEnd >= timeLoopLimit)
+		{
+			currentFrameEnd = currentFrameEnd % timeLoopLimit;
+		}
+
+		nextFrameStart = currentFrameEnd;
+	}
+
+	public boolean isInCurrentFrame(int time)
+	{
+		if (currentFrameEnd > currentFrameStart)
+		{
+			return time >= currentFrameStart && time < currentFrameEnd;
+		}
+		else
+		{
+			return (time >= currentFrameStart && time < timeLoopLimit) || (time >= 0 && time < currentFrameEnd);
+		}
+	}
+
+	public void onDimensionToggle(Dimension newDimension)
+	{
+
+	}
+}

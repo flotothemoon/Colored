@@ -1,0 +1,82 @@
+ -- General -- 
+Generated on: 2016-06-18_11-24-59
+Build: 757 from 11:16 PM - 17/06/16
+GameState: MAP_EDITOR (previous: IN_LEVEL)
+Target FPS: 60
+Actual FPS: 60
+
+ -- Display -- 
+Target Width / Height: 1920 / 1080
+Actual Width / Height: 1920 / 1053 (windowed)
+
+ -- Environment -- 
+GPU: GeForce GTX 980 Ti/PCIe/SSE2 (NVIDIA Corporation)
+OpenGL Version: 4.5.0 NVIDIA 361.43
+Allocated Memory: 123MB
+Used Memory: 7MB
+"os.name": Windows 10
+"os.version": 10.0
+"os.arch": x86
+"java.version": 1.8.0_66
+"java.vendor": Oracle Corporation
+"sun.arch.data.model": 32
+
+ -- Level --
+ID: 22-01 (internal: 01)
+LevelType: TIME_SCALE
+Dimension: COLORED
+Location: ../worlds/maps/22-01
+
+ -- Stack Trace -- 
+java.lang.IllegalArgumentException: No enum constant com.unlogical.colored.terrain.tile.TileSoundSource.SoundRangeType.STATIC
+java.lang.Enum.valueOf(Enum.java:238)
+com.unlogical.colored.terrain.tile.TileSoundSource$SoundRangeType.valueOf(TileSoundSource.java:1)
+com.unlogical.colored.gui.panel.SoundSourcePanel$4.onClick(SoundSourcePanel.java:119)
+com.unlogical.colored.gui.button.Button.update(Button.java:120)
+com.unlogical.colored.gui.panel.SoundSourcePanel.customUpdate(SoundSourcePanel.java:192)
+com.unlogical.colored.gui.panel.GUIPanel.update(GUIPanel.java:90)
+com.unlogical.colored.mapeditor.MapEditor.update(MapEditor.java:1622)
+com.unlogical.colored.GameLauncher.update(GameLauncher.java:394)
+com.unlogical.colored.GameLauncher.render(GameLauncher.java:460)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication.mainLoop(LwjglApplication.java:218)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication$1.run(LwjglApplication.java:123)
+
+ -- Last 20 Log Entries -- 
+@Log    : Play sound MENU_CLICK at volume 0.0, pitch 1.0 and pan -0.0122 (once). (tid: 12)
+@Log    : Play sound MENU_CLICK at volume 0.0, pitch 1.0 and pan -0.0122 (once). (tid: 12)
+@Log    : Play sound MENU_CLICK at volume 0.0, pitch 1.0 and pan -0.0122 (once). (tid: 12)
+@Log    : Play sound MENU_CLICK at volume 0.0, pitch 1.0 and pan -0.0122 (once). (tid: 12)
+@Log    : Play sound MENU_CLICK at volume 0.0, pitch 1.0 and pan -0.0122 (once). (tid: 12)
+@Log    : Play sound MENU_CLICK at volume 0.0, pitch 1.0 and pan -0.0122 (once). (tid: 12)
+@Log    : Play sound MENU_CLICK at volume 0.0, pitch 1.0 and pan -0.0122 (once). (tid: 12)
+@Log    : Play sound MENU_CLICK at volume 0.0, pitch 1.0 and pan -0.0122 (once). (tid: 12)
+@Log    : Play sound MENU_CLICK at volume 0.0, pitch 1.0 and pan -0.0122 (once). (tid: 12)
+@Log    : Play sound MENU_CLICK at volume 0.0, pitch 1.0 and pan -0.0122 (once). (tid: 12)
+@Log    : Play sound MENU_CLICK at volume 0.0, pitch 1.0 and pan -0.0122 (once). (tid: 12)
+@Log    : Play sound MENU_CLICK at volume 0.0, pitch 1.0 and pan -0.0122 (once). (tid: 12)
+@Log    : Play sound MENU_CLICK at volume 0.0, pitch 1.0 and pan -0.0122 (once). (tid: 12)
+@Log    : Play sound MENU_CLICK at volume 0.0, pitch 1.0 and pan -0.0122 (once). (tid: 12)
+@Log    : Fetching lights for level "22-01" ... (tid: 12)
+@Log    : Lights fetched for level "22-01", 4 lights found. (tid: 12)
+@Log    : Loaded map Perspective (22-01, ../worlds/maps/22-01), took 36ms. (tid: 12)
+@Warning: Currently in session levelmng, cannot end update (tid: 12)
+@Log    : Clicked "STATIC" and called its onClick(). (tid: 12)
+@Log    : Play sound MENU_CLICK at volume 0.0, pitch 1.0 and pan 0.0 (once). (tid: 12)
+
+ -- Last 16 Input Events -- 
+Touch down: 0 (pointer: 0) at x:668 y: 460 (3364ms ago)
+Key down: L-Ctrl (129) (2457ms ago)
+Key down: M (41) (2158ms ago)
+Key up: M (41) (2055ms ago)
+Key up: L-Ctrl (129) (1888ms ago)
+Key down: Tab (61) (1738ms ago)
+Key up: Tab (61) (1671ms ago)
+Key down: Tab (61) (1571ms ago)
+Key up: Tab (61) (1521ms ago)
+Key down: Tab (61) (1438ms ago)
+Key up: Tab (61) (1388ms ago)
+Key down: Tab (61) (1321ms ago)
+Key up: Tab (61) (1238ms ago)
+Touch down: 0 (pointer: 0) at x:274 y: 791 (1005ms ago)
+Touch up: 0 (pointer: 0) at x:274 y: 791 (921ms ago)
+Touch down: 0 (pointer: 0) at x:1723 y: 176 (5ms ago)

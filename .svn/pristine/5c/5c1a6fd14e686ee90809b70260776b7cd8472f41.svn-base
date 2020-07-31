@@ -1,0 +1,8 @@
+package com.unlogical.linked.entity;
+
+import com.unlogical.linked.entity.player.EntityPlayer;
+
+public interface IEntityInteractable
+{	
+	public void onInteract(EntityPlayer interacter);
+}

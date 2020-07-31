@@ -1,0 +1,14 @@
+package com.unlogical.colored.entity.player;
+
+import org.newdawn.slick.geom.Vector2f;
+
+import com.unlogical.colored.level.Level;
+import com.unlogical.colored.util.Dimension;
+
+public class EntityScientist extends EntityPlayer
+{
+	public EntityScientist(Vector2f position, Level level, Dimension dimension, boolean allowMirrors)
+	{
+		super(position, level, dimension, allowMirrors);
+	}
+}

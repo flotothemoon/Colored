@@ -1,0 +1,30 @@
+package com.unlogical.linked.util;
+
+import org.newdawn.slick.Color;
+
+public interface ILightSource
+{
+	public boolean isSpotLight();
+
+	public Color getColor();
+
+	public float getPositionX();
+
+	public float getPositionY();
+
+	public float getIntensity();
+
+	public float getLinearAttenuation();
+
+	public float getQuadraticAttenuation();
+
+	public int getSpotExponent();
+
+	public int getSpotDirection();
+
+	public int getAngle();
+
+	public int getMinDepth();
+
+	public int getMaxDepth();
+}

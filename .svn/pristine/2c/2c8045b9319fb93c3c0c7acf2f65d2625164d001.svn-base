@@ -1,0 +1,222 @@
+package com.unlogical.colored.terrain.tile;
+
+import java.util.Map;
+import java.util.Random;
+import java.util.Set;
+import java.util.SortedMap;
+import java.util.TreeMap;
+
+import org.newdawn.slick.Color;
+import org.newdawn.slick.Graphics;
+import org.newdawn.slick.geom.Vector2f;
+
+import com.unlogical.colored.level.Level;
+import com.unlogical.colored.resources.font.Fonts;
+import com.unlogical.colored.saving.SaveHandler;
+import com.unlogical.colored.saving.SaveState;
+import com.unlogical.colored.terrain.TileType;
+import com.unlogical.colored.terrain.property.TileProperty;
+import com.unlogical.colored.util.ColorHelper;
+import com.unlogical.colored.util.Dimension;
+import com.unlogical.colored.util.ILightSource;
+import com.unlogical.colored.util.LevelObject;
+import com.unlogical.colored.util.Renderer;
+import com.unlogical.colored.util.ShaderHandler;
+
+public class TileWorldDoor extends TileDoor implements ILightSource
+{
+	private static final Color lightColor = new Color(0.9882353f, 0.8608475f, 0.0038754323f);
+
+	private static final float LINEAR_ATTENUATION = 0.012f;
+	private static final float QUADRATIC_ATTENUATION = 0.000011f;
+
+	private float intensityFactor = 1.0f;
+	private float linearAttenuation = LINEAR_ATTENUATION;
+	private float quadraticAttenuation = QUADRATIC_ATTENUATION;
+	private float intensityOffset;
+
+	private boolean worldCompleted;
+
+	private SortedMap<String, Boolean> worldLevels = new TreeMap<String, Boolean>();
+
+	public TileWorldDoor(TileType type, String metadata, int innerType, float rotation, Vector2f position, Level level, Dimension dimension, TileProperty properties, boolean allowMirrors)
+	{
+		super(type, metadata, innerType, rotation, position, level, dimension, properties, allowMirrors);
+	}
+
+	@Override
+	public LevelObject deepCopy(Map<Object, Object> copiedReferences)
+	{
+		TileWorldDoor copy = (TileWorldDoor) super.deepCopy(copiedReferences);
+
+		copy.worldCompleted = this.worldCompleted;
+
+		return copy;
+	}
+
+	@Override
+	public void init()
+	{
+		super.init();
+		
+		Set<String> levelIDs = Level.getAllLevelIDs();
+		SaveState activeSave = SaveHandler.getActiveSave();
+
+		worldCompleted = true;
+		worldLevels.clear();
+
+		int clearedCount = 0;
+
+		for (String levelID : levelIDs)
+		{
+			if (levelID.startsWith(this.level.getWorldID()) && !levelID.equals(this.level.getID()) && !levelID.substring(levelID.indexOf("-") + 1).equals("b"))
+			{
+				Object[] data = activeSave.readLevel(levelID, Level.LEVEL_CLEARED_TOKEN);
+
+				worldLevels.put(levelID, data != null && Boolean.parseBoolean((String) data[0]));
+
+				if (!worldLevels.get(levelID))
+				{
+					worldCompleted = false;
+				}
+				else
+				{
+					clearedCount++;
+				}
+			}
+		}
+		
+		level.writeToWorldSave(Level.WORLD_FINISHED, worldCompleted);
+
+		if (worldCompleted)
+		{
+			this.intensityFactor = 1.3f;
+		}
+		else
+		{
+			this.intensityFactor = 0.3f + ((float) clearedCount) / ((float) worldLevels.size());
+		}
+	}
+
+	@Override
+	protected void customDraw(Graphics g)
+	{
+		super.customDraw(g);
+
+		if (this.worldLevels.size() <= 0 || worldCompleted)
+		{
+			return;
+		}
+
+		ShaderHandler.disableLighting();
+
+		g.setFont(Fonts.getDefaultFont());
+
+		Color completedColor = Color.yellow;
+		Color unfinishedColor = Color.gray;
+
+		int i = 0;
+		int startX = (int) (this.hitbox.getMinX() + 28);
+		int endX = (int) (this.hitbox.getMaxX() - 28);
+		int startY = (int) (this.hitbox.getMinY() + 60);
+		int endY = (int) (this.hitbox.getMaxY() - 10 - g.getFont().getLineHeight());
+		int yStep = ((endY - startY)) / (this.worldLevels.size() / 2);
+
+		for (String levelID : worldLevels.keySet())
+		{
+			g.setColor(ColorHelper.applyAlphaAndCopy(worldLevels.get(levelID) ? completedColor : unfinishedColor, level.getControlAlpha()));
+
+			g.drawString(levelID, i % 2 == 0 ? startX : endX - g.getFont().getWidth(levelID), startY + yStep * (i / 2));
+
+			i++;
+		}
+
+		Renderer.clearBind();
+	}
+
+	@Override
+	public void onUpdate(float delta, Random rng)
+	{
+		super.onUpdate(delta, rng);
+
+		intensityOffset = (float) Math.sin(Math.toRadians(age / 4.0f)) / 8.0f;
+	}
+
+	@Override
+	public boolean shouldUpdate()
+	{
+		return true;
+	}
+
+	@Override
+	public boolean isSpotLight()
+	{
+		return true;
+	}
+
+	@Override
+	public Color getColor()
+	{
+		return lightColor;
+	}
+
+	@Override
+	public float getPositionX()
+	{
+		return this.getCenterX();
+	}
+
+	@Override
+	public float getPositionY()
+	{
+		return this.getCenterY();
+	}
+
+	@Override
+	public float getIntensity()
+	{
+		return intensityFactor * (1.0f + intensityOffset);
+	}
+
+	@Override
+	public float getLinearAttenuation()
+	{
+		return linearAttenuation;
+	}
+
+	@Override
+	public float getQuadraticAttenuation()
+	{
+		return quadraticAttenuation;
+	}
+
+	@Override
+	public int getSpotExponent()
+	{
+		return 0;
+	}
+
+	@Override
+	public int getSpotDirection()
+	{
+		return 0;
+	}
+
+	@Override
+	public int getAngle()
+	{
+		return 360;
+	}
+
+	@Override
+	public int getMinDepth()
+	{
+		return -Level.MAX_DEPTH;
+	}
+
+	@Override
+	public int getMaxDepth()
+	{
+		return Level.MAX_DEPTH;
+	}
+}

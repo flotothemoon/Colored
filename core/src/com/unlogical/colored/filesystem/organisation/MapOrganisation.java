@@ -1,0 +1,96 @@
+package com.unlogical.colored.filesystem.organisation;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.List;
+
+import com.unlogical.colored.debug.Debug;
+import com.unlogical.colored.filesystem.ConfigFileHandler;
+import com.unlogical.colored.filesystem.FileManager;
+import com.unlogical.colored.filesystem.MapFiles;
+import com.unlogical.colored.gui.menu.SelectionState;
+
+public class MapOrganisation
+{
+	private String directory;
+
+	public MapOrganisation(String directory)
+	{
+		this.directory = directory;
+	}
+
+	public SelectionState[] getMaps(boolean recursive)
+	{
+		Debug.log("Requesting available map files...");
+
+		SelectionState[] mapStates;
+		List<String> maps = new ArrayList<String>();
+
+		this.searchMaps(this.directory, maps, recursive);
+
+		mapStates = new SelectionState[maps.size()];
+
+		for (int i = 0; i < maps.size(); i++)
+		{
+			try
+			{
+				mapStates[i] = this.getMapState(maps.get(i));
+			}
+			catch (IOException e)
+			{
+				throw new RuntimeException("Exception while creating selection state for map " + maps.get(i) + ": " + e, e);
+			}
+		}
+
+		Arrays.<SelectionState> sort(mapStates, new Comparator<SelectionState>()
+		{
+			@Override
+			public int compare(SelectionState o1, SelectionState o2)
+			{
+				return o1.getID().compareTo(o2.getID());
+			}
+		});
+
+		Debug.log(maps.size() + " found.");
+
+		return mapStates;
+	}
+
+	private void searchMaps(String directory, List<String> maps, boolean searchRecursive)
+	{
+		for (String path : FileManager.listFiles(directory, searchRecursive))
+		{
+			if (path.contains("."))
+			{
+				path = path.substring(0, path.lastIndexOf('/'));
+			}
+
+			if (!maps.contains(path) && isValidMap(path))
+			{
+				maps.add(path);
+			}
+		}
+	}
+
+	public static boolean isValidMap(String mapDirectory)
+	{
+		for (int i = 0; i < MapFiles.files.length; i++)
+		{
+			if (!FileManager.existsFile(mapDirectory + "/" + MapFiles.files[i]))
+			{
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	private SelectionState getMapState(String mapDirectory) throws IOException
+	{
+		ConfigFileHandler cfg = new ConfigFileHandler(FileManager.getFile(mapDirectory + "/config.yml"));
+
+		return new SelectionState(cfg.getString("name"), cfg.getString("ID"), "custom", mapDirectory.replace('\\', '/'), "unknown");
+	}
+}

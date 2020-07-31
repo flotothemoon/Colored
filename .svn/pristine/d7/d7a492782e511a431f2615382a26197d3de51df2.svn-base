@@ -1,0 +1,1905 @@
+package com.unlogical.colored.level;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.IdentityHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+import java.util.Set;
+
+import org.newdawn.slick.Color;
+import org.newdawn.slick.Graphics;
+import org.newdawn.slick.Image;
+import org.newdawn.slick.geom.Vector2f;
+
+import com.unlogical.colored.GameLauncher;
+import com.unlogical.colored.collision.Hitbox;
+import com.unlogical.colored.configuration.Resolutions;
+import com.unlogical.colored.debug.Debug;
+import com.unlogical.colored.entity.Entity;
+import com.unlogical.colored.entity.player.EntityPlayer;
+import com.unlogical.colored.filesystem.FileManager;
+import com.unlogical.colored.filesystem.FilePaths;
+import com.unlogical.colored.filesystem.files.TerrainFileHandler;
+import com.unlogical.colored.filesystem.organisation.MapOrganisation;
+import com.unlogical.colored.gui.menu.SelectionState;
+import com.unlogical.colored.levelmanaging.LevelManager;
+import com.unlogical.colored.particle.EmitterType;
+import com.unlogical.colored.particle.EmitterWrapperConfiguration;
+import com.unlogical.colored.particle.ParticleEmitter;
+import com.unlogical.colored.particle.ParticleEmitterImpl;
+import com.unlogical.colored.particle.ParticleSystem;
+import com.unlogical.colored.saving.SaveHandler;
+import com.unlogical.colored.story.StoryHandler;
+import com.unlogical.colored.terrain.TileType;
+import com.unlogical.colored.terrain.tile.Tile;
+import com.unlogical.colored.terrain.tile.TileCameraControl;
+import com.unlogical.colored.terrain.tile.TileDoor;
+import com.unlogical.colored.terrain.tile.TileLight;
+import com.unlogical.colored.terrain.tile.TileWorldDoor;
+import com.unlogical.colored.terrain.tile.cage.TileCage;
+import com.unlogical.colored.terrain.tile.properties.ITileInteractable;
+import com.unlogical.colored.util.ColorHelper;
+import com.unlogical.colored.util.Dimension;
+import com.unlogical.colored.util.GameObject;
+import com.unlogical.colored.util.GameStatus;
+import com.unlogical.colored.util.IDeepCopyable;
+import com.unlogical.colored.util.ILightSource;
+import com.unlogical.colored.util.IShareable;
+import com.unlogical.colored.util.IZDistortion;
+import com.unlogical.colored.util.ShaderHandler;
+import com.unlogical.colored.util.TimeStepHandler;
+import com.unlogical.colored.util.Transitions;
+import com.unlogical.colored.util.ZHandler;
+import com.unlogical.colored.wrapper.WrapperTexture;
+
+public class Level
+{
+	public static final String LEVEL_CLEARED_TOKEN = "levelCleared";
+	public static final String LEVEL_FINISHED_TOKEN = "levelFinished";
+	public static final String LEVEL_VISITED_TOKEN = "levelVisited";
+	public static final String LEVEL_DOOR_ENTRY_ID = "doorEntryID";
+	public static final String LEVEL_DOOR_SHOULD_FIND_START = "doorShouldFindStart";
+	public static final String LEVEL_SHOULD_USE_DOOR = "doorShouldUse";
+	public static final String LEVEL_CLEARED_CAGE_COUNT = "clearedCageCountPerLevel";
+
+	public static final String WORLD_FINISHED = "worldFinished";
+	public static final String WORLD_CLEARED_CAGE_COUNT = "clearedCageCountPerWorld";
+	public static final String WORLD_BONUS_CLEARED = "worldBonusCleared";
+
+	public static final int TIME_TRAVEL_TIME_DIFFERENCE_MILLIS = 7000;
+	private static final int CAGE_BRIGHTNESS_TRANSITIONING_TIME = 1337 * 2;
+
+	public static final int MAX_DEPTH = 16;
+
+	public static final float PORT_INVERSE_COLOR_FACTOR = 0.35f;
+
+	public static final int DEFAULT_TIME_LOOP = 7000;
+	public static final int FROZEN_POSITION_TIME = 3000;
+
+	public static final float OUT_OF_MAP_TOLERANCE = 400.0f;
+
+	public static final float FROZEN_POSITION_ALPHA_FACTOR = 0.5f;
+
+	public static final float DEFAULT_FOREGROUND_ALPHA = 1.0f;
+	public static final float DEFAULT_BACKGROUND_ALPHA = 0.5f;
+
+	public float foregroundAlpha = DEFAULT_FOREGROUND_ALPHA;
+	public float backgroundAlpha = DEFAULT_BACKGROUND_ALPHA;
+
+	public static final float TIME_SCALE_FOREGROUND_FACTOR = 2.0f;
+	public static final float TIME_SCALE_BACKGROUND_FACTOR = 1.0f / TIME_SCALE_FOREGROUND_FACTOR;
+	public static final float DEFAULT_TIME_FACTOR = 1.0f;
+
+	private static final float MAX_BLINK_ALPHA = 0.8f;
+	private static final float COLOR_ALPHA_FACTOR = 0.4f;
+	private static final float COLOR_ALPHA_FACTOR_BASE = 0.25f;
+
+	private static final float DEFAULT_LOW_BRITHNESS = 0.55f;
+	private static final float FINAL_BRIGHTNESS_CHANGE_FACTOR = 0.20f;
+
+	private static SelectionState[] levels;
+	private static final HashMap<String, String> levelPathMap = new HashMap<String, String>();
+	private static final HashMap<String, String> worldHubMap = new HashMap<String, String>();
+	private static final List<String> chapters = new ArrayList<String>();
+
+	private long lastID = 0;
+
+	public TimeStepHandler timeStepHandler;
+
+	private StoryHandler storyHandler;
+
+	private ParticleSystem particleSystem;
+
+	private LevelType levelType = LevelType.NORMAL;
+
+	private TileCameraControl absLeftLimit;
+	private TileCameraControl absRightLimit;
+	private TileCameraControl absTopLimit;
+	private TileCameraControl absBottomLimit;
+
+	private ArrayList<WrapperTexture> wrappers;
+
+	private ArrayList<Entity> entities = new ArrayList<Entity>(64);
+	private ArrayList<Entity> entitiesToRemove = new ArrayList<Entity>(16);
+	private ArrayList<Entity> entitiesToAdd = new ArrayList<Entity>(16);
+
+	private ArrayList<Tile> tiles = new ArrayList<Tile>(128);
+	private ArrayList<Tile> tilesToRemove = new ArrayList<Tile>(16);
+	private ArrayList<Tile> tilesToAdd = new ArrayList<Tile>(16);
+	private ArrayList<Tile> interactableTiles = new ArrayList<Tile>();
+
+	private Set<TileCage> brightnessChangingCages = new HashSet<TileCage>();
+
+	private EntityPlayer controllingPlayer;
+
+	private Dimension foregroundDimension = Dimension.LIGHT;
+	private Dimension backgroundDimension = Dimension.SHADOW;
+
+	private Vector2f cameraOffset = new Vector2f();
+	private Vector2f safePoint = new Vector2f();
+
+	private Color drawColor = new Color(1.0f, 1.0f, 1.0f, foregroundAlpha);
+	private Color monochromeDrawColor = new Color(1.0f, 1.0f, 1.0f, backgroundAlpha);
+
+	private Random lightRNG;
+	private Random shadowRNG;
+	private Random lightParticleRNG;
+	private Random shadowParticleRNG;
+	private Random sharedRNG;
+
+	private String id;
+	private String name;
+	private String worldID;
+	private String chapter;
+	private String internalID;
+
+	private float foregroundDeltaFactor = DEFAULT_TIME_FACTOR;
+	private float backgroundDeltaFactor = DEFAULT_TIME_FACTOR;
+	private float controlAlphaFactor = 1.0f;
+	private float controlAlpha = 1.0f;
+	private float fadingAlpha = 1.0f;
+
+	private float blinkAlphaFactor = drawColor.a;
+	private float sharedAlphaFactor = 0.00128f;
+
+	private float wrapperAlpha = drawColor.a;
+	private float monochromeWrapperAlpha = monochromeDrawColor.a;
+
+	private int clearedCages;
+	private int totalCages;
+
+	private boolean dead;
+	private boolean fadingIn;
+	private boolean brightnessChanging;
+	private boolean ignoreTimeEffects;
+	private boolean reSimulating;
+	private boolean renderTiles = true;
+	private boolean renderWrappers = true;
+	private boolean renderForegroundWrappers = true;
+	private boolean renderBackgroundWrappers = true;
+	private boolean renderParticleEmitters = true;
+	private boolean renderEntities = true;
+	private boolean showHitboxes;
+	private boolean showParticleAreas;
+	private boolean hasSafePoint;
+	private boolean transitioning;
+	private boolean initialising;
+	private boolean simulating;
+	private boolean dummyLevel;
+	private boolean playMode;
+	private boolean updateOnlyCycleObjects;
+	private boolean inversedCages;
+
+	private float lightDimensionXOffset;
+	private float lightDimensionYOffset;
+	private float shadowDimensionXOffset;
+	private float shadowDimensionYOffset;
+
+	private float brightnessFactor;
+	private float brightnessBefore;
+
+	private float lightDelta;
+	private float shadowDelta;
+
+	private float foregroundFactor = 1.0f;
+	private float backgroundFactor = 0.0f;
+
+	private int totalBrightnessTransitionTime;
+	private int brightnessTransitionTime;
+
+	private int deadTime;
+	private int totalDeadTime;
+	private int fadeInTime;
+	private int totalFadeInTime;
+
+	public Level()
+	{
+		initRNGs(1337);
+	}
+
+	public static void deepCopy(Level level, Level copy)
+	{
+		IdentityHashMap<Object, Object> copiedReferences = new IdentityHashMap<Object, Object>(256);
+
+		copiedReferences.put(level, copy);
+
+		copy.lastID = level.lastID;
+		copy.levelType = level.levelType;
+
+		copy.foregroundDimension = level.foregroundDimension;
+		copy.backgroundDimension = level.backgroundDimension;
+
+		copy.storyHandler = (StoryHandler) Level.getCopy(level.storyHandler, copiedReferences);
+		copy.timeStepHandler = (TimeStepHandler) Level.getCopy(level.timeStepHandler, copiedReferences);
+		copy.particleSystem = (ParticleSystem) Level.getCopy(level.particleSystem, copiedReferences);
+
+		copy.cameraOffset = level.cameraOffset.copy();
+		copy.safePoint = level.safePoint.copy();
+		copy.drawColor = new Color(level.drawColor);
+		copy.monochromeDrawColor = new Color(level.monochromeDrawColor);
+
+		copy.id = level.id;
+		copy.name = level.name;
+		copy.worldID = level.worldID;
+		copy.chapter = level.chapter;
+		copy.internalID = level.internalID;
+
+		copy.controlAlpha = level.controlAlpha;
+		copy.blinkAlphaFactor = level.blinkAlphaFactor;
+		copy.wrapperAlpha = level.wrapperAlpha;
+		copy.monochromeWrapperAlpha = level.monochromeWrapperAlpha;
+		copy.clearedCages = level.clearedCages;
+		copy.totalCages = level.totalCages;
+
+		copy.dead = level.dead;
+		copy.brightnessChanging = level.brightnessChanging;
+		copy.ignoreTimeEffects = level.ignoreTimeEffects;
+		copy.reSimulating = level.reSimulating;
+		copy.renderTiles = level.renderTiles;
+		copy.renderWrappers = level.renderWrappers;
+		copy.renderForegroundWrappers = level.renderForegroundWrappers;
+		copy.renderBackgroundWrappers = level.renderBackgroundWrappers;
+		copy.renderParticleEmitters = level.renderParticleEmitters;
+		copy.renderEntities = level.renderEntities;
+		copy.showHitboxes = level.showHitboxes;
+		copy.showParticleAreas = level.showParticleAreas;
+		copy.hasSafePoint = level.hasSafePoint;
+		copy.transitioning = level.transitioning;
+		copy.simulating = level.simulating;
+		copy.dummyLevel = level.dummyLevel;
+		copy.playMode = level.playMode;
+		copy.updateOnlyCycleObjects = level.updateOnlyCycleObjects;
+
+		copy.lightDimensionXOffset = level.lightDimensionXOffset;
+		copy.lightDimensionYOffset = level.lightDimensionYOffset;
+		copy.shadowDimensionXOffset = level.shadowDimensionXOffset;
+		copy.shadowDimensionYOffset = level.shadowDimensionYOffset;
+
+		copy.brightnessFactor = level.brightnessFactor;
+		copy.brightnessBefore = level.brightnessBefore;
+
+		copy.lightDelta = level.lightDelta;
+		copy.shadowDelta = level.shadowDelta;
+
+		copy.foregroundFactor = level.foregroundFactor;
+		copy.backgroundFactor = level.backgroundFactor;
+
+		copy.totalBrightnessTransitionTime = level.totalBrightnessTransitionTime;
+		copy.brightnessTransitionTime = level.brightnessTransitionTime;
+
+		copy.deadTime = level.deadTime;
+		copy.totalDeadTime = level.totalDeadTime;
+
+		copy.absLeftLimit = (TileCameraControl) copiedReferences.get(level.absLeftLimit);
+		copy.absRightLimit = (TileCameraControl) copiedReferences.get(level.absRightLimit);
+		copy.absTopLimit = (TileCameraControl) copiedReferences.get(level.absTopLimit);
+		copy.absBottomLimit = (TileCameraControl) copiedReferences.get(level.absBottomLimit);
+
+		copy.brightnessChangingCages = new HashSet<TileCage>();
+		copy.brightnessChangingCages = deepCopyCollection(level.brightnessChangingCages, copy.brightnessChangingCages, copiedReferences);
+		copy.entities = new ArrayList<Entity>();
+		copy.entities = deepCopyCollection(level.entities, copy.entities, copiedReferences);
+		copy.entitiesToAdd = new ArrayList<Entity>();
+		copy.entitiesToAdd = deepCopyCollection(level.entitiesToAdd, copy.entitiesToAdd, copiedReferences);
+		copy.entitiesToRemove = new ArrayList<Entity>();
+		copy.entitiesToRemove = deepCopyCollection(level.entitiesToRemove, copy.entitiesToRemove, copiedReferences);
+
+		copy.tiles = new ArrayList<Tile>();
+		copy.tiles = deepCopyCollection(level.tiles, copy.tiles, copiedReferences);
+		copy.tilesToAdd = new ArrayList<Tile>();
+		copy.tilesToAdd = deepCopyCollection(level.tilesToAdd, copy.tilesToAdd, copiedReferences);
+		copy.tilesToRemove = new ArrayList<Tile>();
+		copy.tilesToRemove = deepCopyCollection(level.tilesToRemove, copy.tilesToRemove, copiedReferences);
+		copy.interactableTiles = new ArrayList<Tile>();
+		copy.interactableTiles = deepCopyCollection(level.interactableTiles, copy.interactableTiles, copiedReferences);
+		copy.wrappers = level.wrappers;
+
+		copy.controllingPlayer = (EntityPlayer) getCopy(level.controllingPlayer, copiedReferences);
+
+		copy.controlAlpha = level.controlAlpha;
+		copy.foregroundDeltaFactor = level.foregroundDeltaFactor;
+		copy.backgroundDeltaFactor = level.backgroundDeltaFactor;
+	}
+
+	public static Object putCopy(Object original, Object copy, Map<Object, Object> copiedReferences)
+	{
+		copiedReferences.put(original, copy);
+
+		return copy;
+	}
+
+	@SuppressWarnings("unchecked")
+	public static <T extends Collection<E>, E> T deepCopyCollection(T collection, T newCollection, Map<Object, Object> copiedReferences)
+	{
+		for (E element : collection)
+		{
+			newCollection.add((E) getCopy(element, copiedReferences));
+		}
+
+		return newCollection;
+	}
+
+	public static Object getCopy(Object element, Map<Object, Object> copiedReferences)
+	{
+		if (element == null)
+		{
+			return null;
+		}
+		else if (copiedReferences.containsKey(element))
+		{
+			return copiedReferences.get(element);
+		}
+		else
+		{
+			try
+			{
+				if (((IDeepCopyable<?>) element).shouldCopy())
+				{
+					// for (int i = 0; i < indentation; i++)
+					// {
+					// System.out.print("\t");
+					// }
+					//
+					// indentation++;
+					//
+					// System.out.println("copying " +
+					// element.getClass().getName().substring(element.getClass().getName().lastIndexOf('.')
+					// + 1) + "@" + Integer.toHexString(element.hashCode()));
+
+					Object copy = ((IDeepCopyable<?>) element).deepCopy(copiedReferences);
+
+					// indentation--;
+					//
+					// for (int i = 0; i < indentation; i++)
+					// {
+					// System.out.print("\t");
+					// }
+					//
+					// System.out.println("--> " +
+					// copy.getClass().getName().substring(copy.getClass().getName().lastIndexOf('.')
+					// + 1) + "@" + Integer.toHexString(copy.hashCode()));
+
+					return copy;
+				}
+				else
+				{
+					return element;
+				}
+			}
+			catch (Throwable e)
+			{
+				Debug.warn("trying to copy " + element);
+
+				throw new RuntimeException(e);
+			}
+		}
+	}
+
+	public void initRNGs(int initialSeed)
+	{
+		this.lightRNG = new Random(initialSeed);
+		this.shadowRNG = new Random(initialSeed);
+		this.lightParticleRNG = new Random(initialSeed);
+		this.shadowParticleRNG = new Random(initialSeed);
+		this.sharedRNG = new Random(initialSeed);
+	}
+
+	public static void fetchChapters()
+	{
+		MapOrganisation organistion = new MapOrganisation(FilePaths.MAPS);
+
+		levels = organistion.getMaps(true);
+
+		for (SelectionState level : levels)
+		{
+			if (level.getID().contains("-"))
+			{
+				String worldID = level.getID().substring(0, level.getID().lastIndexOf('-'));
+
+				if (!chapters.contains(worldID))
+				{
+					chapters.add(worldID);
+				}
+			}
+		}
+	}
+
+	public static void fetchMaps()
+	{
+		levelPathMap.clear();
+
+		for (SelectionState level : levels)
+		{
+			levelPathMap.put(level.getID(), level.getPath());
+
+			if (level.getID().contains("-"))
+			{
+				String worldID = level.getID().substring(0, level.getID().lastIndexOf('-'));
+
+				if (worldHubMap.get(worldID) == null)
+				{
+					try
+					{
+						TerrainFileHandler handler = new TerrainFileHandler(level.getPath() + "/terrain.map");
+
+						Level newLevel = new Level();
+						newLevel.setDummyLevel(true);
+						newLevel.createParticleSystem();
+						newLevel.id = level.getID();
+
+						List<Tile> tiles = handler.read(newLevel);
+
+						for (Tile tile : tiles)
+						{
+							if (tile.getDimension() == Dimension.LIGHT && tile instanceof TileWorldDoor)
+							{
+								worldHubMap.put(worldID, level.getID());
+
+								Debug.log("Found world hub for world " + worldID + " at " + level.getID() + ".");
+
+								break;
+							}
+						}
+					}
+					catch (Exception e)
+					{
+						Debug.log("Well, whatever.. but for some reason (" + e + ") the level " + level.getID() + " at " + level.getPath() + " couldn't be fetched.", e);
+					}
+				}
+			}
+		}
+
+		Collections.sort(chapters);
+	}
+
+	public static void createDefaultLevel(String filePath, String mapID, String mapName)
+	{
+		try
+		{
+			TerrainFileHandler terrainFile = new TerrainFileHandler(FileManager.getFile(filePath + "/terrain.map"));
+
+			Level level = new Level();
+
+			List<Tile> tiles = terrainFile.read(level);
+
+			level.levelType = LevelType.NORMAL;
+
+			tiles.add(Tile.createTile(TileType.CAMERABLOCK, "", 0, 0.0f, new Vector2f(0.0f, 0.0f), level, Dimension.LIGHT, TileType.getProperty(TileType.CAMERABLOCK), false));
+			tiles.add(Tile.createTile(TileType.CAMERABLOCK, "", 0, 0.0f, new Vector2f(GameLauncher.getWidth() - Resolutions.TILE_SIZE, GameLauncher.getHeight() - Resolutions.TILE_SIZE), level, Dimension.LIGHT, TileType.getProperty(TileType.CAMERABLOCK), false));
+
+			tiles.add(((TileLight) Tile.createTile(TileType.LIGHT, "", 0, 0.0f, new Vector2f(GameLauncher.getWidth() / 2.0f - Resolutions.TILE_SIZE / 2.0f, GameLauncher.getHeight() / 2.0f - Resolutions.TILE_SIZE / 2.0f), level, Dimension.LIGHT, TileType.getProperty(TileType.LIGHT), false)).initDefault());
+
+			terrainFile.write(tiles, level);
+		}
+		catch (IOException e)
+		{
+			Debug.warn("Failed to initialise level: " + e, e);
+		}
+	}
+
+	public void init(String id, String name, ArrayList<Tile> tiles, ArrayList<WrapperTexture> wrappers, ArrayList<Entity> entities, Vector2f offset, Vector2f spawnpoint)
+	{
+		this.id = id;
+		this.name = name;
+		this.internalID = id.contains("-") ? id.substring(id.indexOf("-") + 1) : "unknown";
+		this.worldID = id.contains("-") ? id.substring(0, id.indexOf('-')) : "unknown";
+		this.chapter = this.worldID;
+		this.entities = entities;
+		this.tiles = tiles;
+		this.cameraOffset = offset;
+		this.wrappers = wrappers;
+
+		this.sortWrappers();
+
+		for (Tile tile : tiles)
+		{
+			if (tile.getDimension() == Dimension.LIGHT && tile instanceof TileCage)
+			{
+				this.totalCages++;
+			}
+		}
+
+		if (this.totalCages > 0)
+		{
+			if (shouldInverseCages())
+			{
+				initBrightness(1.0f);
+			}
+			else
+			{
+				initBrightness(DEFAULT_LOW_BRITHNESS);
+			}
+		}
+
+		if (this.levelType == LevelType.TIME_TRAVEL)
+		{
+			EmitterType.TIME_TRAVEL_CHANGED.initialLife.sort(this.getTimeLoopLimit() - 500, this.getTimeLoopLimit() + 500);
+			EmitterType.TIME_TRAVEL_CHANGED.fadeOutTime.sort(10000, 10000);
+		}
+	}
+
+	public void createTimeStepHandler()
+	{
+		if (this.timeStepHandler != null)
+		{
+			Debug.warn("TimeStepHandler already created for this level.");
+
+			return;
+		}
+
+		this.timeStepHandler = new TimeStepHandler(this);
+	}
+
+	public void startFadeIn(int fadeInTime)
+	{
+		this.fadingIn = true;
+		this.fadeInTime = fadeInTime;
+		this.totalFadeInTime = fadeInTime;
+		this.fadingAlpha = 0.0f;
+	}
+
+	public void updateFadeIn(float delta)
+	{
+		fadeInTime -= delta;
+
+		if (fadeInTime < 0)
+		{
+			fadeInTime = 0;
+			fadingIn = false;
+		}
+
+		fadingAlpha = 1.0f - Transitions.getFactor(((float) fadeInTime) / ((float) totalFadeInTime));
+	}
+
+	public void onDeath()
+	{
+		onDeath(LevelManager.PLAYER_DEATH_FADE_TIME);
+	}
+
+	public void onDeath(int deathTime)
+	{
+		this.dead = true;
+		this.deadTime = deathTime;
+		this.totalDeadTime = deadTime;
+	}
+
+	public void deadUpdate(float delta)
+	{
+		deadTime -= delta;
+		controlAlpha = getDeadFactor();
+	}
+
+	public float getDeadFactor()
+	{
+		return Transitions.getFactor(((float) deadTime) / ((float) totalDeadTime));
+	}
+
+	public boolean isGone()
+	{
+		return dead && deadTime <= 0;
+	}
+
+	public boolean isDead()
+	{
+		return dead;
+	}
+
+	public boolean hasWorldHub()
+	{
+		return this.id.contains("-") && worldHubMap.containsKey(this.id.substring(0, this.id.lastIndexOf('-')));
+	}
+
+	public boolean isWorldHub()
+	{
+		return this.id != null && this.id.contains("-") && this.id.equals(worldHubMap.get(this.id.substring(0, this.id.lastIndexOf('-'))));
+	}
+
+	public String getWorldHubLevelID()
+	{
+		return worldHubMap.get(this.id.substring(0, this.id.lastIndexOf('-')));
+	}
+
+	public static String getMapPathByID(String levelID)
+	{
+		return levelPathMap.get(levelID);
+	}
+
+	public int getTimeLoopLimit()
+	{
+		if (levelType == LevelType.TIME_TRAVEL)
+		{
+			return TIME_TRAVEL_TIME_DIFFERENCE_MILLIS;
+		}
+		else if (levelType == LevelType.FROZEN)
+		{
+			return FROZEN_POSITION_TIME;
+		}
+
+		return DEFAULT_TIME_LOOP;
+	}
+
+	public boolean isOutOfMap(Hitbox hitbox)
+	{
+		if (absLeftLimit == null || absRightLimit == null || absTopLimit == null || absBottomLimit == null)
+		{
+			return false;
+		}
+
+		return hitbox.getMaxX() < absLeftLimit.getCenterX() || hitbox.getMinX() > absRightLimit.getCenterX() || hitbox.getMinY() > absBottomLimit.getCenterY() || hitbox.getMaxY() < absTopLimit.getCenterY();
+	}
+
+	public boolean isOutOfMap(float x, float y)
+	{
+		if (absLeftLimit == null || absRightLimit == null || absTopLimit == null || absBottomLimit == null)
+		{
+			return false;
+		}
+
+		return x < absLeftLimit.getCenterX() - OUT_OF_MAP_TOLERANCE || x > absRightLimit.getCenterX() + OUT_OF_MAP_TOLERANCE || y > absBottomLimit.getCenterY() + OUT_OF_MAP_TOLERANCE || y < absTopLimit.getCenterY() - OUT_OF_MAP_TOLERANCE;
+	}
+
+	public void initBrightness(float brightness)
+	{
+		drawColor.r = drawColor.g = drawColor.b = brightness;
+		monochromeDrawColor.r = monochromeDrawColor.g = monochromeDrawColor.b = brightness;
+	}
+
+	public float onCageCleared(TileCage cage, boolean clearedFromSave)
+	{
+		this.clearedCages++;
+
+		float range = 1.0f - DEFAULT_LOW_BRITHNESS - FINAL_BRIGHTNESS_CHANGE_FACTOR;
+
+		float factor = (1.0f / this.totalCages) * range;
+
+		if (this.clearedCages == this.totalCages)
+		{
+			factor += FINAL_BRIGHTNESS_CHANGE_FACTOR;
+		}
+
+		if (shouldInverseCages())
+		{
+			factor *= -1;
+		}
+
+		if (clearedFromSave)
+		{
+			drawColor.r = drawColor.g = drawColor.b = drawColor.r + factor;
+			monochromeDrawColor.g = monochromeDrawColor.b = monochromeDrawColor.r = drawColor.r;
+		}
+		else
+		{
+			transitionBrightness(cage, CAGE_BRIGHTNESS_TRANSITIONING_TIME, factor);
+		}
+
+		if (clearedCages == totalCages)
+		{
+			onLevelCleared();
+		}
+
+		storyHandler.onCageOpened(cage, clearedCages, totalCages, clearedFromSave);
+
+		return factor / (1.0f - DEFAULT_LOW_BRITHNESS);
+	}
+
+	public void onLevelExit(String nextLevelID, TileDoor door)
+	{
+		if (nextLevelID.contains("-"))
+		{
+			try
+			{
+				int nextWorldID = Integer.parseInt(nextLevelID.substring(0, nextLevelID.indexOf('-')));
+				int nextLevelNum = Integer.parseInt(nextLevelID.substring(nextLevelID.indexOf('-') + 1));
+				int currentWorldID = Integer.parseInt(worldID);
+				int currentLevelNum = Integer.parseInt(id.substring(id.indexOf('-') + 1));
+
+				if (nextWorldID > currentWorldID || nextLevelNum > currentLevelNum && nextWorldID == currentWorldID)
+				{
+					this.writeToLevelSave(LEVEL_FINISHED_TOKEN, true);
+
+					if (this.totalCages == 0)
+					{
+						onLevelCleared();
+					}
+				}
+
+				storyHandler.onLevelExit(door);
+			}
+			catch (Exception e)
+			{
+				Debug.log("Weird, entering level with weird level id: " + nextLevelID, e);
+			}
+		}
+	}
+
+	private void onLevelCleared()
+	{
+		this.writeToLevelSave(LEVEL_CLEARED_TOKEN, true);
+
+		if (this.isBonusLevel())
+		{
+			this.writeToWorldSave(WORLD_BONUS_CLEARED, true);
+		}
+
+		this.saveToActiveSave();
+		// MenuDisplay.displaySavedMessage();
+
+		Debug.log("Level " + this.id + " cleared.");
+	}
+
+	public void updateTransitions(float delta)
+	{
+		if (sharedAlphaFactor > 0.0f && blinkAlphaFactor > 1.0f || sharedAlphaFactor < 0.0f && blinkAlphaFactor < -1.0f)
+		{
+			sharedAlphaFactor *= -1.0f;
+		}
+
+		blinkAlphaFactor += sharedAlphaFactor * delta;
+
+		if (brightnessChanging)
+		{
+			drawColor.r = brightnessBefore + brightnessFactor * Transitions.getFactor((int) ((((float) brightnessTransitionTime) / ((float) totalBrightnessTransitionTime)) * 1000.0f));
+
+			drawColor.g = drawColor.b = drawColor.r;
+			monochromeDrawColor.g = monochromeDrawColor.b = monochromeDrawColor.r = drawColor.r;
+
+			brightnessTransitionTime += delta;
+
+			if (brightnessTransitionTime >= totalBrightnessTransitionTime)
+			{
+				brightnessChanging = false;
+
+				for (TileCage cage : brightnessChangingCages)
+				{
+					cage.onBrightnessChangeFinished();
+				}
+			}
+		}
+	}
+
+	private void transitionBrightness(TileCage cage, int totalTime, float factor)
+	{
+		brightnessTransitionTime = 0;
+		totalBrightnessTransitionTime = totalTime;
+		brightnessFactor = factor;
+		brightnessBefore = drawColor.r;
+		brightnessChangingCages.add(cage);
+
+		brightnessChanging = true;
+	}
+
+	public float getBrightnessTransitionFactor()
+	{
+		return ((float) brightnessTransitionTime) / totalBrightnessTransitionTime;
+	}
+
+	public void initID(String mapID)
+	{
+		this.id = mapID;
+		this.internalID = id != null && id.contains("-") ? id.substring(id.indexOf("-") + 1) : "unknown";
+		this.worldID = id != null && id.contains("-") ? id.substring(0, id.indexOf('-')) : "unknown";
+		this.chapter = this.worldID;
+		this.storyHandler = new StoryHandler(this);
+	}
+
+	public void createParticleSystem()
+	{
+		this.particleSystem = new ParticleSystem();
+	}
+
+	public void updateWrapperPositions(float mainLayerChangeX, float mainLayerChangeY)
+	{
+		for (WrapperTexture wrapper : wrappers)
+		{
+			wrapper.adjustX(mainLayerChangeX * wrapper.getEmitterParallax());
+			wrapper.adjustY(mainLayerChangeY * wrapper.getEmitterParallax());
+		}
+	}
+
+	public void drawAsShared(IShareable<?> object, Graphics g)
+	{
+		float foregroundFactor, backgroundFactor;
+		float factor = Math.abs(blinkAlphaFactor) * COLOR_ALPHA_FACTOR + COLOR_ALPHA_FACTOR_BASE;
+
+		Color sharedColor = EmitterType.SHARED.startTint;
+
+		ColorHelper.set(ColorHelper.secondBuffer, 1.0f - (1.0f - sharedColor.r) * factor, 1.0f - (1.0f - sharedColor.g) * factor, 1.0f - (1.0f - sharedColor.b) * factor, 1.0f);
+
+		if (blinkAlphaFactor >= 0.0f)
+		{
+			foregroundFactor = (1.0f - blinkAlphaFactor) * MAX_BLINK_ALPHA;
+			backgroundFactor = 1.0f;
+
+			object.drawImage(object.getShadowImage(), Dimension.SHADOW, ColorHelper.multiplyAndCopy(ColorHelper.applyAlphaAndCopy(monochromeDrawColor, backgroundFactor * controlAlpha), ColorHelper.secondBuffer), g);
+			object.drawImage(object.getLightImage(), Dimension.LIGHT, ColorHelper.multiplyAndCopy(ColorHelper.applyAlphaAndCopy(drawColor, foregroundFactor * controlAlpha), ColorHelper.secondBuffer), g);
+		}
+		else
+		{
+			foregroundFactor = 1.0f;
+			backgroundFactor = (-blinkAlphaFactor) * MAX_BLINK_ALPHA;
+
+			object.drawImage(object.getLightImage(), Dimension.SHADOW, ColorHelper.multiplyAndCopy(ColorHelper.applyAlphaAndCopy(drawColor, foregroundFactor * controlAlpha), ColorHelper.secondBuffer), g);
+			object.drawImage(object.getShadowImage(), Dimension.LIGHT, ColorHelper.multiplyAndCopy(ColorHelper.applyAlphaAndCopy(monochromeDrawColor, backgroundFactor * controlAlpha), ColorHelper.secondBuffer), g);
+		}
+	}
+
+	public Color getFinalSharedColor()
+	{
+		float factor = Math.abs(blinkAlphaFactor) * COLOR_ALPHA_FACTOR + COLOR_ALPHA_FACTOR_BASE;
+
+		Color sharedColor = EmitterType.SHARED.startTint;
+
+		ColorHelper.set(ColorHelper.secondBuffer, 1.0f - (1.0f - sharedColor.r) * factor, 1.0f - (1.0f - sharedColor.g) * factor, 1.0f - (1.0f - sharedColor.b) * factor, 1.0f);
+
+		return ColorHelper.secondBuffer;
+	}
+
+	public void setImageColorFactor(Image image, Color baseColor, Color color, float totalFactor)
+	{
+		float factor = (Math.abs(blinkAlphaFactor) * COLOR_ALPHA_FACTOR + COLOR_ALPHA_FACTOR_BASE) * totalFactor;
+
+		ColorHelper.set(ColorHelper.secondBuffer, 1.0f - (1.0f - color.r) * factor, 1.0f - (1.0f - color.g) * factor, 1.0f - (1.0f - color.b) * factor, 1.0f);
+		color = ColorHelper.multiplyAndCopy(baseColor, ColorHelper.secondBuffer);
+
+		image.setImageColor(color.r, color.g, color.b, baseColor.a);
+	}
+
+	public ParticleEmitterImpl addParticleEmitter(Dimension dimension, EmitterWrapperConfiguration configuration, EmitterType type)
+	{
+		ParticleEmitterImpl emitter = new ParticleEmitterImpl(dimension, configuration, type);
+
+		configuration.setEmitter(emitter);
+
+		addParticleEmitter(emitter);
+
+		emitter.ensureManualRendering();
+
+		return emitter;
+	}
+
+	public void addParticleEmitter(ParticleEmitter emitter)
+	{
+		if (this.particleSystem != null)
+		{
+			this.particleSystem.addEmitter(emitter);
+		}
+	}
+
+	public void removeParticleEmitter(ParticleEmitter emitter)
+	{
+		if (this.particleSystem != null)
+		{
+			this.particleSystem.removeEmitter(emitter);
+		}
+	}
+
+	public void updateParticleSystem(float delta, float lightDelta, float shadowDelta)
+	{
+		particleSystem.update(delta, lightDelta, shadowDelta);
+	}
+
+	public WrapperTexture addWrapper(WrapperTexture wrapper)
+	{
+		this.wrappers.add(wrapper);
+
+		sortWrappers();
+
+		return wrapper;
+	}
+
+	public void sortWrappers()
+	{
+		Collections.sort(wrappers, new Comparator<WrapperTexture>()
+		{
+			@Override
+			public int compare(WrapperTexture o1, WrapperTexture o2)
+			{
+				return o1.compareTo(o2);
+			}
+		});
+	}
+
+	public WrapperTexture removeWrapper(WrapperTexture wrapper)
+	{
+		removeParticleEmitter(wrapper.getEmitter());
+
+		if (wrapper.isParticleWrapper())
+		{
+			removeParticleEmitter(wrapper.getEmitter().getMirroredEmitter());
+		}
+
+		this.wrappers.remove(wrapper);
+
+		sortWrappers();
+
+		return wrapper;
+	}
+
+	public void renderBackgroundWrappers(Graphics g)
+	{
+		if (renderBackgroundWrappers || renderWrappers || renderParticleEmitters)
+		{
+			for (WrapperTexture wrapper : wrappers)
+			{
+				if (wrapper.isInBackground() && ((!wrapper.isParticleWrapper() && (renderWrappers || renderBackgroundWrappers)) || renderParticleEmitters && wrapper.isParticleWrapper()))
+				{
+					ShaderHandler.applyLights(wrapper.getDepth(), wrapper.isInBackground());
+
+					wrapper.draw(g);
+
+					if (showHitboxes)
+					{
+						ShaderHandler.disableLighting();
+
+						g.setColor(Color.white);
+						g.draw(wrapper.getHitbox());
+					}
+				}
+			}
+		}
+	}
+
+	public void renderForegroundWrappers(Graphics g)
+	{
+		if (renderForegroundWrappers || renderWrappers || renderParticleEmitters)
+		{
+			for (WrapperTexture wrapper : wrappers)
+			{
+				if (wrapper.isInForeground() && ((!wrapper.isParticleWrapper() && (renderWrappers || renderForegroundWrappers)) || renderParticleEmitters && wrapper.isParticleWrapper()))
+				{
+					ShaderHandler.applyLights(wrapper.getDepth(), wrapper.isInBackground());
+
+					wrapper.draw(g);
+
+					if (showHitboxes)
+					{
+						ShaderHandler.disableLighting();
+
+						g.setColor(Color.white);
+						g.draw(wrapper.getHitbox());
+					}
+				}
+			}
+		}
+	}
+
+	public long generateID()
+	{
+		return this.lastID++;
+	}
+
+	public Random getRNG(GameObject object)
+	{
+		if (object.isShared() || object.shouldHandleAsShared())
+		{
+			return sharedRNG;
+		}
+		else if (object.getDimension() == Dimension.LIGHT)
+		{
+			return lightRNG;
+		}
+		else
+		{
+			return shadowRNG;
+		}
+	}
+
+	public Random getPRNG(boolean shared, Dimension dimension)
+	{
+		if (shared)
+		{
+			return sharedRNG;
+		}
+		else if (dimension == Dimension.LIGHT)
+		{
+			return lightParticleRNG;
+		}
+		else
+		{
+			return shadowParticleRNG;
+		}
+	}
+
+	public float getDelta(Dimension dimension)
+	{
+		return dimension == Dimension.LIGHT ? lightDelta : shadowDelta;
+	}
+
+	public void setSafePoint(float x, float y)
+	{
+		this.safePoint.x = x;
+		this.safePoint.y = y;
+
+		this.hasSafePoint = true;
+	}
+
+	public Color getDimensionColor(Dimension dimension)
+	{
+		return dimension == Dimension.LIGHT ? drawColor : monochromeDrawColor;
+	}
+
+	public float getWrapperAlpha(Dimension dimension)
+	{
+		return (dimension == Dimension.LIGHT ? wrapperAlpha : monochromeWrapperAlpha) * controlAlpha;
+	}
+
+	public void setWrapperAlpha(float alpha, Dimension dimension)
+	{
+		if (dimension == Dimension.LIGHT)
+		{
+			this.wrapperAlpha = alpha;
+		}
+		else
+		{
+			this.monochromeWrapperAlpha = alpha;
+		}
+	}
+
+	public void writeToGlobalSave(Object key, Object... values)
+	{
+		SaveHandler.getActiveSave().writeGlobal(key, values);
+	}
+
+	public void writeToLevelSave(Object key, Object... values)
+	{
+		SaveHandler.getActiveSave().writeLevel(id, key, values);
+	}
+
+	public void writeToWorldSave(Object key, Object... values)
+	{
+		SaveHandler.getActiveSave().writeWorld(worldID, key, values);
+	}
+
+	public Object[] readFromGlobalSave(Object key)
+	{
+		return SaveHandler.getActiveSave().readGlobal(key);
+	}
+
+	public Object[] readFromLevelSave(Object key)
+	{
+		return SaveHandler.getActiveSave().readLevel(id, key);
+	}
+
+	public Object[] readFromWorldSave(Object key)
+	{
+		return SaveHandler.getActiveSave().readWorld(worldID, key);
+	}
+
+	public void removeFromGlobalSave(Object key)
+	{
+		SaveHandler.getActiveSave().removeGlobal(key);
+	}
+
+	public void removeFromLevelSave(Object key)
+	{
+		SaveHandler.getActiveSave().removeLevel(id, key);
+	}
+
+	public void removeFromWorldSave(Object key)
+	{
+		SaveHandler.getActiveSave().removeWorld(worldID, key);
+	}
+
+	public void saveToActiveSave()
+	{
+		try
+		{
+			SaveHandler.saveCurrent();
+		}
+		catch (IOException e)
+		{
+			Debug.warn("Could not save to current save state - FATAL!", e);
+		}
+	}
+
+	public void findInteractableTiles()
+	{
+		interactableTiles.clear();
+
+		for (Tile tile : tiles)
+		{
+			if (tile instanceof ITileInteractable)
+			{
+				interactableTiles.add(tile);
+			}
+		}
+	}
+
+	private void addObject(Object object)
+	{
+		if (!dummyLevel)
+		{
+			if (object instanceof ILightSource)
+			{
+				ShaderHandler.addLight((ILightSource) object);
+			}
+
+			if (object instanceof IZDistortion)
+			{
+				ZHandler.addDistortion(((IZDistortion) object).getZDistortion());
+			}
+		}
+	}
+
+	private void removeObject(Object object)
+	{
+		if (!dummyLevel)
+		{
+			if (object instanceof ILightSource)
+			{
+				ShaderHandler.removeLight((ILightSource) object);
+			}
+
+			if (object instanceof IZDistortion)
+			{
+				ZHandler.removeDistortion(((IZDistortion) object).getZDistortion());
+			}
+		}
+	}
+
+	public void addTile(Tile tile)
+	{
+		if (tile != null)
+		{
+			addObject(tile);
+
+			tilesToAdd.add(tile);
+		}
+	}
+
+	public void removeTile(Tile tile)
+	{
+		if (tile != null)
+		{
+			if (!tile.canBeRemoved())
+			{
+				Debug.warn("Tried to remove tile " + tile + " but that tile can currently not be removed.");
+
+				return;
+			}
+
+			removeObject(tile);
+
+			tilesToRemove.add(tile);
+			tile.removeAllEmitters();
+			tile.remove();
+		}
+	}
+
+	public void addEntity(Entity entity)
+	{
+		if (entity != null)
+		{
+			addObject(entity);
+
+			entitiesToAdd.add(entity);
+		}
+	}
+
+	public void removeEntity(Entity entity)
+	{
+		if (entity != null)
+		{
+			if (!entity.canBeRemoved())
+			{
+				Debug.warn("Tried to remove entity " + entity + " but that entity can currently not be removed.");
+
+				return;
+			}
+
+			removeObject(entity);
+
+			entitiesToRemove.add(entity);
+			entity.removeAllEmitters();
+			entity.remove();
+		}
+	}
+
+	public void transferBuffers()
+	{
+		addAddedEntities();
+		addAddedTiles();
+
+		removeRemovedEntities();
+		removeRemovedTiles();
+	}
+
+	private void addAddedEntities()
+	{
+		if (!entitiesToAdd.isEmpty())
+		{
+			entities.addAll(entitiesToAdd);
+			entitiesToAdd.clear();
+		}
+	}
+
+	private void addAddedTiles()
+	{
+		if (!tilesToAdd.isEmpty())
+		{
+			tiles.addAll(tilesToAdd);
+			tilesToAdd.clear();
+		}
+	}
+
+	private void removeRemovedTiles()
+	{
+		if (!tilesToRemove.isEmpty())
+		{
+			tiles.removeAll(tilesToRemove);
+			tilesToRemove.clear();
+		}
+	}
+
+	private void removeRemovedEntities()
+	{
+		if (!entitiesToRemove.isEmpty())
+		{
+			entities.removeAll(entitiesToRemove);
+			entitiesToRemove.clear();
+		}
+	}
+
+	public int getMapWidth()
+	{
+		if (absRightLimit == null || absLeftLimit == null)
+		{
+			return 10000;
+		}
+
+		return (int) (absRightLimit.getCenterX() - absLeftLimit.getCenterX());
+	}
+
+	public int getMapHeight()
+	{
+		if (absBottomLimit == null || absTopLimit == null)
+		{
+			return 10000;
+		}
+
+		return (int) (absBottomLimit.getCenterY() - absTopLimit.getCenterY());
+	}
+
+	public float getDimensionFactor(Dimension dimension)
+	{
+		if (foregroundDimension == dimension)
+		{
+			return foregroundFactor;
+		}
+		else
+		{
+			return backgroundFactor;
+		}
+	}
+
+	public float getCenterX()
+	{
+		return (this.absRightLimit.getCenterX() + this.absLeftLimit.getCenterX()) / 2.0f;
+	}
+
+	public float getCenterY()
+	{
+		return (this.absBottomLimit.getCenterY() + this.absTopLimit.getCenterY()) / 2.0f;
+	}
+
+	public EntityPlayer getPlayer()
+	{
+		return controllingPlayer;
+	}
+
+	public void setPlayer(EntityPlayer player)
+	{
+		this.controllingPlayer = player;
+	}
+
+	public String getID()
+	{
+		return this.id;
+	}
+
+	public String getWorldID()
+	{
+		return worldID;
+	}
+
+	public ArrayList<Entity> getEntities()
+	{
+		return entities;
+	}
+
+	public ArrayList<Tile> getTiles()
+	{
+		return tiles;
+	}
+
+	public ArrayList<Tile> getInteractableTiles()
+	{
+		return interactableTiles;
+	}
+
+	public Vector2f getCameraOffset()
+	{
+		return cameraOffset;
+	}
+
+	public void setCameraOffset(Vector2f cameraOffset)
+	{
+		this.cameraOffset = cameraOffset;
+	}
+
+	public boolean shouldRenderAll()
+	{
+		return renderTiles;
+	}
+
+	public void setRenderTiles(boolean renderTiles)
+	{
+		this.renderTiles = renderTiles;
+	}
+
+	public boolean shouldRenderWrappers()
+	{
+		return renderWrappers;
+	}
+
+	public void setRenderWrappers(boolean renderWrappers)
+	{
+		this.renderWrappers = renderWrappers;
+	}
+
+	public boolean shouldRenderEntities()
+	{
+		return renderEntities;
+	}
+
+	public void renderEntities()
+	{
+		this.renderEntities = true;
+	}
+
+	public void setRenderEntities(boolean renderEntities)
+	{
+		this.renderEntities = renderEntities;
+	}
+
+	public boolean shouldShowHitboxes()
+	{
+		return showHitboxes;
+	}
+
+	public void setShowHitboxes(boolean showHitboxes)
+	{
+		this.showHitboxes = showHitboxes;
+	}
+
+	public ArrayList<WrapperTexture> getWrappers()
+	{
+		return this.wrappers;
+	}
+
+	public boolean shouldShowParticleAreas()
+	{
+		return this.showParticleAreas;
+	}
+
+	public void setShouldShowParticleAreas(boolean showParticleAreas)
+	{
+		this.showParticleAreas = showParticleAreas;
+	}
+
+	public LevelType getType()
+	{
+		return levelType;
+	}
+
+	public EntityPlayer getControllingPlayer()
+	{
+		return controllingPlayer;
+	}
+
+	public void setControllingPlayer(EntityPlayer controllingPlayer)
+	{
+		this.controllingPlayer = controllingPlayer;
+	}
+
+	public Dimension getForegroundDimension()
+	{
+		return foregroundDimension;
+	}
+
+	public void setForegroundDimension(Dimension foregroundDimension)
+	{
+		this.foregroundDimension = foregroundDimension;
+	}
+
+	public Dimension getBackgroundDimension()
+	{
+		return backgroundDimension;
+	}
+
+	public void setBackgroundDimension(Dimension backgroundDimension)
+	{
+		this.backgroundDimension = backgroundDimension;
+	}
+
+	public ArrayList<Entity> getEntitiesToRemove()
+	{
+		return entitiesToRemove;
+	}
+
+	public LevelType getLevelType()
+	{
+		return levelType;
+	}
+
+	public void setLevelType(LevelType levelType)
+	{
+		this.levelType = levelType;
+	}
+
+	public boolean shouldCreateMirrors()
+	{
+		return this.levelType != LevelType.NORMAL;
+	}
+
+	public static HashMap<String, String> getLevelMap()
+	{
+		return levelPathMap;
+	}
+
+	public static void setLevels(SelectionState[] levels)
+	{
+		Level.levels = levels;
+	}
+
+	public static SelectionState[] getLevels()
+	{
+		return levels;
+	}
+
+	public static Set<String> getAllLevelIDs()
+	{
+		return levelPathMap.keySet();
+	}
+
+	public boolean hasSafePoint()
+	{
+		return hasSafePoint;
+	}
+
+	public Vector2f getSafePoint()
+	{
+		return safePoint;
+	}
+
+	public float getLightDelta()
+	{
+		return lightDelta;
+	}
+
+	public void setLightDelta(float lightDelta)
+	{
+		this.lightDelta = lightDelta;
+	}
+
+	public float getShadowDelta()
+	{
+		return shadowDelta;
+	}
+
+	public void setShadowDelta(float shadowDelta)
+	{
+		this.shadowDelta = shadowDelta;
+	}
+
+	public boolean shouldRenderForegroundWrappers()
+	{
+		return renderForegroundWrappers;
+	}
+
+	public void setRenderForegroundWrappers(boolean renderForegroundWrappers)
+	{
+		this.renderForegroundWrappers = renderForegroundWrappers;
+	}
+
+	public boolean shouldRenderBackgroundWrappers()
+	{
+		return renderBackgroundWrappers;
+	}
+
+	public void setRenderBackgroundWrappers(boolean renderBackgroundWrappers)
+	{
+		this.renderBackgroundWrappers = renderBackgroundWrappers;
+	}
+
+	public boolean shouldRenderParticleEmitters()
+	{
+		return renderParticleEmitters;
+	}
+
+	public void setRenderParticleEmitters(boolean renderParticleEmitters)
+	{
+		this.renderParticleEmitters = renderParticleEmitters;
+	}
+
+	public float getControlAlpha()
+	{
+		return controlAlpha;
+	}
+
+	public void setControlAlpha(float controlAlpha)
+	{
+		this.controlAlpha = controlAlpha;
+	}
+
+	public TileCameraControl getAbsLeftLimit()
+	{
+		return absLeftLimit;
+	}
+
+	public void setAbsLeftLimit(TileCameraControl absLeftLimit)
+	{
+		this.absLeftLimit = absLeftLimit;
+	}
+
+	public TileCameraControl getAbsRightLimit()
+	{
+		return absRightLimit;
+	}
+
+	public void setAbsRightLimit(TileCameraControl absRightLimit)
+	{
+		this.absRightLimit = absRightLimit;
+	}
+
+	public TileCameraControl getAbsTopLimit()
+	{
+		return absTopLimit;
+	}
+
+	public void setAbsTopLimit(TileCameraControl absTopLimit)
+	{
+		this.absTopLimit = absTopLimit;
+	}
+
+	public TileCameraControl getAbsBottomLimit()
+	{
+		return absBottomLimit;
+	}
+
+	public void setAbsBottomLimit(TileCameraControl absBottomLimit)
+	{
+		this.absBottomLimit = absBottomLimit;
+	}
+
+	public boolean ignoresTimeEffects()
+	{
+		return this.ignoreTimeEffects;
+	}
+
+	public void setIgnoreTimeEffects(boolean ignoreTimeEffects)
+	{
+		this.ignoreTimeEffects = ignoreTimeEffects;
+	}
+
+	public boolean isTransitioning()
+	{
+		return transitioning;
+	}
+
+	public void setTransitioning(boolean transitioning)
+	{
+		this.transitioning = transitioning;
+	}
+
+	public float getForegroundFactor()
+	{
+		return foregroundFactor;
+	}
+
+	public void setForegroundFactor(float foregroundFactor)
+	{
+		this.foregroundFactor = foregroundFactor;
+	}
+
+	public float getBackgroundFactor()
+	{
+		return backgroundFactor;
+	}
+
+	public void setBackgroundFactor(float backgroundFactor)
+	{
+		this.backgroundFactor = backgroundFactor;
+	}
+
+	public boolean isInitialising()
+	{
+		return initialising;
+	}
+
+	public void setInitialising(boolean initialising)
+	{
+		this.initialising = initialising;
+	}
+
+	public ArrayList<Entity> getEntitiesToAdd()
+	{
+		return entitiesToAdd;
+	}
+
+	public ArrayList<Tile> getTilesToRemove()
+	{
+		return tilesToRemove;
+	}
+
+	public ArrayList<Tile> getTilesToAdd()
+	{
+		return tilesToAdd;
+	}
+
+	public ParticleSystem getParticleSystem()
+	{
+		return this.particleSystem;
+	}
+
+	public boolean isReSimulating()
+	{
+		return reSimulating;
+	}
+
+	public void setReSimulating(boolean reSimulating)
+	{
+		this.reSimulating = reSimulating;
+	}
+
+	public void setDummyLevel(boolean dummyLevel)
+	{
+		this.dummyLevel = dummyLevel;
+	}
+
+	public boolean isDummyLevel()
+	{
+		return dummyLevel;
+	}
+
+	public void setID(String id)
+	{
+		this.id = id;
+	}
+
+	public boolean isPlayMode()
+	{
+		return playMode;
+	}
+
+	public void setPlayMode(boolean playMode)
+	{
+		this.playMode = playMode;
+	}
+
+	public boolean isUpdatingOnlyCycleObjects()
+	{
+		return updateOnlyCycleObjects;
+	}
+
+	public void setUpdateOnlyCycleObjects(boolean updateOnlyCycleObjects)
+	{
+		this.updateOnlyCycleObjects = updateOnlyCycleObjects;
+	}
+
+	public String getName()
+	{
+		return this.name;
+	}
+
+	public float getLightDimensionXOffset()
+	{
+		return lightDimensionXOffset;
+	}
+
+	public void setLightDimensionXOffset(float lightDimensionXOffset)
+	{
+		this.lightDimensionXOffset = lightDimensionXOffset;
+	}
+
+	public float getLightDimensionYOffset()
+	{
+		return lightDimensionYOffset;
+	}
+
+	public void setLightDimensionYOffset(float lightDimensionYOffset)
+	{
+		this.lightDimensionYOffset = lightDimensionYOffset;
+	}
+
+	public float getShadowDimensionXOffset()
+	{
+		return shadowDimensionXOffset;
+	}
+
+	public void setShadowDimensionXOffset(float shadowDimensionXOffset)
+	{
+		this.shadowDimensionXOffset = shadowDimensionXOffset;
+	}
+
+	public float getShadowDimensionYOffset()
+	{
+		return shadowDimensionYOffset;
+	}
+
+	public void setShadowDimensionYOffset(float shadowDimensionYOffset)
+	{
+		this.shadowDimensionYOffset = shadowDimensionYOffset;
+	}
+
+	public float getXOffset(Dimension dimension)
+	{
+		return dimension == Dimension.LIGHT ? lightDimensionXOffset : shadowDimensionXOffset;
+	}
+
+	public float getYOffset(Dimension dimension)
+	{
+		return dimension == Dimension.LIGHT ? lightDimensionYOffset : shadowDimensionYOffset;
+	}
+
+	public void setXOffset(Dimension dimension, float offset)
+	{
+		if (dimension == Dimension.LIGHT)
+		{
+			this.lightDimensionXOffset = offset;
+		}
+		else
+		{
+			this.shadowDimensionXOffset = offset;
+		}
+	}
+
+	public void setYOffset(Dimension dimension, float offset)
+	{
+		if (dimension == Dimension.LIGHT)
+		{
+			this.lightDimensionYOffset = offset;
+		}
+		else
+		{
+			this.shadowDimensionYOffset = offset;
+		}
+	}
+
+	public boolean isSimulating()
+	{
+		return simulating;
+	}
+
+	public void setSimulating(boolean simulating)
+	{
+		this.simulating = simulating;
+	}
+
+	public void setBackgroundDeltaFactor(float backgroundDeltaFactor)
+	{
+		this.backgroundDeltaFactor = backgroundDeltaFactor;
+	}
+
+	public void setForegroundDeltaFactor(float foregroundDeltaFactor)
+	{
+		this.foregroundDeltaFactor = foregroundDeltaFactor;
+	}
+
+	public void setControlAlphaFactor(float controlAlphaFactor)
+	{
+		this.controlAlphaFactor = controlAlphaFactor;
+	}
+
+	public float getBackgroundDeltaFactor()
+	{
+		return backgroundDeltaFactor;
+	}
+
+	public float getForegroundDeltaFactor()
+	{
+		return foregroundDeltaFactor;
+	}
+
+	public float getControlAlphaFactor()
+	{
+		return 1.0f;
+	}
+
+	public float getControlAlphaFactor0()
+	{
+		return controlAlphaFactor;
+	}
+
+	public boolean isBrightening()
+	{
+		return brightnessChanging;
+	}
+
+	public StoryHandler getStoryHandler()
+	{
+		return storyHandler;
+	}
+
+	public String getChapter()
+	{
+		return chapter;
+	}
+
+	public void setChapter(String chapter)
+	{
+		this.chapter = chapter;
+	}
+
+	public void setName(String name)
+	{
+		this.name = name;
+	}
+
+	public String getInternalID()
+	{
+		return internalID;
+	}
+
+	public void setInternalID(String internalID)
+	{
+		this.internalID = internalID;
+	}
+
+	public boolean isBonusLevel()
+	{
+		return this.internalID.equals("b");
+	}
+
+	public static List<String> getChapters()
+	{
+		return chapters;
+	}
+
+	public boolean isFading()
+	{
+		return fadingIn;
+	}
+
+	public float getFadingAlpha()
+	{
+		return fadingAlpha;
+	}
+
+	public boolean shouldInverseCages()
+	{
+		return inversedCages;
+	}
+
+	public boolean shouldRemoveEmittersOnCompletion()
+	{
+		return GameLauncher.getStatus() != GameStatus.MAP_EDITOR;
+	}
+}

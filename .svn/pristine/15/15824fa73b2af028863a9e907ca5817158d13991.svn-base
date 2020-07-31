@@ -1,0 +1,31 @@
+package com.unlogical.colored.util;
+
+import org.newdawn.slick.Color;
+import org.newdawn.slick.Graphics;
+import org.newdawn.slick.Image;
+
+import com.unlogical.colored.collision.Hitbox;
+import com.unlogical.colored.level.LevelType;
+
+public interface IShareable<T extends GameObject & IShareable<T>>
+{
+	public Hitbox getHitbox();
+
+	public void onSharingChanged();
+
+	public void removeMirror();
+
+	public void createMirror(LevelType type);
+
+	public void initMirror(T mirror, LevelType type);
+
+	public boolean shouldCreateMirror(boolean allowMirrors);
+
+	public void drawImage(Image image, Dimension dimension, Color color, Graphics g);
+
+	public void drawBlurryImage(Image image, Dimension dimension, Color color, Graphics g);
+	
+	public Image getShadowImage();
+
+	public Image getLightImage();
+}

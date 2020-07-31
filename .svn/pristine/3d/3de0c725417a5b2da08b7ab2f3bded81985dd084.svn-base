@@ -1,0 +1,90 @@
+package com.unlogical.colored.configuration;
+
+import java.io.IOException;
+
+import com.unlogical.colored.debug.Debug;
+import com.unlogical.colored.filesystem.ConfigFileHandler;
+import com.unlogical.colored.filesystem.FileHandle;
+import com.unlogical.colored.filesystem.FileManager;
+import com.unlogical.colored.filesystem.FilePaths;
+import com.unlogical.colored.input.InputAction;
+import com.unlogical.colored.input.KeyBindings;
+
+public final class Settings
+{
+	public static void init()
+	{
+
+	}
+
+	public static void saveSettings()
+	{
+		try
+		{
+			FileHandle file = FileManager.getOrCreateFile(FilePaths.OPTIONS_YML);
+			ConfigFileHandler cfg = new ConfigFileHandler(file);
+
+			for (int i = 0; i < InputAction.values().length; i++)
+			{
+				cfg.set(i + "", KeyBindings.getMainKey(InputAction.values()[i]) + "");
+			}
+
+			for (SoundVolume volume : SoundVolume.values())
+			{
+				cfg.set(volume.getName(), volume.volume() + "");
+			}
+		}
+		catch (IOException e)
+		{
+			Debug.warn("Exception while saving settings: " + e, e);
+		}
+	}
+
+	public static void loadSettings()
+	{
+		Debug.log("Loading settings...");
+		FileHandle settingsFile = null;
+		
+		try
+		{
+			settingsFile = FileManager.getOrCreateFile(FilePaths.OPTIONS_YML);
+		}
+		catch (IOException e)
+		{
+			throw new RuntimeException("Unable to get / create settings file: " + e, e);
+		}
+		
+		ConfigFileHandler settings = new ConfigFileHandler(settingsFile);
+
+		KeyBindings.init();
+
+		try
+		{
+			for (SoundVolume volume : SoundVolume.values())
+			{
+				volume.setVolume(Integer.parseInt(settings.getString(volume.getName())));
+			}
+
+			for (int i = 0; i < InputAction.values().length; i++)
+			{
+				KeyBindings.swapMainKey(InputAction.getAction(i), Integer.valueOf(settings.getString(i + "")));
+			}
+		}
+		catch (Exception e)
+		{
+			try
+			{
+				FileManager.deleteFile(settingsFile);
+				FileManager.createFile(settingsFile.getPath());
+			}
+			catch (IOException e1)
+			{
+				throw new RuntimeException("Error while creating new settings file + " + e1);
+			}
+
+			Debug.warn("Settings file corrupted, created new empty settings file and set default values.");
+		}
+
+		Debug.log("Settings loaded.");
+	}
+}

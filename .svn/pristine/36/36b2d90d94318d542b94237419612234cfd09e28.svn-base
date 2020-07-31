@@ -1,0 +1,76 @@
+package com.unlogical.colored.particle;
+
+import java.util.Random;
+
+import org.newdawn.slick.Color;
+import org.newdawn.slick.geom.Vector2f;
+
+import com.unlogical.colored.collision.Hitbox;
+import com.unlogical.colored.level.Level;
+import com.unlogical.colored.util.IDeepCopyable;
+import com.unlogical.colored.util.RealImage;
+
+public interface IEmitterWrapper extends IDeepCopyable<IEmitterWrapper>
+{
+	public IEmitterWrapper copy(Level level);
+
+	public Level getLevel();
+
+	public void setLevel(Level level);
+
+	public RealImage[][] getEmitterSprites();
+
+	public RealImage getImage();
+	
+	public Color getStartEmitterTint();
+
+	public Color getEndEmitterTint();
+
+	public Color getAddEmitterTint();
+	
+	public IColorDistributionMode getColorDistributionMode();
+	
+	public float getEmitterParallax();
+	
+	public float getCenterOfRotationX();
+	
+	public float getCenterOfRotationY();
+
+	public float getSpawnScaleFactor(EmitterType emitterType);
+	
+	public int getEmitterWidth();
+
+	public int getEmitterHeight();
+
+	public int getMaxParticles();
+
+	public int getEmitterDepth();
+	
+	public float getRotation();
+
+	public Hitbox getHitbox();
+
+	public void setRotation(float rotation);
+
+	public boolean canCreateParticleAt(float x, float y);
+	
+	public boolean isTimeEffected();
+	
+	public boolean isTimeEffectedAnyWay();
+
+	public boolean isShared();
+	
+	public boolean isRotateable();
+	
+	public boolean isInBackground();
+	
+	public boolean shouldCreateParticles();
+	
+	public boolean shouldApplySpawnScaleFactor(EmitterType emitterType);
+	
+	public Random getRNG();
+
+	public void setPosition(float x, float y);
+	
+	public Vector2f getPosition();
+}

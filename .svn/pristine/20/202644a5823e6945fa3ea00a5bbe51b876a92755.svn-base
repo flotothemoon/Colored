@@ -1,0 +1,107 @@
+package com.unlogical.linked.entity.projectile;
+
+import java.util.Random;
+
+import org.newdawn.slick.Color;
+import org.newdawn.slick.GameContainer;
+import org.newdawn.slick.geom.Vector2f;
+
+import com.unlogical.linked.entity.EntityType;
+import com.unlogical.linked.entity.property.EntityProperty;
+import com.unlogical.linked.entity.property.SharedEntityProperties;
+import com.unlogical.linked.level.Level;
+import com.unlogical.linked.util.ColorHelper;
+import com.unlogical.linked.util.Dimension;
+import com.unlogical.linked.util.LevelObject;
+
+public class EntityIceSpike extends EntityProjectile
+{
+	private static final int SPIKE_COOLDOWN = 4000;
+	
+	private int totalCooldown = SPIKE_COOLDOWN;
+	private int cooldown;
+	private boolean fell;
+	private boolean isSpawner;
+
+	public EntityIceSpike(EntityType type, Vector2f position, Level level, Dimension dimension, boolean allowMirrors)
+	{
+		super(type, position, level, dimension, allowMirrors);
+	}
+
+	@Override
+	public void init()
+	{
+		super.init();
+
+		this.isSpawner = this.wasCreatedFromFile;
+	}
+
+	public boolean fall()
+	{
+		if (cooldown > 0 || !this.isSpawner)
+		{
+			return false;
+		}
+
+		if (this.dimension == Dimension.LIGHT && this.hasMirror)
+		{
+			((EntityIceSpike) this.mirroredEntity).fall();
+		}
+
+		EntityIceSpike spike = (EntityIceSpike) this.copy();
+		spike.fell = true;
+
+		level.addEntity(spike);
+		
+		cooldown = SPIKE_COOLDOWN;
+
+		return true;
+	}
+
+	@Override
+	public void onUpdate(GameContainer container, float delta, Random rng)
+	{
+		super.onUpdate(container, delta, rng);
+
+		if (this.isSpawner)
+		{
+			if (cooldown > 0)
+			{
+				cooldown -= delta;
+			}
+		}
+		else
+		{
+			if (this.collidedBelow)
+			{
+				this.onDeath(null);
+			}
+		}
+	}
+
+	@Override
+	protected void customOnDeath(LevelObject damageSource)
+	{
+		this.velocity.y *= 0.3f;
+
+		this.transformToPixels(null, PIXELIFIED_PARTICLE_SIZE);
+	}
+
+	@Override
+	protected Color customModifiyDrawColor(Color color)
+	{
+		return ColorHelper.multiplyAlphaAndCopy(color, 1.0f - ((float) cooldown) / ((float) totalCooldown));
+	}
+
+	@Override
+	protected EntityProperty getEntityProperty()
+	{
+		return SharedEntityProperties.ICE_SPIKES;
+	}
+
+	@Override
+	protected boolean isGravityEffected()
+	{
+		return fell;
+	}
+}

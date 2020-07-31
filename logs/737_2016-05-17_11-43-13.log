@@ -1,0 +1,62 @@
+ -- General -- 
+Generated on: 2016-05-17_11-43-13
+Build: 737 from 11:25 AM - 17/05/16
+GameState: IN_LEVEL (previous: LOADING)
+Target FPS: 60
+Actual FPS: 29
+
+ -- Display -- 
+Target Width / Height: 1920 / 1080
+Actual Width / Height: 1920 / 1017 (windowed)
+
+ -- Environment -- 
+GPU: GeForce GTX 980 Ti/PCIe/SSE2 (NVIDIA Corporation)
+OpenGL Version: 4.5.0 NVIDIA 361.43
+Allocated Memory: 123MB
+Used Memory: 10MB
+"os.name": Windows 10
+"os.version": 10.0
+"os.arch": x86
+"java.version": 1.8.0_66
+"java.vendor": Oracle Corporation
+"sun.arch.data.model": 32
+
+ -- Level --
+ID: 21-01 (internal: 01)
+LevelType: REVERSAL
+Dimension: COLORED
+Location: ../worlds/maps/21-01
+
+ -- Stack Trace -- 
+java.lang.NullPointerException
+com.unlogical.colored.gui.menu.MenuHandler$MenuEmitterHandler.syncLevel(MenuHandler.java:393)
+com.unlogical.colored.gui.menu.MenuHandler$MenuEmitterHandler.access$0(MenuHandler.java:389)
+com.unlogical.colored.gui.menu.MenuHandler.update(MenuHandler.java:106)
+com.unlogical.colored.GameLauncher.update(GameLauncher.java:387)
+com.unlogical.colored.GameLauncher.render(GameLauncher.java:458)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication.mainLoop(LwjglApplication.java:218)
+com.badlogic.gdx.backends.lwjgl.LwjglApplication$1.run(LwjglApplication.java:123)
+
+ -- Last 20 Log Entries -- 
+@Log: Found world hub for world 24 at 24-10. (11)
+@Log: Initializing map editor... (11)
+@Log: Initialising levelrenderer... (11)
+@Log: Initializing menus... (11)
+@Log: SaveState 1.dat found and read successfully. (11)
+@Log: SaveState 2.dat found and read successfully. (11)
+@Log: Initializing story handler... (11)
+@Log: Initializing credits screen... (11)
+@Log: Resizing contents to current window size... (11)
+@Log: Finished loading, took 637ms. (11)
+@Log: Loading map ../worlds/maps/21-01 ... (11)
+@Log: Loading map files took 127ms. (11)
+@Warning: Tried to load image(s) from path res/gui/icons/21_01, the resolved path res/gui/icons/21_01.png however does not exist. (11)
+@Warning: Couldn't load level icon for 21-01. (11)
+@Log: Fetching lights for level "21-01" ... (11)
+@Log: Lights fetched for level "21-01", 4 lights found. (11)
+@Log: Pre-simulating particles for 45000.0ms (300 x 150.0ms)... (11)
+@Log: Particle pre-simulation complete. Particles are now ahead of time by 45000.0ms. (11)
+@Log: Active save was saved to disk. (11)
+@Log: Loaded 21-01 (took 235ms). (11)
+
+ -- Last 0 Input Events -- 

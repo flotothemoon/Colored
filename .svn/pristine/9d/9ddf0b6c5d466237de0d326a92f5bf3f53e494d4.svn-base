@@ -1,0 +1,253 @@
+package com.unlogical.colored.sound;
+
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Random;
+import java.util.Set;
+
+import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.audio.Sound;
+import com.unlogical.colored.configuration.SoundVolume;
+import com.unlogical.colored.debug.Debug;
+import com.unlogical.colored.filesystem.FileManager;
+import com.unlogical.colored.filesystem.FilePaths;
+
+public class SoundManager<T>
+{
+	private static Random rng = new Random();
+
+	private float managerVolume = 1.0f;
+	private float managerPitch = 1.0f;
+	private Set<SoundWrapper<T>> activeSounds;
+	private Set<SoundWrapper<T>> soundsToRemove;
+
+	public SoundManager()
+	{
+		this.activeSounds = new HashSet<SoundWrapper<T>>();
+		this.soundsToRemove = new HashSet<SoundWrapper<T>>();
+	}
+
+	public void update(float delta)
+	{
+		for (SoundWrapper<T> wrapper : activeSounds)
+		{
+			wrapper.update(delta);
+
+			if (wrapper.isDead())
+			{
+				soundsToRemove.add(wrapper);
+			}
+		}
+
+		activeSounds.removeAll(soundsToRemove);
+	}
+
+	public SoundWrapper<T> play(SoundType type)
+	{
+		return play(type, false);
+	}
+	
+	public SoundWrapper<T> play(SoundType type, boolean loop)
+	{
+		return play(null, type, loop, 1.0f, 1.0f, rng);
+	}
+
+	public SoundWrapper<T> play(T object, SoundType type, boolean loop, Random rng)
+	{
+		return play(object, type, loop, 1.0f, 1.0f, rng);
+	}
+
+	public SoundWrapper<T> play(SoundType type, boolean loop, float volume, float pitch, Random rng)
+	{
+		return play(null, type, loop, volume, pitch, rng);
+	}
+
+	public SoundWrapper<T> play(T object, SoundType type, boolean loop, float volume, float pitch, Random rng)
+	{
+		if (!isActive() || type.sounds.length == 0)
+		{
+			return null;
+		}
+
+		Sound sound = type.randomSound(rng);
+		long soundID;
+
+		float playVolume = volume * managerVolume * SoundVolume.SOUND.relVolumeClamped();
+		float playPitch = pitch * managerPitch;
+
+		if (loop)
+		{
+			// TODO maybe incoperate pan? idk
+			soundID = sound.loop(playVolume, playPitch, 0.0f);
+		}
+		else
+		{
+			soundID = sound.play(playVolume, playPitch, 0.0f);
+		}
+
+		if (soundID == -1)
+		{
+			Debug.warn("Unable to play sound " + type + " at volume " + playVolume + " with pitch " + playPitch + " (" + (loop ? "looping" : "once") + ").");
+
+			return null;
+		}
+
+		SoundWrapper<T> wrapper = new SoundWrapper<T>(object, type, sound, soundID, loop, volume, pitch);
+
+		activeSounds.add(wrapper);
+
+		Debug.log("Play sound " + type + " at volume " + playVolume + " and pitch " + playPitch + " (" + (loop ? "looping" : "once") + ").");
+
+		return wrapper;
+	}
+
+	public void pauseAll()
+	{
+		for (SoundWrapper<T> wrapper : activeSounds)
+		{
+			wrapper.pause();
+		}
+	}
+
+	public void resumeAll()
+	{
+		for (SoundWrapper<T> wrapper : activeSounds)
+		{
+			wrapper.resume();
+		}
+	}
+
+	public void stopAll()
+	{
+		for (SoundWrapper<T> wrapper : activeSounds)
+		{
+			wrapper.stop();
+		}
+
+		activeSounds.clear();
+	}
+
+	public void updateSoundVolume()
+	{
+		float totalManagerVolume = managerVolume * SoundVolume.SOUND.relVolumeClamped();
+
+		for (SoundWrapper<T> wrapper : activeSounds)
+		{
+			wrapper.setVolume(wrapper.getOwnVolume() * totalManagerVolume);
+		}
+	}
+
+	public void updateSoundPitch()
+	{
+		float totalManagerPitch = managerPitch;
+
+		for (SoundWrapper<T> wrapper : activeSounds)
+		{
+			wrapper.setPitch(wrapper.getOwnPitch() * totalManagerPitch);
+		}
+	}
+
+	protected boolean isActive()
+	{
+		return true;
+	}
+
+	public void setManagerPitch(float managerPitch)
+	{
+		this.managerPitch = managerPitch;
+
+		updateSoundPitch();
+	}
+
+	public void setManagerVolume(float managerVolume)
+	{
+		this.managerVolume = managerVolume;
+
+		updateSoundVolume();
+	}
+
+	public float getManagerPitch()
+	{
+		return managerPitch;
+	}
+
+	public float getManagerVolume()
+	{
+		return managerVolume;
+	}
+
+	public int getActiveSoundCount()
+	{
+		return activeSounds.size();
+	}
+
+	public static void load()
+	{
+		long beforeTime = System.currentTimeMillis();
+		int loadedCount = 0;
+
+		for (SoundType soundType : SoundType.values())
+		{
+			try
+			{
+				int count = soundType.load();
+				
+				if (count == 0)
+				{
+					Debug.warn("No sounds found for " + soundType + ".");
+				}
+				
+				loadedCount += count;
+			}
+			catch (Exception e)
+			{
+				throw new RuntimeException("Error while loading sounds for " + soundType + ": " + e, e);
+			}
+		}
+
+		Debug.log("Loaded " + loadedCount + " sounds, took " + (System.currentTimeMillis() - beforeTime) + "ms.");
+	}
+
+	public enum SoundType
+	{
+		MENU_CLICK, JUMP, LAND, CLEAR_CAGE, PICK_UP_KEY, TOGGLE_LEVER,
+		UNLOCK_KEYGATE, OPEN_DOOR, SWITCH_DIMENSION, CANNON_SHOOT_BALL,
+		CANNON_SHOOT_CLOUD, CANNON_SHOOT_CREATURE, CLIMB, DEATH, BALL_HIT_WALL,;
+
+		private Sound[] sounds;
+		private final String soundName;
+
+		private SoundType()
+		{
+			this.soundName = this.name().toLowerCase().replace("_", "");
+		}
+
+		private int load() throws Exception
+		{
+			List<Sound> sounds = new ArrayList<Sound>();
+
+			for (String file : FileManager.listFiles(FileManager.globaliseFile(FilePaths.SOUNDS)))
+			{
+				String name = file.contains("/") ? file.substring(file.lastIndexOf('/') + 1) : file;
+				name = name.contains(".") ? name.substring(0, name.lastIndexOf('.')) : name;
+
+				if (name.startsWith(this.soundName))
+				{
+					sounds.add(Gdx.audio.newSound(FileManager.getFile(FileManager.globaliseFile(file))));
+				}
+			}
+
+			this.sounds = new Sound[sounds.size()];
+
+			this.sounds = sounds.toArray(this.sounds);
+
+			return this.sounds.length;
+		}
+
+		public Sound randomSound(Random rng)
+		{
+			return sounds[rng.nextInt(sounds.length)];
+		}
+	}
+}

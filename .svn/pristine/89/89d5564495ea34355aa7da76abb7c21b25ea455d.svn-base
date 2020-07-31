@@ -1,0 +1,1359 @@
+package com.unlogical.colored.wrapper;
+
+import java.io.IOException;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Random;
+import java.util.Set;
+
+import com.badlogic.gdx.graphics.Color;
+import com.badlogic.gdx.graphics.g2d.Batch;
+import com.badlogic.gdx.graphics.g2d.Sprite;
+import com.badlogic.gdx.graphics.g2d.TextureRegion;
+import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
+import com.badlogic.gdx.graphics.glutils.ShapeRenderer.ShapeType;
+import com.badlogic.gdx.math.Vector2;
+import com.unlogical.colored.GameLauncher;
+import com.unlogical.colored.collision.Hitbox;
+import com.unlogical.colored.configuration.Resolutions;
+import com.unlogical.colored.debug.Debug;
+import com.unlogical.colored.filesystem.FileManager;
+import com.unlogical.colored.filesystem.FilePaths;
+import com.unlogical.colored.input.InputHandler;
+import com.unlogical.colored.level.Level;
+import com.unlogical.colored.level.LevelType;
+import com.unlogical.colored.particle.ColorDistributionMode;
+import com.unlogical.colored.particle.EmitterType;
+import com.unlogical.colored.particle.IEmitterWrapper;
+import com.unlogical.colored.particle.ParticleEmitterImpl;
+import com.unlogical.colored.resources.ResourceLoader;
+import com.unlogical.colored.resources.ResourceLoader.LoadMode;
+import com.unlogical.colored.resources.font.Fonts;
+import com.unlogical.colored.terrain.tile.Tile;
+import com.unlogical.colored.util.ColorHelper;
+import com.unlogical.colored.util.Dimension;
+import com.unlogical.colored.util.GameObject;
+import com.unlogical.colored.util.ICopyable;
+import com.unlogical.colored.util.Renderer;
+
+public class WrapperTexture extends GameObject implements IEmitterWrapper, Comparable<WrapperTexture>, ICopyable<WrapperTexture>
+{
+	private static final Color drawColor = new Color(1.0f, 1.0f, 1.0f, 1.0f);
+
+	private static Color particleAreaColor = new Color(0.8f, 0.8f, 1.0f, 0.1f);
+
+	private final boolean foundTextures;
+	private boolean visible;
+	private boolean inBackground;
+	private boolean animated;
+	private boolean isParticleWrapper;
+	private boolean flippedVertically;
+	private boolean flippedHorizontally;
+	private boolean drawSubImages;
+	private boolean shouldClip;
+	private boolean stretchMode;
+
+	private int innerType;
+	private float rotation;
+	private float scale = 1.0f;
+
+	private int timePerImage = 50;
+	private int timeToSwitch;
+	private int currentImage;
+	private int maxParticles = 32;
+
+	private int width = 400;
+	private int height = 400;
+
+	private String simpleName;
+	private String group;
+	private String templateName;
+
+	private Color mainTint = new Color(1.0f, 1.0f, 1.0f, 1.0f);
+	private Color endTint;
+	private Color addTint = new Color(0.0f, 0.0f, 0.0f, 1.0f);
+	private ColorDistributionMode colorDistrMode = ColorDistributionMode.RGB_AREA;
+
+	private ParticleEmitterImpl emitter;
+
+	private Sprite[][] availableImages;
+	private Sprite[] animationImages;
+
+	private int depth = 0;
+	private float parallax = 1.0f;
+
+	private String path;
+	private String cleanPath;
+
+	private Level level;
+
+	private Hitbox hitbox;
+	private Hitbox[] borders;
+	private boolean[] selectedBorders;
+
+	public WrapperTexture(String relativePath, String simpleName, Vector2 position, boolean visible,
+			boolean inBackground, int innerType, float rotation, float scale, Color tint, int depth, float parallax,
+			TextureRegion[][] availableImages, int timePerImage, Level level, boolean drawSubImages, boolean shouldClip,
+			boolean stretchMode, boolean flippedVertically, boolean flippedHorizontally, int width, int height,
+			ParticleEmitterImpl particleEmitter)
+	{
+		super(availableImages == null ? null : availableImages[innerType][0], position);
+
+		this.visible = visible;
+		this.inBackground = inBackground;
+		this.innerType = innerType;
+		this.rotation = rotation;
+		this.scale = scale;
+		this.timePerImage = timePerImage;
+		this.mainTint = tint;
+		this.endTint = tint;
+		this.depth = depth;
+		this.parallax = parallax;
+		this.path = FileManager.deglobaliseFile(relativePath);
+		this.cleanPath = FileManager.deglobaliseFile(this.path).replaceAll("\\/", "");
+		this.level = level;
+		this.simpleName = simpleName;
+		this.flippedHorizontally = flippedHorizontally;
+		this.flippedVertically = flippedVertically;
+		this.width = width;
+		this.height = height;
+		this.shouldClip = shouldClip;
+		this.foundTextures = availableImages != null;
+		this.stretchMode = stretchMode;
+		this.drawSubImages = drawSubImages;
+		this.dimension = Dimension.LIGHT;
+
+		this.setEmitter(particleEmitter);
+		this.setImages(relativePath, simpleName, availableImages);
+	}
+
+	public WrapperTexture(String relativePath, TextureRegion[][] availableImages)
+	{
+		this(relativePath, getSimpleName(relativePath), null, true, false, 0, 0.0f, 1.0f, new Color(1.0f, 1.0f, 1.0f, 1.0f), 0, 1.0f, availableImages, 0, null, false, false, false, false, false, availableImages[0][0].getRegionWidth(), availableImages[0][0].getRegionHeight(), null);
+	}
+
+	@Override
+	public boolean shouldCopy()
+	{
+		return false;
+	}
+
+	@Override
+	public IEmitterWrapper deepCopy(Map<Object, Object> copiedReferences)
+	{
+		return this;
+	}
+
+	public void setImages(String relativePath, String simpleName, TextureRegion[][] availableImages)
+	{
+		float beforeX = Float.NaN, beforeY = Float.NaN;
+		boolean changedImages = this.availableImages != null;
+
+		if (changedImages && this.hitbox != null)
+		{
+			beforeX = this.hitbox.getCenterX();
+			beforeY = this.hitbox.getCenterY();
+		}
+
+		this.path = relativePath;
+		this.cleanPath = FileManager.deglobaliseFile(this.path).replaceAll("\\/", "");
+		this.simpleName = simpleName;
+
+		if (this.mainTint == null)
+		{
+			this.mainTint = new Color(1.0f, 1.0f, 1.0f, 1.0f);
+		}
+
+		if (this.foundTextures)
+		{
+			this.availableImages = new Sprite[availableImages.length][];
+
+			for (int i = 0; i < availableImages.length; i++)
+			{
+				this.availableImages[i] = new Sprite[availableImages[i].length];
+
+				for (int p = 0; p < availableImages[i].length; p++)
+				{
+					this.availableImages[i][p] = new Sprite(availableImages[i][p]);
+				}
+			}
+
+			this.animated = availableImages[innerType].length > 1 && !isParticleWrapper;
+
+			this.animationImages = this.availableImages[innerType];
+			this.image = this.animationImages[0];
+		}
+
+		if (position != null)
+		{
+			if (this.isParticleWrapper)
+			{
+				this.hitbox = new Hitbox(position.x, position.y, width, height);
+				this.hitbox.setRotation(rotation, this.hitbox.getCenterX() - this.hitbox.getMinX(), this.hitbox.getCenterY() - this.hitbox.getMinY());
+			}
+			else
+			{
+				this.hitbox = new Hitbox(position.x, position.y, foundTextures ? image.getRegionWidth() * scale : width, foundTextures ? image.getRegionHeight() * scale : height);
+			}
+		}
+
+		if (this.hitbox != null)
+		{
+			this.updateImages();
+		}
+
+		if (changedImages && this.hitbox != null)
+		{
+			if (beforeX == Float.NaN || beforeY == Float.NaN)
+			{
+				throw new RuntimeException("Wooooohhhh this shouldn't happen... well... whatevs.");
+			}
+
+			this.adjustX((beforeX - this.hitbox.getCenterX()) / 2.0f);
+			this.adjustY((beforeY - this.hitbox.getCenterY()) / 2.0f);
+		}
+
+		this.group = WrapperTextureFinder.getGroup(this);
+	}
+
+	public void setImages(WrapperTexture wrapper)
+	{
+		if (FileManager.deglobaliseFile(wrapper.getPath()).startsWith(FilePaths.PARTICLES))
+		{
+			try
+			{
+				this.setImages(wrapper.path, wrapper.simpleName, ResourceLoader.getAnimatedImages(wrapper.path, LoadMode.SPRITESHEET));
+			}
+			catch (IOException e)
+			{
+				Debug.warn("Error while trying to change images for " + this + " to the images of " + wrapper + " in spritesheet mode: " + e, e);
+			}
+		}
+	}
+
+	@Override
+	public boolean shouldCreateMirror(boolean allowMirrors)
+	{
+		return false;
+	}
+
+	@Override
+	public void createMirror(LevelType levelType)
+	{
+
+	}
+
+	public static String getSimpleName(String relativePath)
+	{
+		String simpleName = FileManager.deglobaliseFile(relativePath).replace('\\', '/');
+
+		if (simpleName.endsWith("-1.png"))
+		{
+			simpleName = simpleName.substring(0, simpleName.length() - 6);
+		}
+
+		if (simpleName.contains(FilePaths.WRAPPERS))
+		{
+			simpleName = simpleName.substring(FilePaths.WRAPPERS.length() + 1);
+		}
+
+		if (simpleName.startsWith("/"))
+		{
+			simpleName = simpleName.substring(1);
+		}
+
+		return simpleName;
+	}
+
+	@Override
+	public void draw(Batch batch)
+	{
+		if (visible)
+		{
+			if (isParticleWrapper)
+			{
+				if (level.shouldShowParticleAreas())
+				{
+					ShapeRenderer sr = Renderer.useShapeRenderer();
+
+					sr.set(ShapeType.Filled);
+
+					sr.setColor(particleAreaColor);
+					Renderer.drawPolygonAsTriangles(hitbox.getPoints(), sr);
+
+					sr.set(ShapeType.Line);
+
+					ColorHelper.applyAlphaAndCopy(Color.ORANGE, 0.2f, batch);
+					Renderer.drawPolygonAsTriangles(hitbox.getPoints(), sr);
+				}
+
+				if (emitter.hasActiveParticles())
+				{
+					emitter.getSystem().renderEmitter(emitter, batch);
+
+					if (emitter.hasMirror())
+					{										
+						emitter.getSystem().renderEmitter(emitter.getMirroredEmitter(), batch);
+					}
+				}
+			}
+			else if (this.hitbox.getMaxX() >= 0 && this.hitbox.getMinX() <= GameLauncher.getWidth() && this.hitbox.getMaxY() >= 0 && this.hitbox.getMinY() <= GameLauncher.getHeight())
+			{
+				Renderer.useSpriteBatch();
+
+				if (level.areDimensionOffset() && level.getType() == LevelType.NORMAL && level.getForegroundDimension() == this.dimension)
+				{
+					drawImage(image, dimension.getOpposite(), batch);
+				}
+
+				drawImage(image, dimension, batch);
+
+				if (level.areDimensionOffset() && level.getType() == LevelType.NORMAL && level.getForegroundDimension() == this.dimension.getOpposite())
+				{
+					drawImage(image, dimension.getOpposite(), batch);
+				}
+			}
+		}
+	}
+
+	private void drawImage(TextureRegion image, Dimension dimension, Batch batch)
+	{
+		Color dimensionColor = level.getDimensionColor(dimension);
+
+		drawColor.a = mainTint.a;
+
+		if (dimension == Dimension.LIGHT)
+		{
+			drawColor.r = mainTint.r;
+			drawColor.g = mainTint.g;
+			drawColor.b = mainTint.b;
+		}
+		else
+		{
+			drawColor.r = (mainTint.r + mainTint.g + mainTint.b) / 3.0f;
+			drawColor.g = drawColor.r;
+			drawColor.b = drawColor.r;
+		}
+
+		drawColor.r *= dimensionColor.r;
+		drawColor.g *= dimensionColor.g;
+		drawColor.b *= dimensionColor.b;
+
+		Renderer.setGrayScaleFactor(level.areDimensionOffset() ? (dimension == Dimension.LIGHT ? 0.0f : 1.0f) : level.getDimensionFactor(Dimension.SHADOW));
+
+		if (foundTextures)
+		{
+			Renderer.startUsingAdditiveTint(addTint);
+
+			batch.setColor(drawColor);
+
+			if (this.image.isFlipX() ^ this.flippedHorizontally || this.image.isFlipY() ^ !this.flippedVertically)
+			{
+				this.image.flip(this.image.isFlipX() ^ this.flippedHorizontally, this.image.isFlipY() ^ !this.flippedVertically);
+			}
+
+			if ((this.width != (image.getRegionWidth() * scale) || this.height != (image.getRegionHeight() * scale)) && !stretchMode)
+			{
+				// batch.draw(image, position.x + level.getXOffset(dimension), position.y + level.getYOffset(dimension),
+				// width, height);
+
+				Renderer.fillArea(image, position.x + level.getXOffset(dimension), position.y + level.getYOffset(dimension), width / 2, height / 2, width, height, scale, scale, rotation, drawSubImages, batch);
+			}
+			else
+			{
+				batch.draw(image, position.x + level.getXOffset(dimension), position.y + level.getYOffset(dimension), width / 2, height / 2, width, height, 1.0f, 1.0f, rotation);
+			}
+
+			Renderer.endUsingAdditiveTint();
+		}
+		else
+		{
+			ShapeRenderer sr = Renderer.useShapeRenderer();
+
+			sr.setColor(drawColor);
+			sr.polygon(this.hitbox.getPoints());
+
+			sr.setColor(ColorHelper.applyAlphaAndCopy(drawColor, 0.5f));
+			sr.line(this.hitbox.getPoints()[0], this.hitbox.getPoints()[1], this.hitbox.getPoints()[4], this.hitbox.getPoints()[5]);
+			sr.line(this.hitbox.getPoints()[2], this.hitbox.getPoints()[3], this.hitbox.getPoints()[6], this.hitbox.getPoints()[7]);
+
+			Fonts.drawFancy("\"" + this.path + "\" not found", Fonts.getSmallFont(), Color.RED, this.hitbox.getCenterX() - width / 2.0f, this.hitbox.getCenterY() - height / 2.0f, width, height, true, true, true, batch);
+		}
+	}
+
+	public void updateAnimation(int delta)
+	{
+		timeToSwitch -= delta;
+
+		if (timeToSwitch <= 0)
+		{
+			currentImage++;
+
+			if (currentImage >= animationImages.length)
+			{
+				currentImage = 0;
+			}
+
+			this.image = animationImages[currentImage];
+
+			this.timeToSwitch = timePerImage;
+		}
+	}
+
+	@Override
+	public void updateHitbox()
+	{
+		hitbox.setLocation(position.x, position.y);
+		hitbox.update();
+	}
+
+	@Override
+	public boolean isRotateable()
+	{
+		return true;
+	}
+
+	public boolean hasBorders()
+	{
+		return this.borders != null;
+	}
+
+	public final void createBorders()
+	{
+		if (!this.hasBorders())
+		{
+			this.borders = new Hitbox[4];
+			this.selectedBorders = new boolean[4];
+
+			this.borders[0] = new Hitbox(0.0f, 0.0f, 0.0f, 0.0f);
+			this.borders[1] = new Hitbox(0.0f, 0.0f, 0.0f, 0.0f);
+			this.borders[2] = new Hitbox(0.0f, 0.0f, 0.0f, 0.0f);
+			this.borders[3] = new Hitbox(0.0f, 0.0f, 0.0f, 0.0f);
+
+			this.updateBorders();
+		}
+	}
+
+	public void updateBorders()
+	{
+		if (!this.hasBorders())
+		{
+			this.createBorders();
+		}
+
+		float borderFactor = Math.min(this.hitbox.getRawWidth(), this.hitbox.getRawHeight()) / (Resolutions.TILE_SIZE * 3);
+
+		if (borderFactor > 1.0f)
+		{
+			borderFactor = 1.0f;
+		}
+
+		float borderWidth = Tile.MIN_BORDER_WIDTH + (Tile.MAX_BORDER_WIDTH - Tile.MIN_BORDER_WIDTH) * borderFactor;
+
+		this.borders[0].set(this.position.x, this.position.y, this.hitbox.getRawWidth(), borderWidth);
+		this.borders[1].set(this.position.x + this.hitbox.getRawWidth() - borderWidth, this.position.y, borderWidth, this.hitbox.getRawHeight());
+		this.borders[2].set(this.position.x, this.position.y + this.hitbox.getRawHeight() - borderWidth, this.hitbox.getRawWidth(), borderWidth);
+		this.borders[3].set(this.position.x, this.position.y, borderWidth, this.hitbox.getRawHeight());
+
+		Hitbox.rotate(this.borders, getCenterOfRotationX(), getCenterOfRotationY(), this.rotation);
+	}
+
+	@Override
+	public boolean ownsMouse()
+	{
+		if (!this.hasBorders() || !shouldClip && !isParticleWrapper)
+		{
+			return false;
+		}
+
+		for (int i = 0; i < this.borders.length; i++)
+		{
+			if (this.selectedBorders[i])
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	public void mousePressed(int x, int y)
+	{
+		if (this.hasBorders())
+		{
+			for (int i = 0; i < this.borders.length; i++)
+			{
+				selectedBorders[i] = this.borders[i].contains(x, y);
+			}
+		}
+	}
+
+	public void mouseReleased(int x, int y)
+	{
+		if (this.hasBorders())
+		{
+			for (int i = 0; i < this.borders.length; i++)
+			{
+				selectedBorders[i] = false;
+			}
+		}
+	}
+
+	public void mouseDragged(int oldX, int oldY, int newX, int newY, float mouseXChange, float mouseYChange)
+	{
+		if (!shouldClip && !isParticleWrapper)
+		{
+			return;
+		}
+
+		float minSize = Resolutions.TILE_SIZE / 2;
+
+		Vector2 absMouseChange = new Vector2(mouseXChange, mouseYChange);
+
+		// TODO might have messed up angle in radians and degrees somewhere, should check that
+		absMouseChange.setAngle(absMouseChange.angle() - rotation);
+
+		mouseXChange = absMouseChange.x;
+		mouseYChange = absMouseChange.y;
+
+		float actRotation = this.rotation;
+
+		boolean rotateTop = this.selectedBorders[0] && (this.hitbox.getHeight() - mouseYChange >= minSize || mouseYChange < 0);
+		boolean rotateRight = this.selectedBorders[1] && (this.hitbox.getWidth() - mouseXChange >= minSize || mouseXChange > 0);
+		boolean rotateBottom = this.selectedBorders[2] && (this.hitbox.getHeight() - mouseYChange >= minSize || mouseYChange > 0);
+		boolean rotateLeft = this.selectedBorders[3] && (this.hitbox.getWidth() - mouseXChange >= minSize || mouseXChange < 0);
+
+		float[] points = this.hitbox.getPoints();
+
+		int pIndex = -1;
+
+		if (rotateTop)
+		{
+			if (rotateRight)
+			{
+				pIndex = 1;
+			}
+			else
+			{
+				pIndex = 0;
+			}
+		}
+		else if (rotateBottom)
+		{
+			if (rotateRight)
+			{
+				pIndex = 2;
+			}
+			else
+			{
+				pIndex = 3;
+			}
+		}
+		else if (rotateRight)
+		{
+			pIndex = 1;
+		}
+		else if (rotateLeft)
+		{
+			pIndex = 0;
+		}
+
+		if (pIndex >= 0)
+		{
+			pIndex = (pIndex + points.length / 4) % (points.length / 2);
+
+			Vector2 referencePos = new Vector2(points[pIndex * 2], points[pIndex * 2 + 1]);
+
+			this.setRotation(0.0f);
+
+			Set<ParticleEmitterImpl> emittersToAdjust = new HashSet<ParticleEmitterImpl>();
+
+			if (this.emitter != null && !this.emitter.isCircularEmitter())
+			{
+				emittersToAdjust.add(this.emitter);
+
+				if (this.emitter.hasMirror())
+				{
+					emittersToAdjust.add(this.emitter.getMirroredEmitter());
+				}
+			}
+
+			for (ParticleEmitterImpl emitter : emittersToAdjust)
+			{
+				emitter.rotate(-actRotation);
+			}
+
+			Vector2 beforePos = new Vector2(this.position);
+			float beforeWidth = this.getEmitterWidth();
+			float beforeHeight = this.getEmitterHeight();
+
+			if (rotateTop && (this.height - mouseYChange > minSize || mouseYChange < 0))
+			{
+				this.adjustY(mouseYChange);
+				this.adjustHeight(-mouseYChange);
+			}
+
+			if (rotateRight && (this.width + mouseXChange > minSize || mouseXChange > 0))
+			{
+				this.adjustWidth(mouseXChange);
+			}
+
+			if (rotateBottom && (this.height + mouseYChange > minSize || mouseYChange > 0))
+			{
+				this.adjustHeight(mouseYChange);
+			}
+
+			if (rotateLeft && (this.width - mouseXChange > minSize || mouseXChange < 0))
+			{
+				this.adjustX(mouseXChange);
+				this.adjustWidth(-mouseXChange);
+			}
+
+			for (ParticleEmitterImpl emitter : emittersToAdjust)
+			{
+				emitter.moveParticles(this.position.x - beforePos.x, this.position.y - beforePos.y);
+				emitter.resize(this.getEmitterWidth(), beforeWidth, this.getEmitterHeight(), beforeHeight, !emitter.isScaleWithWidth() && this.width != beforeWidth, !emitter.isScaleWithHeight() && this.height != beforeHeight, actRotation);
+			}
+
+			this.setRotation(actRotation);
+
+			for (ParticleEmitterImpl emitter : emittersToAdjust)
+			{
+				emitter.rotate(rotation);
+			}
+
+			this.hitbox.update();
+			points = this.hitbox.getPoints();
+
+			Vector2 newReferencePos = new Vector2(points[pIndex * 2], points[pIndex * 2 + 1]);
+
+			newReferencePos.sub(referencePos);
+
+			for (ParticleEmitterImpl emitter : emittersToAdjust)
+			{
+				emitter.moveParticles(-newReferencePos.x, -newReferencePos.y);
+			}
+
+			this.adjustX(-newReferencePos.x);
+			this.adjustY(-newReferencePos.y);
+		}
+
+		this.updateBorders();
+	}
+
+	public void adjustWidth(float widthChange)
+	{
+		this.width += widthChange;
+		this.setWidth(this.width);
+	}
+
+	public void adjustHeight(float heightChange)
+	{
+		this.height += heightChange;
+		this.setHeight(this.height);
+	}
+
+	public void drawBorders(Batch batch)
+	{
+		if (!shouldClip && !isParticleWrapper)
+		{
+			return;
+		}
+
+		boolean ownsMouse = this.ownsMouse();
+
+		ShapeRenderer sr = Renderer.useShapeRenderer();
+
+		sr.set(ShapeType.Filled);
+
+		for (int i = 0; i < borders.length; i++)
+		{
+			if (borders[i].contains(InputHandler.getCurrentInputX(), InputHandler.getCurrentInputY()) && !ownsMouse || selectedBorders[i])
+			{
+				sr.setColor(Tile.hoverColor);
+			}
+			else
+			{
+				sr.setColor(Tile.borderColor);
+			}
+
+			Renderer.drawPolygonAsTriangles(borders[i].getPoints(), sr);
+		}
+	}
+
+	public boolean bordersContain(int mouseX, int mouseY)
+	{
+		for (int i = 0; i < borders.length; i++)
+		{
+			if (borders[i].contains(mouseX, mouseY))
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	@Override
+	public float getCenterOfRotationY()
+	{
+		return hitbox.getCenterY();
+	}
+
+	@Override
+	public float getCenterOfRotationX()
+	{
+		return hitbox.getCenterX();
+	}
+
+	@Override
+	public int compareTo(WrapperTexture object)
+	{
+		if (this.depth == object.getDepth())
+		{
+			if (this.parallax == object.getEmitterParallax())
+			{
+				return 0;
+			}
+			else if (this.parallax > object.getEmitterParallax())
+			{
+				return 1;
+			}
+			else
+			{
+				return -1;
+			}
+		}
+
+		return this.depth * (this.isInForeground() ? 1 : -1) - object.depth * (object.isInForeground() ? 1 : -1);
+	}
+
+	public void rotate(float degrees)
+	{
+		this.hitbox.rotate(degrees, hitbox.getCenterX(), hitbox.getCenterY());
+		this.rotation += degrees;
+
+		if (Math.abs(this.rotation) >= 360.0f)
+		{
+			this.rotation %= 360.0f;
+		}
+	}
+
+	@Override
+	public void setRotation(float degrees)
+	{
+		this.rotation = degrees;
+
+		if (Math.abs(this.rotation) >= 360.0f)
+		{
+			this.rotation %= 360.0f;
+		}
+
+		this.updateImages();
+	}
+
+	public void setInnerType(int innerType)
+	{
+		if (this.innerType != innerType)
+		{
+			if (innerType < availableImages.length)
+			{
+				this.innerType = innerType;
+
+				if (animated)
+				{
+					this.currentImage = 0;
+
+					this.animationImages = availableImages[innerType];
+
+					this.image = animationImages[0];
+				}
+			}
+		}
+	}
+
+	public void updateImages()
+	{
+		updateScale(this.scale);
+
+		if (foundTextures)
+		{
+			this.image = availableImages[innerType][currentImage];
+		}
+	}
+
+	public void updateScale(float scale)
+	{
+		if (foundTextures)
+		{
+			this.image = availableImages[innerType][0];
+		}
+
+		float x = position.x;
+		float y = position.y;
+
+		this.hitbox.set(x, y, this.width, this.height);
+		this.hitbox.setRotation(rotation, this.hitbox.getCenterX() - this.hitbox.getMinX(), this.hitbox.getCenterY() - this.hitbox.getMinY());
+
+		if (foundTextures)
+		{
+			this.animationImages = availableImages[innerType];
+		}
+	}
+
+	public void resetParticleState()
+	{
+		if (this.isParticleWrapper)
+		{
+			this.emitter.reset();
+
+			if (this.emitter.hasMirror())
+			{
+				this.emitter.getMirroredEmitter().reset();
+			}
+		}
+	}
+
+	public void updateBoundary(float xAdjustment, float yAdjustment)
+	{
+		this.adjustX(xAdjustment);
+		this.adjustY(yAdjustment);
+	}
+
+	@Override
+	public float getSpawnScaleFactor(EmitterType emitterType)
+	{
+		return 1.0f;
+	}
+
+	@Override
+	public boolean shouldApplySpawnScaleFactor(EmitterType emitterType)
+	{
+		return true;
+	}
+
+	@Override
+	public boolean canCreateParticleAt(float x, float y)
+	{
+		return true;
+	}
+
+	public void recreateEmitter()
+	{		
+		if (this.emitter.hasMirror())
+		{
+			level.removeParticleEmitter(this.emitter.getMirroredEmitter());
+		}
+
+		this.setEmitter(duplicateEmitter(this.emitter, true));
+
+		if (level.shouldCreateMirrors())
+		{
+			this.emitter.createMirror(this.level.getType());
+		}
+	}
+
+	public void setEmitter(ParticleEmitterImpl emitter)
+	{
+		if (this.isParticleWrapper)
+		{
+			level.removeParticleEmitter(this.emitter);
+		}
+
+		this.isParticleWrapper = emitter != null;
+		this.emitter = emitter;
+
+		if (this.isParticleWrapper)
+		{
+			if (hitbox != null)
+			{
+				hitbox.set(position.x, position.y, width, height);
+				hitbox.setRotation(rotation, this.hitbox.getCenterX() - this.hitbox.getMinX(), this.hitbox.getCenterY() - this.hitbox.getMinY());
+			}
+
+			level.addParticleEmitter(emitter);
+		}
+	}
+
+	@Override
+	public boolean shouldCreateParticles()
+	{
+		return true;
+	}
+
+	@Override
+	public String toString()
+	{
+		return "[" + this.getClass().getSimpleName() + ": name:" + this.simpleName + " group:" + (group == null ? "null" : (group.isEmpty() ? "none" : group)) + " path:" + this.path + " width: " + this.width + " height: " + this.height + "]";
+	}
+
+	@Override
+	public Random getRNG()
+	{
+		return level.getPRNG(false, dimension);
+	}
+
+	@Override
+	public WrapperTexture copy(Level level)
+	{
+		return duplicate(level);
+	}
+
+	public WrapperTexture duplicate(Level level)
+	{
+		WrapperTexture wrapper = new WrapperTexture(path, simpleName, position.cpy(), visible, inBackground, innerType, rotation, scale, new Color(mainTint.r, mainTint.g, mainTint.b, mainTint.a), depth, parallax, availableImages, timePerImage, level, drawSubImages, shouldClip, stretchMode, flippedVertically, flippedHorizontally, width, height, duplicateEmitter(emitter, false));
+
+		wrapper.setWidth(this.width);
+		wrapper.setHeight(this.height);
+		wrapper.setDrawSubImages(this.drawSubImages);
+		wrapper.setEndTint(new Color(this.endTint));
+		wrapper.setAddTint(new Color(this.addTint));
+		wrapper.setColorDistributionMode(this.colorDistrMode);
+		wrapper.setTemplateName(this.templateName);
+		wrapper.setMaxParticles(this.maxParticles);
+
+		if (wrapper.isParticleWrapper)
+		{
+			wrapper.getEmitter().setWrapper(wrapper);
+
+			wrapper.getEmitter().setScissoredDirections(this.emitter.getScissoredDirections());
+
+			level.removeParticleEmitter(wrapper.getEmitter());
+
+			if (wrapper.getEmitter().hasMirror())
+			{
+				level.removeParticleEmitter(wrapper.getEmitter().getMirroredEmitter());
+			}
+		}
+
+		return wrapper;
+	}
+
+	public ParticleEmitterImpl duplicateEmitter(ParticleEmitterImpl emitter, boolean useWrapperValues)
+	{
+		if (emitter == null)
+		{
+			return null;
+		}
+		else
+		{
+			return emitter.copy(emitter.getWrapper(), useWrapperValues, level);
+		}
+	}
+
+	public void softReset()
+	{
+		this.setScale(1.0f);
+
+		if (foundTextures && !this.isParticleWrapper)
+		{
+			this.setWidth(this.image.getRegionWidth());
+			this.setHeight(this.image.getRegionHeight());
+		}
+
+		this.updateBorders();
+	}
+
+	public void hardReset()
+	{
+		this.setScale(1.0f);
+		this.setRotation(0);
+		this.setParallax(1.0f);
+		this.setDepth(0);
+		this.level.sortWrappers();
+		this.setMainTint(new Color(1.0f, 1.0f, 1.0f, 1.0f));
+		this.setEndTint(new Color(1.0f, 1.0f, 1.0f, 1.0f));
+		this.setAddTint(new Color(0.0f, 0.0f, 0.0f, 1.0f));
+
+		if (foundTextures && !this.isParticleWrapper)
+		{
+			this.setWidth(this.image.getRegionWidth());
+			this.setHeight(this.image.getRegionHeight());
+		}
+
+		this.updateBorders();
+	}
+
+	public void updateEmitterOriginals()
+	{
+		emitter.setOriginalMaxParticles(this.maxParticles);
+		emitter.setOriginalWidth(getEmitterWidth());
+		emitter.setOriginalHeight(getEmitterHeight());
+		emitter.setOriginalMinCount(emitter.getSpawnCount().minValue());
+		emitter.setOriginalMaxCount(emitter.getSpawnCount().maxValue());
+	}
+
+	@Override
+	public boolean shouldUpdateEmitter()
+	{
+		return true;
+	}
+	
+	@Override
+	public TextureRegion[][] getEmitterSprites()
+	{
+		return availableImages;
+	}
+
+	@Override
+	public int getMaxParticles()
+	{
+		return maxParticles;
+	}
+
+	@Override
+	public int getEmitterDepth()
+	{
+		return depth;
+	}
+
+	@Override
+	public boolean isTimeEffected()
+	{
+		return true;
+	}
+
+	@Override
+	public boolean isTimeEffectedAnyWay()
+	{
+		return false;
+	}
+
+	public boolean hasMirror()
+	{
+		return false;
+	}
+
+	public float getImageRotation()
+	{
+		return this.rotation;
+	}
+
+	@Override
+	public float getRotation()
+	{
+		return this.rotation;
+	}
+
+	public String getPath()
+	{
+		return path;
+	}
+
+	@Override
+	public Hitbox getHitbox()
+	{
+		return hitbox;
+	}
+
+	public void setHitbox(Hitbox hitbox)
+	{
+		this.hitbox = hitbox;
+	}
+
+	@Override
+	public boolean isInBackground()
+	{
+		return inBackground;
+	}
+
+	public String getTemplateName()
+	{
+		return templateName;
+	}
+
+	public void setTemplateName(String templateName)
+	{
+		this.templateName = templateName;
+	}
+
+	public boolean isInForeground()
+	{
+		return !inBackground;
+	}
+
+	public void setInBackground(boolean inBackground)
+	{
+		this.inBackground = inBackground;
+	}
+
+	@Override
+	public Level getLevel()
+	{
+		return level;
+	}
+
+	@Override
+	public void setLevel(Level level)
+	{
+		this.level = level;
+	}
+
+	public boolean isVisible()
+	{
+		return visible;
+	}
+
+	public void setVisible(boolean visible)
+	{
+		this.visible = visible;
+	}
+
+	public boolean isAnimated()
+	{
+		return animated;
+	}
+
+	public void setAnimated(boolean animated)
+	{
+		this.animated = animated;
+	}
+
+	public int getDepth()
+	{
+		return depth;
+	}
+
+	public void setDepth(int depth)
+	{
+		if (depth <= Level.MAX_DEPTH)
+		{
+			this.depth = depth;
+		}
+	}
+
+	public int getTimePerImage()
+	{
+		return timePerImage;
+	}
+
+	@Override
+	public float getEmitterParallax()
+	{
+		return parallax;
+	}
+
+	public void setParallax(float parallax)
+	{
+		this.parallax = parallax;
+	}
+
+	public String getRelativePath()
+	{
+		return path;
+	}
+
+	public int getInnerType()
+	{
+		return innerType;
+	}
+
+	public float getScale()
+	{
+		return scale;
+	}
+
+	public void setScale(float scale)
+	{
+		this.scale = Math.round(scale * 50);
+
+		this.scale = this.scale / 50.0f;
+
+		this.updateImages();
+	}
+
+	@Override
+	public Color getStartEmitterTint()
+	{
+		return mainTint;
+	}
+
+	@Override
+	public Color getEndEmitterTint()
+	{
+		return endTint;
+	}
+
+	@Override
+	public Color getAddEmitterTint()
+	{
+		return addTint;
+	}
+
+	public void setMainTint(Color tint)
+	{
+		this.mainTint = tint;
+	}
+
+	public void setEndTint(Color endTint)
+	{
+		this.endTint = endTint;
+	}
+
+	public void setAddTint(Color addTint)
+	{
+		this.addTint = addTint;
+	}
+
+	public Color getAddTint()
+	{
+		return addTint;
+	}
+
+	@Override
+	public ColorDistributionMode getColorDistributionMode()
+	{
+		return this.colorDistrMode;
+	}
+
+	@Override
+	public boolean validTextures()
+	{
+		return foundTextures;
+	}
+
+	public void setColorDistributionMode(ColorDistributionMode colorDistrMode)
+	{
+		this.colorDistrMode = colorDistrMode;
+	}
+
+	public TextureRegion[][] getAvailableImages()
+	{
+		return availableImages;
+	}
+
+	public String getSimpleName()
+	{
+		return simpleName;
+	}
+
+	public void setSimpleName(String simpleName)
+	{
+		this.simpleName = simpleName;
+	}
+
+	public boolean isParticleWrapper()
+	{
+		return isParticleWrapper;
+	}
+
+	public void setTimePerImage(int timePerImage)
+	{
+		this.timePerImage = timePerImage;
+	}
+
+	public boolean isFlippedVertically()
+	{
+		return flippedVertically;
+	}
+
+	public void setFlippedVertically(boolean flippedVertically)
+	{
+		this.flippedVertically = flippedVertically;
+
+		this.updateImages();
+	}
+
+	public boolean isFlippedHorizontally()
+	{
+		return flippedHorizontally;
+	}
+
+	public void setFlippedHorizontally(boolean flippedHorizontally)
+	{
+		this.flippedHorizontally = flippedHorizontally;
+
+		this.updateImages();
+	}
+
+	@Override
+	public int getEmitterHeight()
+	{
+		return height;
+	}
+
+	public int getHeight()
+	{
+		return height;
+	}
+
+	public void setHeight(int height)
+	{
+		this.height = height;
+
+		this.updateImages();
+	}
+
+	public int getWidth()
+	{
+		return width;
+	}
+
+	@Override
+	public int getEmitterWidth()
+	{
+		return width;
+	}
+
+	public void setWidth(int width)
+	{
+		this.width = width;
+
+		this.updateImages();
+	}
+
+	public ParticleEmitterImpl getEmitter()
+	{
+		return emitter;
+	}
+
+	public String getGroup()
+	{
+		return this.group;
+	}
+
+	public boolean isDrawSubImages()
+	{
+		return drawSubImages;
+	}
+
+	public void setDrawSubImages(boolean drawSubImages)
+	{
+		this.drawSubImages = drawSubImages;
+	}
+
+	public boolean isShouldClip()
+	{
+		return shouldClip;
+	}
+
+	public void setShouldClip(boolean shouldClip)
+	{
+		this.shouldClip = shouldClip;
+	}
+
+	public boolean hasFoundTextures()
+	{
+		return foundTextures;
+	}
+
+	public String getCleanPath()
+	{
+		return cleanPath;
+	}
+
+	public boolean isStretchMode()
+	{
+		return stretchMode;
+	}
+
+	public void setStretchMode(boolean stretchMode)
+	{
+		this.stretchMode = stretchMode;
+	}
+
+	public void setMaxParticles(int maxParticles)
+	{
+		this.maxParticles = maxParticles;
+	}
+}
